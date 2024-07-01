@@ -1,0 +1,159 @@
+---
+title: "Explore ARTIS data"
+output: html_document
+date: "2024-06-12"
+---
+
+## Summary
+
+Pull and explore data from the ARTIS github:
+ - ARTIS API project: https://github.com/Seafood-Globalization-Lab/ARTIS-API
+    - I don't believe this is fully operational yet. 
+ - Explore ARTIS project: https://github.com/Seafood-Globalization-Lab/exploreARTIS
+
+Ok so seems like there isn't a sample ARTIS data set anywhere... I guess I could use the BACI trade data instead? Although I don't think that has live weight info.
+
+## Setup
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(here)
+library(tidyverse)
+library(glue)
+library(sf)
+library(devtools)
+
+# devtools::install_github("davidsjoberg/ggsankey")
+# devtools::install_github("Seafood-Globalization-Lab/exploreARTIS", dependencies = TRUE) # install explore ARTIS package
+
+library(ggsankey)
+library(exploreARTIS)
+
+load(here("data/artis_spatial.rda")) # load data that was stored on the exploreArtis github repo; looks like this is spatial information
+
+load(here("data/mini_artis.rda")) # load data that was stored on the exploreArtis github repo; looks like this is a subset of the artis database!
+
+load(here("data/mini_consumption.rda")) # looks like this is some consumption info where there is an intermdiate country involved?
+
+```
+
+
+Ok, so seems like the demo data that ARTIS provides has this information: 
+
+exporter_iso3c (string): Exporter Country ISO 3 code
+importer_iso3c (string): Importer Country ISO 3 code
+source_country_iso3c (string): Producer Country ISO 3 code
+dom_source (string): Domestic Export / Foreign Export / Error Export
+hs6 (string): 6-digit HS commodity code
+sciname (string): Species or Species group
+habitat (string): Marine / Freshwater
+method (string): Capture / Aquaculture / Unknown
+product_weight_t (double): Product weight (tonnes)
+live_weight_t (double): Live weight (tonnes)
+hs_version (string): version of HS codes
+year (double): Year
+
+
+HS code for fish meal (tonnage of FM) ----> linked to species type whole fish harvest (live weight)
+HS code fresh fish fillets (tonnage of fish fillets) ----> linked to species type whole fish harvest (live weight)
+
+Looks like for our purposes, we will probably just want the source country to begin. Lets filter for fish meal hs code: 230120
+
+```{r}
+
+fm_artis <- mini_artis %>% 
+  filter(hs6 == 230120)
+
+fm_artis # ok does the ARTIS database already exclude trimmings? Or would trimmings theoretically be a part of their fish meal estimates, just not acknowledged as such? For example, if Peru exports fish meal to Norway, does that export volume include all fish meal exported from Peru (which would theoretically have trimmings in it)? If so, then we would likely just need to redistribute some proportion of the current traded fish meal to trimmings raw material, based on information of the species it comes from, based on feed company reports and FAO data?
+
+# If trimmings is not already included in their fish meal estimates, then we will need to add it in somehow. So If a country is producing some fresh fish, like tuna, some of that goes towards trimmings. Do we just need to take a proportion of that live weight total of Tuna and attribute it to trimmings (e.g., whatever the excess live weight not used would be)? But then how do we track that information... using the same trade patterns of fish meal? We would likely have to assume that fish meal is processed in the same country as the fish capture/aquaculture. What if the trimmings country doesn't have fish meal trade, what do we do then? 
+
+# I'm guessing that the data gap is a combination of both of the problems listed above. 
+
+```
+
+ > Although an estimated 27% of fishmeal is derived from processing by-products, the species, geographical, and temporal variation in that estimate is currently unknown. Consequently, fishmeal is currently treated as sourced from whole fish reduction. This does not affect the total trade or trade patterns of fishmeal but does result in an overestimate of the proportion of production going to fishmeal in cases where byproducts are used.
+ 
+  - Ok, so this implies to me that their fishmeal estimates would include the trimmings values. Currently, they are overestimating the amount of fishmeal from whole fish. The total value of fish meal traded won't change, just how much is coming from forage fish vs trimmings fish will change. It is an accounting error. We would need to adjust that whole forage fish value to include the trimmings estimates. 
+  
+How has the % of trimmings included in FMFO changed over the years? This will be important if we hope to resolve this temporally. 
+ - IFFO report: https://www.iffo.com/product
+  - "the share of capture fisheries that was utilised for direct human consumption in 2018 was roughly 74 million tonnes and around 14million tonnes of the remaining capture fish was used as raw material to produce marine ingredients."
+ 
+![](imgs/By product over time_1.jpg)
+
+```{r}
+
+years <- c(1990, 1990, 2000, 2000, 2010, 2010, 2020, 2020, 2021, 2021, 2022, 2022, 2023, 2023)
+type <- rep(c("Whole fish", "By-products"), 7)
+percentage <- c(78.5, 21.5, 80, 20, 75, 25, 68, 32, 63, 37, 62, 38, 59, 41)
+
+# Combine into a dataframe
+trimmings_over_time <- data.frame(years, type, percentage)
+## ok so this is for all marine ingredients. Can we disaggregate this to fish meal vs fish oil? 
+
+
+## The IFFO report has this information for 2023:
+
+years <- 2023
+type <- c("Whole fish", "By-products")
+ingredient <- c("fishmeal", "fish oil")
+
+fmfo_2023 <- expand.grid(year = years, type = type, ingredient = ingredient) %>%
+  mutate(percentage = case_when(
+    type == "Whole fish" & ingredient == "fishmeal" ~ 62.3, 
+    type == "By-products" & ingredient == "fishmeal" ~ 37.7,
+    type == "Whole fish" & ingredient == "fish oil" ~ 45.5, 
+    type == "By-products" & ingredient == "fish oil" ~ 54.5, 
+  )) ## if we wanted to extrapolate this to previous years, we could use the trends from the total raw material data above? 
+
+
+# the iffo report also has the byproducts broken down by spp for fishmeal and oil
+
+## lets try to figure out how they got this info
+```
+
+
+https://www.iffo.com/sources-marine-ingredients-whole-fish-products
+
+Industrial-grade forage fish: Sandeels (Ammodytes spp.), Gulf menhaden (Brevoortia patronus), Atlantic menhaden (B. tyrannus), Norway pout (Trisopterus esmarkii).
+
+Food-grade forage fish: Anchoveta (Engraulis ringens), Japanese anchovy (E. japonicus), European anchovy (E. encrasicolus), Sardinellas (Sardinella spp.), Capelin (Mallotus villosus), Blue whiting (Micromesistius poutassou), European sprat (Sprattus sprattus).
+
+Food-fish: Chilean jack mackerel (Trachurus murphyi), Chub mackerel (Scomber japonicus), Japanese jack mackerel (T. japonicus), South American pilchard (Sardinops sagax), Pacific herring (Clupea pallasii pallasii), Indian mackerel (Rastrelliger kanagurta), Atlantic herring (C. harengus), Cape horse mackerel (T. capensis), European pilchard (Sardina pilchardus).
+
+
+http://www.fao.org/3/i2734e/i2734e.pdf
+One key point in the discussion of this paper is the text that reads: “In respect of “food grade forage fish”, it does not seem as if the fishmeal industry is withdrawing fish that food fish markets could have absorbed. The reverse seems to be the case: fishmeal plants make use of fish that the fresh fish market and the fish processing industries cannot absorb. This is definitely the case for the 8–10 million tonnes of fish that are processed yearly into fishmeal in Peru and Chile. It also seems likely to be the case for several of the “food-grade forage species” caught elsewhere.” 
+
+ - in laymans terms: Fish that could be consumed by humans aren't really used for FMFO. 
+ 
+  - Seems like they get all of their information from a article in this magazine edition, but have no references to datasets used. It must be in-house IFFO datasets they are using: https://issuu.com/aquafeed.com/docs/aquafeed_vol_13_issue_4_october_2021 
+ 
+ 
+SOFIA 2024:
+
+ > "Of the 185.4 million tonnes (live weight equivalent) of aquatic animals harvested globally in 2022, about 89 percent (164.6 million tonnes) was used for direct human consumption. The remaining 11 percent (20.8 million tonnes) was destined for non-food purposes, of which about 83 percent (17 million tonnes) was reduced to fishmeal and fish oil, while the rest (about 4 million tonnes) was largely utilized as ornamental fish, in aquaculture  (e.g. as fry, fingerlings or small adults for ongrowing), as bait, in pharmaceutical applications, for pet food, or as raw material for direct feeding in aquaculture and for the raising of livestock and fur animals." 
+ 
+   - This suggests 17 million tonnes of trimmings? 
+   - Maybe a small portion of the remaining 4 million tonnes are recycled to fish farms? 
+   
+
+ - They source food balanace sheets for non-food use of aquatic animals.
+ - They source the IFFO report for the by-product stuff... 
+ 
+ 
+ 
+Potential references: 
+ 
+ A SWOT Analysis of the Use of Marine, Grain, Terrestrial-Animal and Novel Protein Ingredients in Aquaculture Feeds: https://www.tandfonline.com/doi/full/10.1080/23308249.2024.2315049
+
+ 
+ Project to model the use of fisheries by-products in the production of marine ingredients with special reference to omega-3 fatty acids EPA and DHA: https://www.iffo.com/system/files/downloads/Report%20IoA%20IFFO%20project%20Final_0.pdf
+ 
+ - Reference "IFFO data and literature" in the report, so they probably get a lot of data from internal IFFO data and members like Jessica said. 
+ - Guessing they use this model for the IFFO blog listed above. 
+ 
+ 
+ 
