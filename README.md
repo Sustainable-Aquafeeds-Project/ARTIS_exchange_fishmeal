@@ -1,4 +1,4 @@
-# ARTIS_exchange_fmfo
+# ARTIS_exchange_fishmeal
 
 This repository is to start exploring the ARTIS Aquatic Resource Trade in Species database and their API, to begin work on our proposed project entitled "Resolving Trade Patterns of Seafood Byproducts for fishmeal in the ARTIS Database".
 
