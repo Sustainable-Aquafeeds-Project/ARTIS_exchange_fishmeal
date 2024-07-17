@@ -6,12 +6,7 @@ date: "2024-06-12"
 
 ## Summary
 
-Pull and explore data from the ARTIS github:
- - ARTIS API project: https://github.com/Seafood-Globalization-Lab/ARTIS-API
-    - I don't believe this is fully operational yet. 
- - Explore ARTIS project: https://github.com/Seafood-Globalization-Lab/exploreARTIS
-
-Ok so seems like there isn't a sample ARTIS data set anywhere... I guess I could use the BACI trade data instead? Although I don't think that has live weight info.
+ARTIS data for Australia requested and obtained from Jessica Gephart from ARTIS. 
 
 ## Setup
 
@@ -36,8 +31,12 @@ load(here("data/mini_artis.rda")) # load data that was stored on the exploreArti
 
 load(here("data/mini_consumption.rda")) # looks like this is some consumption info where there is an intermdiate country involved?
 
+artis_aus <- read.csv(here("data/artis_request_clawson.csv"))
+
 ```
 
+
+## Exploration
 
 Ok, so seems like the demo data that ARTIS provides has this information: 
 
@@ -56,26 +55,23 @@ year (double): Year
 
 
 HS code for fish meal (tonnage of FM) ----> linked to species type whole fish harvest (live weight)
-HS code fresh fish fillets (tonnage of fish fillets) ----> linked to species type whole fish harvest (live weight)
-
-Looks like for our purposes, we will probably just want the source country to begin. Lets filter for fish meal hs code: 230120
+   - however, it looks like there are some species which could be considered trimmings in this, as a result of error in model allocation
 
 ```{r}
 
-fm_artis <- mini_artis %>% 
-  filter(hs6 == 230120)
+View(artis_aus)
 
-fm_artis # ok does the ARTIS database already exclude trimmings? Or would trimmings theoretically be a part of their fish meal estimates, just not acknowledged as such? For example, if Peru exports fish meal to Norway, does that export volume include all fish meal exported from Peru (which would theoretically have trimmings in it)? If so, then we would likely just need to redistribute some proportion of the current traded fish meal to trimmings raw material, based on information of the species it comes from, based on feed company reports and FAO data?
-
-# If trimmings is not already included in their fish meal estimates, then we will need to add it in somehow. So If a country is producing some fresh fish, like tuna, some of that goes towards trimmings. Do we just need to take a proportion of that live weight total of Tuna and attribute it to trimmings (e.g., whatever the excess live weight not used would be)? But then how do we track that information... using the same trade patterns of fish meal? We would likely have to assume that fish meal is processed in the same country as the fish capture/aquaculture. What if the trimmings country doesn't have fish meal trade, what do we do then? 
-
-# I'm guessing that the data gap is a combination of both of the problems listed above. 
+# ok so my understanding is that the ARTIS database theoretically has trimmings as part of their fish meal estimates, just not acknowledged/specified as such? Meaning that the total amount of fishmeal reflects the actual total amount of fishmeal produced, they just have only allocate to whole fish like forage fish. For example, if Peru exports fish meal to Norway,  that export volume includes all fish meal exported from Peru (which would theoretically have trimmings in it). If this is the case, then we would likely need to redistribute some proportion of the current traded fish meal to trimmings raw material, based on information of the species it comes from, based on feed company reports and FAO data?
 
 ```
 
+  - Ok, so this implies to me that their fishmeal estimates would include the trimmings values. Currently, they are overestimating the amount of fishmeal from whole fish. The total value of fish meal traded won't change, just how much is coming from forage fish vs trimmings fish will change. It is an accounting error. We would need to adjust that whole forage fish value to include the trimmings estimates. 
+  
+  
+## Current knowledge 
+
  > Although an estimated 27% of fishmeal is derived from processing by-products, the species, geographical, and temporal variation in that estimate is currently unknown. Consequently, fishmeal is currently treated as sourced from whole fish reduction. This does not affect the total trade or trade patterns of fishmeal but does result in an overestimate of the proportion of production going to fishmeal in cases where byproducts are used.
  
-  - Ok, so this implies to me that their fishmeal estimates would include the trimmings values. Currently, they are overestimating the amount of fishmeal from whole fish. The total value of fish meal traded won't change, just how much is coming from forage fish vs trimmings fish will change. It is an accounting error. We would need to adjust that whole forage fish value to include the trimmings estimates. 
   
 How has the % of trimmings included in FMFO changed over the years? This will be important if we hope to resolve this temporally. 
  - IFFO report: https://www.iffo.com/product
@@ -114,6 +110,14 @@ fmfo_2023 <- expand.grid(year = years, type = type, ingredient = ingredient) %>%
 ## lets try to figure out how they got this info
 ```
 
+Biomar trimmings species reported
+
+
+```{r}
+
+```
+
+
 
 https://www.iffo.com/sources-marine-ingredients-whole-fish-products
 
@@ -137,10 +141,10 @@ SOFIA 2024:
  > "Of the 185.4 million tonnes (live weight equivalent) of aquatic animals harvested globally in 2022, about 89 percent (164.6 million tonnes) was used for direct human consumption. The remaining 11 percent (20.8 million tonnes) was destined for non-food purposes, of which about 83 percent (17 million tonnes) was reduced to fishmeal and fish oil, while the rest (about 4 million tonnes) was largely utilized as ornamental fish, in aquaculture  (e.g. as fry, fingerlings or small adults for ongrowing), as bait, in pharmaceutical applications, for pet food, or as raw material for direct feeding in aquaculture and for the raising of livestock and fur animals." 
  
    - This suggests 17 million tonnes of trimmings? 
-   - Maybe a small portion of the remaining 4 million tonnes are recycled to fish farms? 
+   - A portion of the remaining 4 million tonnes are recycled to fish farms for feed 
    
 
- - They source food balanace sheets for non-food use of aquatic animals.
+ - They source food balance sheets for non-food use of aquatic animals.
  - They source the IFFO report for the by-product stuff... 
  
  
@@ -155,5 +159,8 @@ Potential references:
  - Reference "IFFO data and literature" in the report, so they probably get a lot of data from internal IFFO data and members like Jessica said. 
  - Guessing they use this model for the IFFO blog listed above. 
  
- 
+
+Notes: 
+ - We have estimated biomass of FM. Do we make our estimates on just FM so that FO could potentially be added in the future. However, this would substantially underestimate(?) live weight for FM reported (compared to what Jessica currently has). 
+ - 
  
