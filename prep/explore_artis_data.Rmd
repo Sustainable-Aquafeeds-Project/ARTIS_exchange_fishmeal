@@ -18,18 +18,19 @@ library(tidyverse)
 library(glue)
 library(sf)
 library(devtools)
+library(janitor)
 
 # devtools::install_github("davidsjoberg/ggsankey")
 # devtools::install_github("Seafood-Globalization-Lab/exploreARTIS", dependencies = TRUE) # install explore ARTIS package
 
-library(ggsankey)
-library(exploreARTIS)
-
-load(here("data/artis_spatial.rda")) # load data that was stored on the exploreArtis github repo; looks like this is spatial information
-
-load(here("data/mini_artis.rda")) # load data that was stored on the exploreArtis github repo; looks like this is a subset of the artis database!
-
-load(here("data/mini_consumption.rda")) # looks like this is some consumption info where there is an intermdiate country involved?
+# library(ggsankey)
+# library(exploreARTIS)
+# 
+# load(here("data/artis_spatial.rda")) # load data that was stored on the exploreArtis github repo; looks like this is spatial information
+# 
+# load(here("data/mini_artis.rda")) # load data that was stored on the exploreArtis github repo; looks like this is a subset of the artis database!
+# 
+# load(here("data/mini_consumption.rda")) # looks like this is some consumption info where there is an intermdiate country involved?
 
 artis_aus <- read.csv(here("data/artis_request_clawson.csv"))
 
@@ -63,10 +64,45 @@ View(artis_aus)
 
 # ok so my understanding is that the ARTIS database theoretically has trimmings as part of their fish meal estimates, just not acknowledged/specified as such? Meaning that the total amount of fishmeal reflects the actual total amount of fishmeal produced, they just have only allocate to whole fish like forage fish. For example, if Peru exports fish meal to Norway,  that export volume includes all fish meal exported from Peru (which would theoretically have trimmings in it). If this is the case, then we would likely need to redistribute some proportion of the current traded fish meal to trimmings raw material, based on information of the species it comes from, based on feed company reports and FAO data?
 
+test <- artis_aus %>% 
+  mutate(cf = live_weight_t/product_weight_t)
+
 ```
 
   - Ok, so this implies to me that their fishmeal estimates would include the trimmings values. Currently, they are overestimating the amount of fishmeal from whole fish. The total value of fish meal traded won't change, just how much is coming from forage fish vs trimmings fish will change. It is an accounting error. We would need to adjust that whole forage fish value to include the trimmings estimates. 
   
+  
+  
+Summary of potential data prep: 
+ - find species used in trimmings and associated fishing areas for those species
+     - Add new column **method_2**: specifies if species is trimmings or wild capture or farming
+         - capture (e.g., species NOT in trimmings list and specified as capture in ARTIS)
+         - capture trimmings (e.g., species IN trimmings list and specified as capture in ARTIS, like Tuna spp)
+         - aquaculture trimmings (e.g., specified as aquaculture in ARTIS method column)
+         - unknown ; need to decide what to do about these observations for "method".. maybe just assume unless it is an "aquaculture" species specified elsewhere in the database, then it is "capture"? 
+      - QUESTION: *Do we only assume trimmings if the species is being sourced from one of the FAO areas that Biomar (and other reports if we can find them) lists for those trimmings spp?*
+         
+  - Column for possible for trimmings or possible for render; columns **trimmings** and **render**
+    - where possible for trimmings == yes and possible for render == no ===> all weight is from trimmings
+    - when you have double yes, we have to make decisions about how much to assume from trimmings (based on below info). 
+        
+ 
+ - trading flows; access to trimmings and how they are traded and distributed; which source countries create trimmings
+   - need to decide if trimmings will be allocated equally globally, or only to places with the best access to emerging markets (like trimmings)
+   - Cargill has info on warmwater vs coldwater; so we could apply more trimmings to coldwater places (i.e., countries that produces coldwater species like salmon) since coldwater species use more trimmings in their feeds (~10x more) according to Cargill
+   - For example: if there is an importer country that is a "coldwater" country (i.e., produces atlantic salmon), and imports trimmings from a species that could **potentially** be trimmings (see above), then we assume a higher percentage of source biomass imported is from trimmings for that species. Vice versa warmwater country will be lower percentage in the edge cases of "trimmings species". 
+          - Could do like a 10 to 1 difference based on the cargill feed types for warm vs cold water spp aquaculture
+   
+
+  
+
+Other notes: 
+  - conversion factor
+  - method (if it is trimmings or whole fish)
+  - sciname (any real standouts not included that should be trimmings; if this is the case, may need to adjust some of the raw data; jessica problem )
+ - species likely to be trimmings that we can identify (e.g., bluefin tuna, albacore, yellowfin would almost always be trimmings if that FM)
+ 
+
   
 ## Current knowledge 
 
@@ -162,5 +198,190 @@ Potential references:
 
 Notes: 
  - We have estimated biomass of FM. Do we make our estimates on just FM so that FO could potentially be added in the future. However, this would substantially underestimate(?) live weight for FM reported (compared to what Jessica currently has). 
- - 
- 
+
+
+```{r}
+fao_fish <- read.csv(file.path("/mnt/rdsi/raw_data/fao/FAO_fishstat_2020/global_capture_production_1950-2020.csv")) %>%
+  clean_names()
+
+test <- fao_fish %>%
+  filter(country_name == "Peru") %>%
+  distinct(country_name, asfis_species_name, asfis_species_name_1, fao_major_fishing_area_code, fao_major_fishing_area_name, unit_name)
+
+test2 <- fao_fish %>%
+    filter(fao_major_fishing_area_code == 27 | fao_major_fishing_area_code == 34 | fao_major_fishing_area_code == 37 | fao_major_fishing_area_code == 87) %>%
+  filter(str_detect(asfis_species_name_1, "Sardine|sardine")) %>%
+  filter(str_detect(asfis_species_name, "Sardine|sardine")) %>%
+  filter(asfis_species_name != "Pacific sardine") %>%
+  filter(x_2015 >0 |x_2016 >0 |x_2017 >0 |x_2018 >0 |x_2019 >0 |x_2020 >0 ) %>%
+    distinct(country_name, asfis_species_name, asfis_species_name_1, fao_major_fishing_area_code, fao_major_fishing_area_name, unit_name) %>%
+    dplyr::select(asfis_species_name, fao_major_fishing_area_code, country_name)
+
+
+## biomar tunas
+
+test2 <- fao_fish %>%
+    filter(fao_major_fishing_area_code == 87 | fao_major_fishing_area_code == 57) %>%
+  filter(str_detect(asfis_species_name_1, "Tunas, bonitos, billfishes")) %>%
+  filter(x_2015 >0 |x_2016 >0 |x_2017 >0 |x_2018 >0 |x_2019 >0 |x_2020 >0 ) %>%
+    distinct(country_name, asfis_species_name, asfis_species_name_1, fao_major_fishing_area_code, fao_major_fishing_area_name, unit_name) %>% 
+  filter(asfis_species_name %in% c("Albacore", "Bigeye tuna", "Longtail tuna", "Skipjack tuna", "Southern bluefin tuna", "Tuna-like fishes nei", "Yellowfin tuna", "Dogtooth tuna", "Atlantic bluefin tuna", "Tunas nei")) %>% ## excluding any species that could also be "mackerel" as biomar has a diff specification for these
+  dplyr::select(asfis_species_name, fao_major_fishing_area_code, country_name)
+
+  
+
+## biomar Pacific Mackerel Spp. 87, 77, 71
+
+test2 <- fao_fish %>%
+    filter(fao_major_fishing_area_code == 87 | fao_major_fishing_area_code == 77 | fao_major_fishing_area_code == 71) %>%
+  filter(str_detect(asfis_species_name, "Mackerel|mackerel")) %>%
+  filter(x_2015 >0 |x_2016 >0 |x_2017 >0 |x_2018 >0 |x_2019 >0 |x_2020 >0 ) %>%
+    distinct(country_name, asfis_species_name, asfis_species_name_1, fao_major_fishing_area_code, fao_major_fishing_area_name, unit_name) %>% 
+  dplyr::select(asfis_species_name, fao_major_fishing_area_code, country_name)
+
+
+## biomar Atlantic Mackerel Spp. 27, 34
+
+test2 <- fao_fish %>%
+    filter(fao_major_fishing_area_code == 27 | fao_major_fishing_area_code == 34) %>%
+  filter(str_detect(asfis_species_name, "Mackerel|mackerel")) %>%
+  filter(x_2015 >0 |x_2016 >0 |x_2017 >0 |x_2018 >0 |x_2019 >0 |x_2020 >0 ) %>%
+    distinct(country_name, asfis_species_name, asfis_species_name_1, fao_major_fishing_area_code, fao_major_fishing_area_name, unit_name) %>% 
+  dplyr::select(asfis_species_name, fao_major_fishing_area_code, country_name)
+
+## biomar Antarctic Krill 48
+
+test2 <- fao_fish %>%
+    filter(fao_major_fishing_area_code == 48) %>%
+  filter(str_detect(asfis_species_name, "Krill|krill")) %>%
+  filter(x_2015 >0 |x_2016 >0 |x_2017 >0 |x_2018 >0 |x_2019 >0 |x_2020 >0 ) %>%
+    distinct(country_name, asfis_species_name, asfis_species_name_1, fao_major_fishing_area_code, fao_major_fishing_area_name, unit_name) %>% 
+  dplyr::select(asfis_species_name, fao_major_fishing_area_code, country_name)
+
+
+
+## biomar Anchovy 47, 77, 37, 27, 34, 87, 61
+
+test2 <- fao_fish %>%
+    filter(fao_major_fishing_area_code == 47 | fao_major_fishing_area_code == 77 | fao_major_fishing_area_code == 37| fao_major_fishing_area_code == 27 | fao_major_fishing_area_code == 34 | fao_major_fishing_area_code == 87| fao_major_fishing_area_code == 61) %>%
+  filter(str_detect(asfis_species_name, "Anchovy|anchovy")) %>%
+  filter(x_2015 >0 |x_2016 >0 |x_2017 >0 |x_2018 >0 |x_2019 >0 |x_2020 >0 ) %>%
+    distinct(country_name, asfis_species_name, asfis_species_name_1, fao_major_fishing_area_code, fao_major_fishing_area_name, unit_name) %>% 
+  dplyr::select(asfis_species_name, fao_major_fishing_area_code, country_name) %>%
+  filter(asfis_species_name != "Anchoveta(=Peruvian anchovy)") # filter this out since we already did this for biomar
+
+## biomar Atlatic Cod 27
+
+test2 <- fao_fish %>%
+    filter(fao_major_fishing_area_code == 27) %>%
+  filter(str_detect(asfis_species_name, "Atlantic cod|Atlantic Cod")) %>%
+  filter(x_2015 >0 |x_2016 >0 |x_2017 >0 |x_2018 >0 |x_2019 >0 |x_2020 >0 ) %>%
+    distinct(country_name, asfis_species_name, asfis_species_name_1, fao_major_fishing_area_code, fao_major_fishing_area_name, unit_name) %>% 
+  dplyr::select(asfis_species_name, fao_major_fishing_area_code, country_name) %>%
+  filter(asfis_species_name != "North Atlantic codling")
+
+## biomar Araucanian Herring 87
+
+test2 <- fao_fish %>%
+    filter(fao_major_fishing_area_code == 87) %>%
+  filter(str_detect(asfis_species_name, "Araucanian herring")) %>%
+  filter(x_2015 >0 |x_2016 >0 |x_2017 >0 |x_2018 >0 |x_2019 >0 |x_2020 >0 ) %>%
+    distinct(country_name, asfis_species_name, asfis_species_name_1, fao_major_fishing_area_code, fao_major_fishing_area_name, unit_name) %>% 
+  dplyr::select(asfis_species_name, fao_major_fishing_area_code, country_name)
+
+
+## biomar Sardine 51
+
+test2 <- fao_fish %>%
+    filter(fao_major_fishing_area_code == 51) %>%
+  filter(str_detect(asfis_species_name, "Sardine|sardine")) %>%
+  filter(x_2015 >0 |x_2016 >0 |x_2017 >0 |x_2018 >0 |x_2019 >0 |x_2020 >0 ) %>%
+    distinct(country_name, asfis_species_name, asfis_species_name_1, fao_major_fishing_area_code, fao_major_fishing_area_name, unit_name) %>% 
+  dplyr::select(asfis_species_name, fao_major_fishing_area_code, country_name) %>%
+  filter(asfis_species_name != "Pacific sardine") ## bc this is already in biomar elsewhere
+
+
+## biomar Sprat 27  
+
+test2 <- fao_fish %>%
+    filter(fao_major_fishing_area_code == 27) %>%
+  filter(str_detect(asfis_species_name, "Sprat|sprat")) %>%
+  filter(x_2015 >0 |x_2016 >0 |x_2017 >0 |x_2018 >0 |x_2019 >0 |x_2020 >0 ) %>%
+    distinct(country_name, asfis_species_name, asfis_species_name_1, fao_major_fishing_area_code, fao_major_fishing_area_name, unit_name) %>% 
+  dplyr::select(asfis_species_name, fao_major_fishing_area_code, country_name)
+
+## biomar Alaska Pollock 67
+
+test2 <- fao_fish %>%
+    filter(fao_major_fishing_area_code == 67) %>%
+  filter(str_detect(asfis_species_name, "pollock|Pollock")) %>%
+  filter(x_2015 >0 |x_2016 >0 |x_2017 >0 |x_2018 >0 |x_2019 >0 |x_2020 >0 ) %>%
+    distinct(country_name, asfis_species_name, asfis_species_name_1, fao_major_fishing_area_code, fao_major_fishing_area_name, unit_name) %>% 
+  dplyr::select(asfis_species_name, fao_major_fishing_area_code, country_name)
+
+## biomar Pacific Sardine 77, 81, 61, 87
+
+test2 <- fao_fish %>%
+    filter(fao_major_fishing_area_code == 77 | fao_major_fishing_area_code == 81 | fao_major_fishing_area_code == 61 | fao_major_fishing_area_code == 87) %>%
+  filter(str_detect(asfis_species_name, "Pacific sardine")) %>%
+  filter(x_2015 >0 |x_2016 >0 |x_2017 >0 |x_2018 >0 |x_2019 >0 |x_2020 >0 ) %>%
+    distinct(country_name, asfis_species_name, asfis_species_name_1, fao_major_fishing_area_code, fao_major_fishing_area_name, unit_name) %>% 
+  dplyr::select(asfis_species_name, fao_major_fishing_area_code, country_name)
+
+
+## biomar Sandeel 27
+
+test2 <- fao_fish %>%
+    filter(fao_major_fishing_area_code == 27) %>%
+  filter(str_detect(asfis_species_name, "Sandeel")) %>%
+  filter(x_2015 >0 |x_2016 >0 |x_2017 >0 |x_2018 >0 |x_2019 >0 |x_2020 >0 ) %>%
+    distinct(country_name, asfis_species_name, asfis_species_name_1, fao_major_fishing_area_code, fao_major_fishing_area_name, unit_name) %>% 
+  dplyr::select(asfis_species_name, fao_major_fishing_area_code, country_name)
+
+
+## biomar Sardinella 34, 37
+
+test2 <- fao_fish %>%
+    filter(fao_major_fishing_area_code == 34 | fao_major_fishing_area_code == 37) %>%
+  filter(str_detect(asfis_species_name, "Sardinella|sardinella")) %>%
+  filter(x_2015 >0 |x_2016 >0 |x_2017 >0 |x_2018 >0 |x_2019 >0 |x_2020 >0 ) %>%
+    distinct(country_name, asfis_species_name, asfis_species_name_1, fao_major_fishing_area_code, fao_major_fishing_area_name, unit_name) %>% 
+  dplyr::select(asfis_species_name, fao_major_fishing_area_code, country_name)
+
+## biomar Menhaden	87, 61
+
+test2 <- fao_fish %>%
+    filter(fao_major_fishing_area_code == 87 | fao_major_fishing_area_code == 61) %>%
+  filter(str_detect(asfis_species_name, "Menhaden|menhaden")) %>%
+  filter(x_2015 >0 |x_2016 >0 |x_2017 >0 |x_2018 >0 |x_2019 >0 |x_2020 >0 ) %>%
+    distinct(country_name, asfis_species_name, asfis_species_name_1, fao_major_fishing_area_code, fao_major_fishing_area_name, unit_name) %>% 
+  dplyr::select(asfis_species_name, fao_major_fishing_area_code, country_name)
+
+
+```
+
+
+Farmed seafood byproducts
+
+Assume it is only Atlantic salmon, use only countries with FAO areas 87 and 27 based on Biomar
+
+ - not sure if this is even necessary, as we could just consider all atlantic salmon FM in artis to be trimmings but i'll do it anyways
+
+```{r}
+
+## read in aquaculture data from fao fishstat
+
+fao_aqua <- read.csv("/mnt/rdsi/raw_data/fao/FAO_fishstat_2020/global_aquaculture_production_1950_2020.csv") %>%
+  clean_names()
+
+test2 <- fao_aqua %>%
+    filter(fao_major_fishing_area_code == 87 | fao_major_fishing_area_code == 27) %>%
+  filter(str_detect(asfis_species_name, "Atlantic salmon")) %>%
+  filter(x_2015 >0 |x_2016 >0 |x_2017 >0 |x_2018 >0 |x_2019 >0 |x_2020 >0 ) %>%
+    distinct(country_name, asfis_species_name, asfis_species_name_1, fao_major_fishing_area_code, fao_major_fishing_area_name, unit_name) %>% 
+  dplyr::select(asfis_species_name, fao_major_fishing_area_code, country_name)
+
+
+
+```
+
