@@ -1,0 +1,498 @@
+---
+title: "Establish trimmings origins"
+output: html_document
+date: "2024-07-24"
+---
+
+## Summary
+
+
+## Setup
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(here)
+library(tidyverse)
+library(glue)
+library(sf)
+library(devtools)
+library(janitor)
+library(countrycode)
+library(taxize)
+library(qs)
+
+source(here("R/directories.R"))
+
+full_artis <- qs::qread(file.path(artis_dir, "full_artis_fm_fillet.qs"))
+
+fm_artis <- full_artis %>% 
+  filter(hs6 == 230120)
+
+fillet_artis <- full_artis %>%
+  filter(hs6 != 230120)
+
+
+artis_taxa <- read.csv(file.path(artis_dir, "artis_full_data/data/attribute tables/sciname.csv")) ## read in attribute table with common names
+```
+
+Testing: Join ARTIS dta to biomar and skretting information. Provide summary stats for how much info is missing. 
+
+
+```{r}
+fm_origins_df_fin <- read.csv(here("int/fishmeal_origins_biomar_skretting.csv")) %>%
+  dplyr::select(sciname, fao_fishing_area, country, iso3c, wholefish, trimmings, trim_prop, capture, data_source_feed, data_source_fao_area_country, feed_report_spp_name)
+
+artis_trimmings <- fm_artis %>%
+  left_join(artis_taxa) %>%
+#  filter(year == 2020) %>%
+  left_join(fm_origins_df_fin, by = c("sciname", "source_country_iso3c" = "iso3c")) %>% ## some duplicates
+  mutate(wholefish = ifelse(family == "salmonidae", "no", wholefish),
+         trimmings = ifelse(family == "salmonidae", "yes", trimmings),
+         trim_prop = ifelse(family == "salmonidae", 1, trim_prop)) %>%  # make all salmon trimmings no matter what 
+  mutate(trimmings = ifelse(method == "aquaculture", "yes", trimmings), # make any aquaculture method trimmings no matter what? 
+         wholefish = ifelse(method == "aquaculture", "no", wholefish),
+         trim_prop = ifelse(method == "aquaculture", 1, trim_prop)) %>%
+  mutate(capture = ifelse(method == "capture", "yes", capture)) %>%
+  mutate(capture = ifelse(method == "aquaculture", "no", capture)) %>%
+  mutate(trimmings = ifelse(str_detect(family, "scombridae"), "yes", trimmings),
+         wholefish = ifelse(str_detect(family, "scombridae"), "no", wholefish),
+         trim_prop = ifelse(str_detect(family, "scombridae"), 1, trim_prop)) %>% # # make any tuna catch trimmings 
+  left_join(artis_taxa) %>%  # get taxanomic info
+  distinct() %>%
+mutate(trim_liveweight = trim_prop*live_weight_t,
+    trim_product = trim_prop*product_weight_t, 
+    wholefish_liveweight = (1-trim_prop)*live_weight_t,
+    wholefish_product = (1-trim_prop)*product_weight_t) ## allocate with what info we have? 
+
+
+test <- artis_trimmings %>% filter(is.na(common_name)) ## 0 ok this is good! 
+
+## I think there are some duplicates, so i will need to see what is happening there. 
+
+duplicates <- artis_trimmings %>%
+  dplyr::select(-live_weight_t, -product_weight_t, -trim_liveweight, -trim_product) %>%
+  group_by_all() %>%
+  summarize(count = n()) %>%
+  filter(count > 1) ## no duplicates!!!??
+  
+
+### lets do some exploration on what is missing! 
+
+## check for 2020 
+
+## Species and countries that we have NO info on if it is trimmings or wholefish reduction
+test <- artis_trimmings %>%
+  filter(year == 2020) %>% 
+  filter(is.na(wholefish) & is.na(trimmings))
+
+sum(test$product_weight_t) # 748903.1
+sum(test$live_weight_t) # 2228142
+
+total_product_weight <- artis_trimmings %>% 
+  filter(year == 2020) %>%
+  pull(product_weight_t) %>%
+  sum() # 3697986
+
+total_live_weight <- artis_trimmings %>% 
+  filter(year == 2020) %>%
+  pull(live_weight_t) %>%
+  sum() # 11002272
+
+
+748903.1/total_product_weight # 0.2025165 product
+2228142/total_live_weight # 0.2025165 liveweight
+
+## ok about a fifth of FM production in 2020, we have no info for! 
+
+
+
+## trimmings only species
+test <- artis_trimmings %>%
+  filter(year == 2020) %>% 
+  filter(wholefish == "no" & trimmings == "yes") 
+
+sum(test$trim_product) # 941243.7
+sum(test$trim_liveweight) # 2800394
+
+
+941243.7/total_product_weight # 0.2545287 product
+2800394/total_live_weight # 0.2545287 liveweight
+## ok, ~25% we know for sure are used exclusively for trimmings... this includes crustaceans though, so I'm not actually confident in that 
+
+## lets take out crustaceans from that estimate to see
+
+# https://www.feedipedia.org/node/202#:~:text=Shrimp%20meal%20or%20shrimp%20waste,made%20of%20fresh%20water%20shrimps.
+# "Shrimp meal or shrimp waste meal is the undecomposed ground dried waste of shrimp. There are several types of shrimp meal on the market depending on the kind of raw material used. It can contain whole shrimps and/or shrimp parts such as the heads or shells. Shrimp meal may also be made of fresh water shrimps. Shrimp meal is a by-product of the shrimp industry. Approximately 70% of total shrimp landings become waste, so there is a tremendous tonnage of shrimp waste produced. A portion of the crude protein that is contained in shrimp meal is in the form of chitin, which is not readily digestible (Göhl, 1982)."
+
+## so it seems like shrimp could be "wholefish" or "trimmings". Need to do some research on this...
+
+# https://www.researchgate.net/publication/375923791_Potential_industrial_and_nutritional_applications_of_shrimp_by-products_a_review#:~:text=The%20main%20by%2Dproducts%20include,%2C%20and%20anti%2Doxidant%20properties.
+## This suggests that shrimp byproducts from processing make up 40-60% of the whole shrimp.. so seems likely that most fishmeal from shrimp would be from trimmings?
+
+# https://www.globalseafood.org/advocate/shrimp-processing-byproducts-find-many-uses/ ; this suggests the same thing and specifically says the byproducts are used to make feeds
+
+test <- artis_trimmings %>%
+  filter(year == 2020) %>% 
+  filter(wholefish == "no" & trimmings == "yes") %>%
+  filter(phylum != "arthropoda")
+
+sum(test$trim_product) # 739300.6
+sum(test$trim_liveweight) # 2199572
+
+
+739300.6/total_product_weight # 0.1999198 product
+2199572/total_live_weight # 0.1999198 live weight
+
+
+
+
+
+## species that can be wholefish or trimmings
+
+test <- artis_trimmings %>%
+  filter(year == 2020) %>% 
+  filter(wholefish == "yes" & trimmings == "yes")
+
+sum(test$trim_product) # 591726.4
+sum(test$trim_liveweight) # 1760508
+
+
+
+591726.4/total_product_weight # 0.1600132 product trimmings 
+1760508/total_live_weight # 0.1600132 liveweight trimmings
+
+
+sum(test$wholefish_product) # 1232488
+sum(test$wholefish_liveweight) # 3666906
+
+1232488/total_product_weight # 0.3332863 product trimmings 
+3666906/total_live_weight # 0.3332863 liveweight trimmings
+
+
+## so now we are estimating ~41% of FM comes from trimmings, not including any of the missing species we have. IFFO reports 32% for 2020
+## without crustaceans included in that it is ~36%
+
+
+## species and areas we know for sure are only wholefish
+
+test <- artis_trimmings %>%
+  filter(year == 2020) %>% 
+  filter(wholefish == "yes" & trimmings == "no")
+
+sum(test$product_weight_t) # 183624.7
+sum(test$live_weight_t) # 546321.5
+
+
+
+183624.7/total_product_weight # 0.04965684 product
+546321.5/total_live_weight # 0.04965683 liveweight
+## we know for sure wholefish is ~5% + 34% = 39%
+
+## so if we believe IFFO, then most of the remaining 20% should be mostly wholefish rendered? These numbers seem high for trimmings! 
+
+```
+
+
+Right now we're matching based on iso3c and sciname. We could first gapfill by taxa first and then use price data. However, this would assume that trimmings inclusion is the same regardless of origin. 
+
+Let's try that, with the average proportion inclusion. And if it is a yes once, then we assume it is a yes everywhere.
+
+```{r}
+
+missing_artis_info <- artis_trimmings %>%
+  filter(year == 2020) %>%
+  filter(is.na(trimmings) & is.na(wholefish))
+
+## gapfill the both trimmings and wholefish species. For this, we will assume that no matter where the species comes from, the inclusion rate is the same (an average... probably change this to weighted average or something)
+# so if a species is listed as trimmings and wholefish in one place, we will gapfill if that species is traded as fishmeal elsewhere when we don't have info 
+
+wholefish_trimmings_spp <- artis_trimmings %>%
+    filter(year == 2020, 
+           trimmings == "yes",
+         wholefish == "yes") %>%
+ # distinct(sciname, trim_prop, trimmings, wholefish,) %>%
+  group_by(sciname, trimmings, wholefish) %>%
+  summarise(trim_prop = weighted.mean(trim_prop, live_weight_t, na.rm = TRUE)) %>%
+  ungroup()
+
+gapfill_missing_1 <- missing_artis_info %>%
+  dplyr::select(-trim_prop, -trimmings, -wholefish) %>%
+  left_join(wholefish_trimmings_spp) %>%
+  filter(!is.na(trimmings))
+# ok that gapfilling only fixes 1448 observations
+
+## lets do the same thing but with the wholefish only species 
+
+
+wholefish_spp <- artis_trimmings  %>%
+    filter(year == 2020, 
+           trimmings == "no",
+         wholefish == "yes") %>%
+  # distinct(sciname, trim_prop, trimmings, wholefish) %>%
+  group_by(sciname, trimmings, wholefish) %>%
+  summarise(trim_prop = weighted.mean(trim_prop, live_weight_t, na.rm = TRUE)) %>%
+  ungroup() %>%
+  filter(!(sciname %in% c(gapfill_missing_1$sciname)))
+
+gapfill_missing_2 <- missing_artis_info %>%
+  dplyr::select(-trim_prop, -trimmings, -wholefish) %>%
+  left_join(wholefish_spp) %>%
+  filter(!is.na(trimmings))
+
+# ok that gapfilling only fixes 881 observations
+
+## lets do the same thing but with the trimmings only species
+
+trimmings_spp <- artis_trimmings  %>%
+  filter(year == 2020) %>% 
+    filter(trimmings == "yes",
+         wholefish == "no") %>%
+ # distinct(sciname, trim_prop, trimmings, wholefish) %>%
+  group_by(sciname, trimmings, wholefish) %>%
+  summarise(trim_prop = weighted.mean(trim_prop, live_weight_t, na.rm = TRUE)) %>%
+  ungroup() %>%
+    filter(!(sciname %in% c(gapfill_missing_1$sciname))) %>%
+    filter(!(sciname %in% c(gapfill_missing_2$sciname)))
+
+gapfill_missing_3 <- missing_artis_info %>%
+  dplyr::select(-trim_prop, -trimmings, -wholefish) %>%
+  left_join(trimmings_spp) %>%
+  filter(!is.na(trimmings))
+
+ # ok that gapfilling fixes 28846 observations
+
+## so if we did the species level gapfilling first, as above, we would have ~75k to still gapfill with prices
+
+gapfilling_spp_level <- rbind(gapfill_missing_1, gapfill_missing_2, gapfill_missing_3) # ok now we have ~29k more rows with info
+
+
+missing_artis_info_new <- missing_artis_info %>% 
+  filter(!(sciname %in% c(unique(gapfilling_spp_level$sciname)))) # filter those rows out of the original missing info
+
+nrow(missing_artis_info_new) # 78979
+nrow(gapfilling_spp_level) # 14355
+14355 + 78979 # 93334 
+nrow(missing_artis_info) # 93334 perfect!
+
+full_artis_gapfill_spp <- rbind(missing_artis_info_new, gapfilling_spp_level) %>%
+  rbind(., artis_trimmings %>%   filter(year == 2020, !is.na(trimmings) & !is.na(wholefish))) %>%
+  mutate(trim_liveweight = trim_prop*live_weight_t,
+    trim_product = trim_prop*product_weight_t, 
+    wholefish_liveweight = (1-trim_prop)*live_weight_t,
+    wholefish_product = (1-trim_prop)*product_weight_t) ## allocate with what info we have? 
+
+test <- artis_trimmings %>% filter(year == 2020)
+ 
+nrow(full_artis_gapfill_spp) == nrow(test) # TRUE - perfect! 
+
+
+## now lets check the stats again
+
+### lets do some exploration on what is missing! 
+
+## check for 2020 
+
+## Species and countries that we have NO info on if it is trimmings or wholefish reduction
+test <- full_artis_gapfill_spp %>%
+  filter(year == 2020) %>% 
+  filter(is.na(wholefish) & is.na(trimmings))
+
+lw <- sum(test$product_weight_t)
+pw <- sum(test$live_weight_t) 
+
+total_product_weight <- full_artis_gapfill_spp %>% 
+  filter(year == 2020) %>%
+  pull(product_weight_t) %>%
+  sum() 
+
+total_live_weight <- full_artis_gapfill_spp %>% 
+  filter(year == 2020) %>%
+  pull(live_weight_t) %>%
+  sum() 
+
+
+lw/total_product_weight # 0.1783523 product
+pw/total_live_weight # 0.1783523 liveweight
+
+## ok now down to 18% of FM production in 2020, we have no info for! 
+
+
+
+## trimmings only species
+test <- full_artis_gapfill_spp %>%
+  filter(year == 2020) %>% 
+  filter(wholefish == "no" & trimmings == "yes") 
+
+pw = sum(test$trim_product) # 
+lw = sum(test$trim_liveweight) # 
+
+
+pw/total_product_weight # 0.2739991 product
+lw/total_live_weight # 0.2739991 liveweight
+## ok, ~26% we know for sure are used exclusively for trimmings... this includes crustaceans though, so I'm not actually confident in that 
+
+## lets take out crustaceans from that estimate to see
+
+test <- full_artis_gapfill_spp %>%
+  filter(year == 2020) %>% 
+  filter(wholefish == "no" & trimmings == "yes") %>%
+  filter(phylum != "arthropoda")
+
+pw = sum(test$trim_product) # 
+lw = sum(test$trim_liveweight) # 
+
+
+pw/total_product_weight # 0.2146011 product
+lw/total_live_weight # 0.2146011 live weight
+
+
+
+
+
+## species that can be wholefish or trimmings
+
+test <- full_artis_gapfill_spp %>%
+  filter(year == 2020) %>% 
+  filter(wholefish == "yes" & trimmings == "yes")
+
+pw = sum(test$trim_product) # 
+lw = sum(test$trim_liveweight) # 
+
+
+
+pw/total_product_weight # 0.1611577 product trimmings 
+lw/total_live_weight # 0.1611577 liveweight trimmings
+
+
+sum(test$wholefish_product) # 
+sum(test$wholefish_liveweight) # 
+
+1234089/total_product_weight # 0.3337192 product wholefish 
+3671668/total_live_weight # 0.3337192 liveweight wholefish
+
+
+## so now we are estimating ~43% of FM comes from trimmings, not including any of the missing species we have. IFFO reports 32% for 2020
+## without crustaceans included in that it is ~37%
+
+
+## species and areas we know for sure are only wholefish
+
+test <- full_artis_gapfill_spp %>%
+  filter(year == 2020) %>% 
+  filter(wholefish == "yes" & trimmings == "no")
+
+sum(test$product_weight_t) # 195149.4
+sum(test$live_weight_t) # 580609.8
+
+
+
+195149.4/total_product_weight # 0.05277181 product
+580609.8/total_live_weight # 0.05277181 liveweight
+## we know for sure wholefish is ~5% + 34% = 39%
+
+## so if we believe IFFO, then most of the remaining 18% should be mostly wholefish rendered
+
+```
+
+Let's identify trimmed species by getting species which are filleted
+
+```{r}
+
+fillet_2020 <- fillet_artis %>% 
+  filter(year == 2020) %>%
+  distinct(source_country_iso3c, exporter_iso3c, importer_iso3c, sciname) %>%
+  mutate(filleted = "yes")
+
+
+missing_artis_fillet <- missing_artis_info_new %>%
+  left_join(fillet_2020)
+
+
+
+test <- missing_artis_fillet %>% 
+  group_by(filleted) %>%
+  summarise(n(),
+            lw_sum = sum(live_weight_t))
+
+## if we allocated all filleted species, then would add 6% more to trimmings.. so that would be ~49% from trimmings
+678748.1/total_live_weight # 0.06169163
+
+1283532.1/total_live_weight # 0.1166606
+```
+
+
+ Gapfilling: 
+ - look into prices of fish to determine trimmings or wholefish rendered spp
+  - e.g., a high value fish like tuna is not going to be rendered whole fish to fish meal (we already account for this above, but the example stands)
+  - e.g., Lobster is high value, if there is FM from lobster, it is likely all trimmings
+
+```{r}
+## use price data to inform trimmings spp; for example, nobody will be catching snapper for wholefish rendering into FM.. if the fish is above a certain $$ ====> trimmings.. there is price data on rdsi specifically for FMFO.. Establish this cutoff price based on yearly prices. Can also incorporate fishmeal prices.. e.g. they wont render spp that exceed value of FM 
+ # - join ts of FM to price data
+
+
+prices <- read.csv("/mnt/rdsi/raw_data/sea-around-us/ex-vessel-prices/outputFMFO2021-03-12.csv")
+taxa <- read.csv("/mnt/rdsi/raw_data/sea-around-us/ex-vessel-prices/taxa.csv")
+
+entity <- read.csv("/mnt/rdsi/raw_data/sea-around-us/ex-vessel-prices/fishing_entity.csv") %>%
+  dplyr::select(-X) %>%
+  mutate(iso3c = countrycode(sourcevar = name, origin = "country.name", destination = "iso3c"))
+
+prices_taxa <- prices %>% 
+  left_join(., taxa, by = "TaxonKey") %>%
+    clean_names() %>%
+  left_join(., entity, by = "fishing_entity_id") %>%
+  mutate(sciname = tolower(taxon_name),
+         common_name = tolower(common_name)) %>%
+  dplyr::select(source_country_iso3c = iso3c, sciname, common_name, iso3c, year, price2010usd_mean, price2010usd_ci) %>%
+  filter(!is.na(source_country_iso3c)) %>% # filter out territories for now
+  filter(year == 2016) %>% # filter for 2016 for testing
+  dplyr::select(-year, -common_name)
+
+
+missing_artis_info <- artis_trimmings %>%
+  filter(is.na(wholefish) & is.na(trimmings)) %>%
+  filter(year == 2020)
+
+
+missing_taxa_prices <- missing_artis_info %>%
+  # dplyr::select(sciname) %>%
+  # distinct(sciname) %>%
+  left_join(prices_taxa, by = c("sciname", "source_country_iso3c")) %>%
+  distinct()
+## ~half don't have price info.. so will need to use some sort of mean, or if available a price from a prior year 
+
+
+## ok lets look at species which we know are wholefish ONLY and see what their prices are like
+
+wholefish_only <- artis_trimmings %>%
+  filter(wholefish == "yes",
+         trimmings == "no", 
+         year == 2020) %>%
+  left_join(prices_taxa, by = c("sciname", "source_country_iso3c")) %>%
+  distinct() %>%
+  filter(common_name != "antarctic krill")
+
+## missing prices for ~25%
+
+## max price is $324 
+
+## ok lets look at species which we know are both wholefish and trimmings and see what their prices are like
+
+wholefish_trimmings_only <- artis_trimmings %>%
+  filter(wholefish == "yes",
+         trimmings == "yes", 
+         year == 2020) %>%
+  left_join(prices_taxa, by = c("sciname", "source_country_iso3c")) %>%
+  distinct() %>%
+  dplyr::select(source_country_iso3c, exporter_iso3c, importer_iso3c, sciname, method, trim_prop, common_name, price2010usd_mean)
+
+summary(wholefish_trimmings_only)
+## missing prices for ~20%
+
+## pretty variable prices across trimmings inclusion rates
+## max price is ~1000USD 
+
+
+```

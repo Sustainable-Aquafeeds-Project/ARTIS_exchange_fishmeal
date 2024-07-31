@@ -26,7 +26,7 @@ Create a dataset which describes for every country and FAO fishing area the spec
 **Do the above for each species and area listed in the biomar, skretting, and IFFO reports**
 
 
-**NOTE:** Consider filtering the ARTIS database for country origins rather than the FAO capture database. 
+**NOTE:** Consider filtering the ARTIS database for country origins rather than the FAO capture database? It should be the same, right? And this would avoid weird name mismatches. Although ARTIS doesn't include FAO fishing areas...
 
 ## Setup
 
@@ -41,8 +41,16 @@ library(devtools)
 library(janitor)
 library(countrycode)
 library(taxize)
+library(qs)
+
+source(here("R/directories.R"))
 
 artis_aus <- read.csv(here("data/artis_request_clawson.csv"))
+
+full_artis <- qs::qread(file.path(artis_dir, "full_artis_fm_fillet.qs"))
+
+fm_artis <- full_artis %>% 
+  filter(hs6 == 230120)
 
 ```
 
@@ -507,7 +515,7 @@ fm_origins_df <- rbind(fm_origins_df, biomar_sprat)
 
 
 head(biomar_trimmings, 17) 
-## biomar Pacific Sardine 77, 81, 61, 87 ; treat it same way we do atlantic sardine
+## biomar Pacific Sardine 77, 81, 61, 87 ; treat it same way we do atlantic sardine; also filter for south american pilchard for common name... nevermind, they don't use that. 
  
 
 biomar_p_sardine <- fao_fish %>% 
@@ -1197,8 +1205,8 @@ Clean the data:
 
  - Split "Channel Islands" into GGY and JEY; 2 separate rows 
  - remove any duplicates 
- - fix missing scientific names of higher level taxon names
- 
+ - fix mismatched or missing scientific names of higher level taxon names by matching to ARTIS lookup table on `common_name`: `ARTIS/artis_full_data/data/attribute tables/sciname.csv`
+
  
 ```{r}
 channel_islands_df <- fm_origins_df %>%
@@ -1211,160 +1219,53 @@ fm_origins_df_fin <- fm_origins_df %>%
   filter(country != "Channel Islands") %>%
   rbind(., channel_islands_df) %>%
   distinct() %>%
-    mutate(sciname = ifelse(common_name == "Ridge scaled rattail", "Macrourus carinatus", sciname)) # fix this one
+    mutate(sciname = ifelse(common_name == "Ridge scaled rattail", "Macrourus carinatus", sciname)) %>% # fix this one
+  mutate(common_name = tolower(common_name))
+
+
+write.csv(fm_origins_df_fin, here("int/fishmeal_origins_biomar_skretting_raw.csv"), row.names = FALSE)
 
 ## filter artis data for one word scinames
 
-artis_family_names <- artis_aus %>% 
+artis_family_names <- fm_artis %>% 
     filter(str_count(sciname, "\\S+") == 1) %>%
   pull(sciname) %>%
   unique() %>%
   data.frame()
 
+artis_genus_df <- read.csv(file.path(artis_dir, "artis_full_data/data/attribute tables/sciname.csv")) ## read in attribute table with common names
+
+
 trim_family_names <- fm_origins_df_fin %>%
-  filter(is.na(sciname))
+  filter(is.na(sciname)) %>%
+  dplyr::select(-sciname) %>%
+  left_join(artis_genus_df, by = "common_name") %>%
+  mutate(sciname = ifelse(common_name %in% c("herrings, sardines nei"), "clupeidae,clupea,clupeiformes", sciname)) %>% # fix this one
+      separate_rows(sciname, sep = ",")
+
+
+test <- trim_family_names %>% 
+  filter(is.na(sciname)) ## still missing one
+  
 
 ## add scinames to the larger taxanomic family names that are listed in the ARTIS database. We should have no NAs in sciname now
 fm_origins_df_names <- fm_origins_df_fin %>%
-  mutate(sciname = ifelse(common_name == "Sardinellas nei", "sardinella", sciname),
-         sciname = ifelse(common_name %in% c("Tuna-like fishes nei", "Tunas nei"), "thunnus", sciname),
-         sciname = ifelse(common_name %in% c("Frigate and bullet tunas"), "auxis", sciname),
-         sciname = ifelse(common_name %in% c("Grenadiers, rattails nei"), "macrouridae", sciname),
-         sciname = ifelse(common_name %in% c("Herrings, sardines nei"), "clupeidae,clupea,clupeiformes", sciname),
-         sciname = ifelse(common_name %in% c("Sandeels(=Sandlances) nei"), "ammodytes", sciname),
-         sciname = ifelse(common_name %in% c("Stolephorus anchovies nei"), "stolephorus", sciname),
-         sciname = ifelse(common_name %in% c("Anchovies, etc. nei"), "engraulidae,engraulis", sciname)) %>%
-    separate_rows(sciname, sep = ",") %>%
+  filter(!is.na(sciname)) %>%
+mutate(
+         common_name = ifelse(common_name == "pacific sardine", "south american pilchard", common_name)) %>% #  ## just missing "pacific sardine", which is sardinops sagax, common name is reported as south american pilchard in ARTIS.. we'll use what is listed in ARTIS for the name
   mutate(country = ifelse(country == "Other nei", "unknown", country),
          iso3c = ifelse(country == "unknown", "unknown", iso3c)) %>%
-  mutate(sciname = tolower(sciname))
-
-# engraulidae, engraulis
-
-test <- fm_origins_df_names %>%
-  filter(str_detect(sciname, ","))
-
-trim_family_names <- fm_origins_df_names %>%
-  filter(is.na(sciname))
+  mutate(sciname = tolower(sciname)) %>%
+  dplyr::select(-sciname) %>%
+  left_join(artis_genus_df, by = "common_name") # keep artis scinames
 
 
-write.csv(fm_origins_df_names, here("int/fishmeal_origins_biomar_skretting.csv"), row.names = FALSE)
+trim_family_names_fin <- fm_origins_df_names %>%
+  rbind(., trim_family_names) %>%
+  dplyr::relocate(sciname)
+
+
+write.csv(trim_family_names_fin, here("int/fishmeal_origins_biomar_skretting.csv"), row.names = FALSE)
 
 ```
  
-
-Testing: Join to artis data for australia
-
-
-```{r}
-fm_origins_df_fin <- read.csv(here("int/fishmeal_origins_biomar_skretting.csv"))
-
-artis_aus_trimmings <- artis_aus %>%
-  left_join(fm_origins_df_fin, by = c("sciname", "source_country_iso3c" = "iso3c")) %>%
- # mutate(wholefish = ifelse(is.na(fao_fishing_area), "yes", wholefish)) %>% # if it is not in the trimmings data from feed reports, then it can be from wholefish fisheries
-  mutate(wholefish = ifelse(sciname == "salmo salar", "no", wholefish),
-         trimmings = ifelse(sciname == "salmo salar", "yes", trimmings)) %>%  # make all salmo salar trimmings no matter what? 
-  mutate(trimmings = ifelse(method == "aquaculture", "yes", trimmings), # make any aquaculture method trimmings no matter what? 
-         wholefish = ifelse(method == "aquaculture", "no", wholefish)) %>%
-  mutate(capture = ifelse(method == "capture", "yes", capture)) %>%
-  mutate(capture = ifelse(method == "aquaculture", "no", capture)) %>%
-  mutate(trimmings = ifelse(str_detect(sciname, "thunnus"), "yes", trimmings),
-         wholefish = ifelse(str_detect(sciname, "thunnus"), "no", wholefish)) 
-# %>% # make any tuna catch method trimmings no matter what?
-  # mutate(trim_liveweight = trim_prop*live_weight_t,
-    #     trim_product = trim_prop*product_weight_t)
-
-
-test <- artis_aus_trimmings %>%
-  filter(str_count(sciname, "\\S+") == 1)
-  
-  
-test <- artis_aus_trimmings %>%
-  filter(year == 2020) %>% 
-  filter(is.na(wholefish) & is.na(trimmings))
-
-sum(test$product_weight_t) # 9880.987
-sum(test$live_weight_t) # 29397.98
-
-artis_aus_trimmings %>% 
-  filter(year == 2020) %>%
-  pull(product_weight_t) %>%
-  sum() # 37542.96
-
-artis_aus_trimmings %>% 
-  filter(year == 2020) %>%
-  pull(live_weight_t) %>%
-  sum() # 111698.1
-
-
-9880.987/37542.96 # 0.2631915 product
-29397.98/111698.1 # 0.2631914 liveweight
-
-
-## need to know:
-## prop of spp that we consider trimmings only that are in our data that there was info for
-
-## trimmings only
-test <- artis_aus_trimmings %>%
-  filter(year == 2020) %>% 
-  filter(wholefish == "no" & trimmings == "yes")
-
-sum(test$product_weight_t) # 8836.265
-sum(test$live_weight_t) # 26289.71
-
-
-8836.265/37542.96 # 0.2353641 product
-26289.71/111698.1 # 0.235364 liveweight
-
-
-test <- artis_aus_trimmings %>%
-  filter(year == 2020) %>% 
-  filter(wholefish == "yes" & trimmings == "yes")
-
-sum(test$product_weight_t) # 15955.14
-sum(test$live_weight_t) # 47469.85
-
-
-
-15955.14/37542.96 # 0.4249835 product
-47469.85/111698.1 # 0.4249835 liveweight
-
-
-## only wholefish
-
-test <- artis_aus_trimmings %>%
-  filter(year == 2020) %>% 
-  filter(wholefish == "yes" & trimmings == "no")
-
-sum(test$product_weight_t) # 2870.567
-sum(test$live_weight_t) # 8540.53
-
-
-
-2870.567/37542.96 # 0.07646086 product
-8540.53/111698.1 # 0.07646084 liveweight
-
-## need to figure out larger taxanomic family name joining... for example, Sardinella nei in our data vs. "sardinella" in artis data
-# /mnt/rdsi/raw_data/sea-around-us/ex-vessel-prices/outputFMFO2021-03-12.csv
-
-## use price data to inform trimmings spp; for example, nobody will be catching snapper for wholefish rendering into FM.. if the fish is above a certain $$ ====> trimmings.. there is price data on rdsi specifically for FMFO.. Establish this cutoff price based on yearly prices. Can also incorporate fishmeal prices.. e.g. they wont render spp that exceed value of FM 
- # - join ts of FM to price data
-
-
-prices <- read.csv("/mnt/rdsi/raw_data/sea-around-us/ex-vessel-prices/outputFMFO2021-03-12.csv")
-taxa <- read.csv("/mnt/rdsi/raw_data/sea-around-us/ex-vessel-prices/taxa.csv")
-
-prices_taxa <- prices %>% 
-  left_join(., taxa, by = "TaxonKey") %>%
-  mutate(TaxonName = tolower(TaxonName))
-
-
-test_prices <- test %>%
-  dplyr::select(sciname) %>%
-  distinct(sciname) %>%
-  left_join(prices_taxa, by = c("sciname" = "TaxonName")) %>%
-  filter(!str_detect(CommonName, "Lobster|lobster|prawn|Prawn|crab|Crab|shrimp|Shrimp"))
-
-```
-
-
