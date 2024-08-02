@@ -1,0 +1,65 @@
+---
+title: "Cargill material origins"
+output: html_document
+date: "2024-07-24"
+---
+
+
+```{r setup}
+
+knitr::opts_chunk$set(echo = TRUE)
+
+library(here)
+library(tidyverse)
+library(glue)
+library(sf)
+library(devtools)
+library(janitor)
+library(countrycode)
+library(taxize)
+library(qs)
+
+source(here("R/directories.R"))
+
+
+```
+
+## Summary
+
+Cargill reports forage fish and trimmings amounts for warmwater and coldwater feeds, on pages 45-46 of their [sustainability report](https://www.cargill.com/sustainability/aquaculture/aquaculture-sustainability-reporting). Here we take this information and figure out weightings for each species (and country combination) of how much of their raw materials come from trimmings vs forage fish. 
+
+## Methods
+
+```{r}
+cargill_raw <- read.csv(here("data/Trimmings info - cargill_origins.csv"))
+
+## group by species, countries, raw material type and get tonnage
+
+cargill_grouped <- cargill_raw %>%
+  separate_rows(countries, sep = ",") %>%
+  mutate(countries = trimws(countries)) %>%
+  group_by(sciname, common_name, countries, raw_material) %>%
+  summarise(tonnes = sum(tonnes, na.rm = TRUE)) %>%
+  ungroup() %>%
+  group_by(sciname, common_name, countries) %>%
+  mutate(total_tonnes = sum(tonnes, na.rm = TRUE)) %>%
+  ungroup() %>%
+    pivot_wider(names_from = raw_material, values_from = tonnes) %>%
+  mutate(trimmings_tonnes = ifelse(is.na(trimmings), 0, trimmings),
+         forage_tonnes = ifelse(is.na(`forage fish`), 0, `forage fish`)) %>%
+  mutate(trim_prop = trimmings_tonnes/total_tonnes,
+         forage_prop = forage_tonnes/total_tonnes) %>%
+  mutate(wholefish = ifelse(forage_prop > 0, "yes", "no"),
+         trimmings = ifelse(trim_prop > 0, "yes", "no")) %>%
+  dplyr::select(sciname, common_name, country = countries, wholefish, trimmings, trim_prop, trimmings_tonnes, wholefish_tonnes = forage_tonnes) %>%
+  mutate(country = ifelse(country == "Mauretania", "Mauritania", country)) %>% # fix typo
+  mutate(data_source_feed = "cargill", 
+         data_source_fao_area_country = NA,
+         feed_report_spp_name = common_name, 
+         iso3c = countrycode(sourcevar = country, origin = "country.name", destination = "iso3c"))
+  
+
+write.csv(cargill_grouped, here("int/material_origins_cargill.csv"), row.names = FALSE)
+  
+```
+

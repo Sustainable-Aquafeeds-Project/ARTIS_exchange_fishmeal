@@ -1,0 +1,561 @@
+"sciname","common_name","fao_fishing_area","country","iso3c","wholefish","trimmings","trim_prop","capture","data_source_feed","data_source_fao_area_country","feed_report_spp_name","trimmings_tonnes","wholefish_tonnes"
+"Clupea harengus","atlantic herring",27,"Belgium","BEL","yes","yes",0.78,"yes","biomar","FishStat capture","Atlantic Herring",37805.82,10663.18
+"Clupea harengus","atlantic herring",27,"Denmark","DNK","yes","yes",0.78,"yes","biomar","FishStat capture","Atlantic Herring",37805.82,10663.18
+"Clupea harengus","atlantic herring",27,"Estonia","EST","yes","yes",0.78,"yes","biomar","FishStat capture","Atlantic Herring",37805.82,10663.18
+"Clupea harengus","atlantic herring",27,"Faroe Islands","FRO","yes","yes",0.78,"yes","biomar","FishStat capture","Atlantic Herring",37805.82,10663.18
+"Clupea harengus","atlantic herring",27,"Finland","FIN","yes","yes",0.78,"yes","biomar","FishStat capture","Atlantic Herring",37805.82,10663.18
+"Clupea harengus","atlantic herring",27,"France","FRA","yes","yes",0.78,"yes","biomar","FishStat capture","Atlantic Herring",37805.82,10663.18
+"Clupea harengus","atlantic herring",27,"Germany","DEU","yes","yes",0.78,"yes","biomar","FishStat capture","Atlantic Herring",37805.82,10663.18
+"Clupea harengus","atlantic herring",27,"Greenland","GRL","yes","yes",0.78,"yes","biomar","FishStat capture","Atlantic Herring",37805.82,10663.18
+"Clupea harengus","atlantic herring",27,"Iceland","ISL","yes","yes",0.78,"yes","biomar","FishStat capture","Atlantic Herring",37805.82,10663.18
+"Clupea harengus","atlantic herring",27,"Ireland","IRL","yes","yes",0.78,"yes","biomar","FishStat capture","Atlantic Herring",37805.82,10663.18
+"Clupea harengus","atlantic herring",27,"Isle of Man","IMN","yes","yes",0.78,"yes","biomar","FishStat capture","Atlantic Herring",37805.82,10663.18
+"Clupea harengus","atlantic herring",27,"Latvia","LVA","yes","yes",0.78,"yes","biomar","FishStat capture","Atlantic Herring",37805.82,10663.18
+"Clupea harengus","atlantic herring",27,"Lithuania","LTU","yes","yes",0.78,"yes","biomar","FishStat capture","Atlantic Herring",37805.82,10663.18
+"Clupea harengus","atlantic herring",27,"Netherlands","NLD","yes","yes",0.78,"yes","biomar","FishStat capture","Atlantic Herring",37805.82,10663.18
+"Clupea harengus","atlantic herring",27,"Norway","NOR","yes","yes",0.78,"yes","biomar","FishStat capture","Atlantic Herring",37805.82,10663.18
+"Clupea harengus","atlantic herring",27,"Poland","POL","yes","yes",0.78,"yes","biomar","FishStat capture","Atlantic Herring",37805.82,10663.18
+"Clupea harengus","atlantic herring",27,"Russian Federation","RUS","yes","yes",0.78,"yes","biomar","FishStat capture","Atlantic Herring",37805.82,10663.18
+"Clupea harengus","atlantic herring",27,"Spain","ESP","yes","yes",0.78,"yes","biomar","FishStat capture","Atlantic Herring",37805.82,10663.18
+"Clupea harengus","atlantic herring",27,"Sweden","SWE","yes","yes",0.78,"yes","biomar","FishStat capture","Atlantic Herring",37805.82,10663.18
+"Clupea harengus","atlantic herring",27,"United Kingdom","GBR","yes","yes",0.78,"yes","biomar","FishStat capture","Atlantic Herring",37805.82,10663.18
+"Engraulis ringens","anchoveta(=peruvian anchovy)",87,"Chile","CHL","yes","yes",0.15,"yes","biomar","FishStat capture","Peruvian Anchoveta",5893.65,33397.35
+"Engraulis ringens","anchoveta(=peruvian anchovy)",87,"Ecuador","ECU","yes","yes",0.15,"yes","biomar","FishStat capture","Peruvian Anchoveta",5893.65,33397.35
+"Engraulis ringens","anchoveta(=peruvian anchovy)",87,"Peru","PER","yes","yes",0.15,"yes","biomar","FishStat capture","Peruvian Anchoveta",5893.65,33397.35
+"Micromesistius poutassou","blue whiting(=poutassou)",27,"Denmark","DNK","yes","yes",0.02,"yes","biomar","FishStat capture","Blue Whiting",647.16,31710.84
+"Micromesistius poutassou","blue whiting(=poutassou)",27,"Faroe Islands","FRO","yes","yes",0.02,"yes","biomar","FishStat capture","Blue Whiting",647.16,31710.84
+"Micromesistius poutassou","blue whiting(=poutassou)",27,"France","FRA","yes","yes",0.02,"yes","biomar","FishStat capture","Blue Whiting",647.16,31710.84
+"Micromesistius poutassou","blue whiting(=poutassou)",27,"Germany","DEU","yes","yes",0.02,"yes","biomar","FishStat capture","Blue Whiting",647.16,31710.84
+"Micromesistius poutassou","blue whiting(=poutassou)",27,"Greenland","GRL","yes","yes",0.02,"yes","biomar","FishStat capture","Blue Whiting",647.16,31710.84
+"Micromesistius poutassou","blue whiting(=poutassou)",27,"Iceland","ISL","yes","yes",0.02,"yes","biomar","FishStat capture","Blue Whiting",647.16,31710.84
+"Micromesistius poutassou","blue whiting(=poutassou)",27,"Ireland","IRL","yes","yes",0.02,"yes","biomar","FishStat capture","Blue Whiting",647.16,31710.84
+"Micromesistius poutassou","blue whiting(=poutassou)",27,"Lithuania","LTU","yes","yes",0.02,"yes","biomar","FishStat capture","Blue Whiting",647.16,31710.84
+"Micromesistius poutassou","blue whiting(=poutassou)",27,"Netherlands","NLD","yes","yes",0.02,"yes","biomar","FishStat capture","Blue Whiting",647.16,31710.84
+"Micromesistius poutassou","blue whiting(=poutassou)",27,"Norway","NOR","yes","yes",0.02,"yes","biomar","FishStat capture","Blue Whiting",647.16,31710.84
+"Micromesistius poutassou","blue whiting(=poutassou)",27,"Poland","POL","yes","yes",0.02,"yes","biomar","FishStat capture","Blue Whiting",647.16,31710.84
+"Micromesistius poutassou","blue whiting(=poutassou)",27,"Portugal","PRT","yes","yes",0.02,"yes","biomar","FishStat capture","Blue Whiting",647.16,31710.84
+"Micromesistius poutassou","blue whiting(=poutassou)",27,"Russian Federation","RUS","yes","yes",0.02,"yes","biomar","FishStat capture","Blue Whiting",647.16,31710.84
+"Micromesistius poutassou","blue whiting(=poutassou)",27,"Spain","ESP","yes","yes",0.02,"yes","biomar","FishStat capture","Blue Whiting",647.16,31710.84
+"Micromesistius poutassou","blue whiting(=poutassou)",27,"Sweden","SWE","yes","yes",0.02,"yes","biomar","FishStat capture","Blue Whiting",647.16,31710.84
+"Micromesistius poutassou","blue whiting(=poutassou)",27,"United Kingdom","GBR","yes","yes",0.02,"yes","biomar","FishStat capture","Blue Whiting",647.16,31710.84
+"Mallotus villosus","capelin",27,"Faroe Islands","FRO","yes","yes",0.6,"yes","biomar","FishStat capture","Capelin",11593.2,7728.8
+"Mallotus villosus","capelin",27,"France","FRA","yes","yes",0.6,"yes","biomar","FishStat capture","Capelin",11593.2,7728.8
+"Mallotus villosus","capelin",27,"Greenland","GRL","yes","yes",0.6,"yes","biomar","FishStat capture","Capelin",11593.2,7728.8
+"Mallotus villosus","capelin",27,"Iceland","ISL","yes","yes",0.6,"yes","biomar","FishStat capture","Capelin",11593.2,7728.8
+"Mallotus villosus","capelin",27,"Norway","NOR","yes","yes",0.6,"yes","biomar","FishStat capture","Capelin",11593.2,7728.8
+"Mallotus villosus","capelin",27,"Russian Federation","RUS","yes","yes",0.6,"yes","biomar","FishStat capture","Capelin",11593.2,7728.8
+"Mallotus villosus","capelin",27,"Spain","ESP","yes","yes",0.6,"yes","biomar","FishStat capture","Capelin",11593.2,7728.8
+"Thunnus obesus","bigeye tuna",57,"Australia","AUS","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+"Thunnus tonggol","longtail tuna",57,"Australia","AUS","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+"Katsuwonus pelamis","skipjack tuna",57,"Australia","AUS","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+"Thunnus maccoyii","southern bluefin tuna",57,"Australia","AUS","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+NA,"tuna-like fishes nei",57,"Australia","AUS","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+"Thunnus albacares","yellowfin tuna",57,"Australia","AUS","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+"Thunnus obesus","bigeye tuna",87,"Chile","CHL","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+"Katsuwonus pelamis","skipjack tuna",87,"Chile","CHL","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+"Thunnus albacares","yellowfin tuna",87,"Chile","CHL","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+"Thunnus obesus","bigeye tuna",57,"China","CHN","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+"Thunnus obesus","bigeye tuna",87,"China","CHN","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+"Thunnus albacares","yellowfin tuna",57,"China","CHN","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+"Thunnus albacares","yellowfin tuna",87,"China","CHN","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+"Thunnus obesus","bigeye tuna",87,"Colombia","COL","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+"Katsuwonus pelamis","skipjack tuna",87,"Colombia","COL","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+NA,"tuna-like fishes nei",87,"Colombia","COL","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+"Thunnus albacares","yellowfin tuna",87,"Colombia","COL","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+"Thunnus obesus","bigeye tuna",87,"Ecuador","ECU","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+NA,"frigate and bullet tunas",87,"Ecuador","ECU","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+"Katsuwonus pelamis","skipjack tuna",87,"Ecuador","ECU","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+NA,"tuna-like fishes nei",87,"Ecuador","ECU","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+"Thunnus albacares","yellowfin tuna",87,"Ecuador","ECU","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+"Thunnus obesus","bigeye tuna",87,"El Salvador","SLV","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+"Katsuwonus pelamis","skipjack tuna",87,"El Salvador","SLV","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+"Thunnus albacares","yellowfin tuna",87,"El Salvador","SLV","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+"Thunnus obesus","bigeye tuna",57,"France","FRA","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+"Katsuwonus pelamis","skipjack tuna",57,"France","FRA","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+"Thunnus albacares","yellowfin tuna",57,"France","FRA","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+"Thunnus obesus","bigeye tuna",57,"India","IND","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+"Auxis rochei","bullet tuna",57,"India","IND","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+"Auxis thazard","frigate tuna",57,"India","IND","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+"Thunnus tonggol","longtail tuna",57,"India","IND","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+"Katsuwonus pelamis","skipjack tuna",57,"India","IND","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+"Thunnus albacares","yellowfin tuna",57,"India","IND","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+"Thunnus obesus","bigeye tuna",57,"Indonesia","IDN","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+"Auxis rochei","bullet tuna",57,"Indonesia","IDN","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+"Gymnosarda unicolor","dogtooth tuna",57,"Indonesia","IDN","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+"Auxis thazard","frigate tuna",57,"Indonesia","IDN","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+"Thunnus tonggol","longtail tuna",57,"Indonesia","IDN","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+"Katsuwonus pelamis","skipjack tuna",57,"Indonesia","IDN","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+"Thunnus maccoyii","southern bluefin tuna",57,"Indonesia","IDN","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+NA,"tuna-like fishes nei",57,"Indonesia","IDN","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+"Thunnus albacares","yellowfin tuna",57,"Indonesia","IDN","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+"Thunnus obesus","bigeye tuna",57,"Japan","JPN","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+"Thunnus obesus","bigeye tuna",87,"Japan","JPN","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+"Katsuwonus pelamis","skipjack tuna",57,"Japan","JPN","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+"Katsuwonus pelamis","skipjack tuna",87,"Japan","JPN","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+"Thunnus maccoyii","southern bluefin tuna",57,"Japan","JPN","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+"Thunnus albacares","yellowfin tuna",57,"Japan","JPN","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+"Thunnus albacares","yellowfin tuna",87,"Japan","JPN","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+"Thunnus obesus","bigeye tuna",57,"Korea, Republic of","KOR","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+"Thunnus obesus","bigeye tuna",87,"Korea, Republic of","KOR","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+"Katsuwonus pelamis","skipjack tuna",57,"Korea, Republic of","KOR","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+"Katsuwonus pelamis","skipjack tuna",87,"Korea, Republic of","KOR","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+"Thunnus maccoyii","southern bluefin tuna",57,"Korea, Republic of","KOR","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+NA,"tuna-like fishes nei",57,"Korea, Republic of","KOR","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+NA,"tuna-like fishes nei",87,"Korea, Republic of","KOR","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+"Thunnus albacares","yellowfin tuna",57,"Korea, Republic of","KOR","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+"Thunnus albacares","yellowfin tuna",87,"Korea, Republic of","KOR","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+"Thunnus obesus","bigeye tuna",57,"Malaysia","MYS","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+"Auxis thazard","frigate tuna",57,"Malaysia","MYS","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+"Thunnus tonggol","longtail tuna",57,"Malaysia","MYS","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+"Katsuwonus pelamis","skipjack tuna",57,"Malaysia","MYS","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+NA,"tuna-like fishes nei",57,"Malaysia","MYS","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+"Thunnus albacares","yellowfin tuna",57,"Malaysia","MYS","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+"Thunnus obesus","bigeye tuna",87,"Mexico","MEX","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+"Katsuwonus pelamis","skipjack tuna",87,"Mexico","MEX","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+"Thunnus albacares","yellowfin tuna",87,"Mexico","MEX","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+"Thunnus obesus","bigeye tuna",87,"Nicaragua","NIC","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+"Katsuwonus pelamis","skipjack tuna",87,"Nicaragua","NIC","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+"Thunnus albacares","yellowfin tuna",87,"Nicaragua","NIC","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+"Thunnus thynnus","atlantic bluefin tuna",57,"Other nei",NA,"no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+"Thunnus obesus","bigeye tuna",57,"Other nei",NA,"no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+"Katsuwonus pelamis","skipjack tuna",57,"Other nei",NA,"no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+"Thunnus albacares","yellowfin tuna",57,"Other nei",NA,"no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+"Thunnus obesus","bigeye tuna",87,"Panama","PAN","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+"Katsuwonus pelamis","skipjack tuna",87,"Panama","PAN","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+"Thunnus albacares","yellowfin tuna",87,"Panama","PAN","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+"Auxis rochei","bullet tuna",87,"Peru","PER","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+NA,"frigate and bullet tunas",87,"Peru","PER","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+"Katsuwonus pelamis","skipjack tuna",87,"Peru","PER","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+NA,"tuna-like fishes nei",87,"Peru","PER","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+"Thunnus albacares","yellowfin tuna",87,"Peru","PER","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+"Thunnus obesus","bigeye tuna",57,"Philippines","PHL","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+"Katsuwonus pelamis","skipjack tuna",57,"Philippines","PHL","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+"Thunnus albacares","yellowfin tuna",57,"Philippines","PHL","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+"Katsuwonus pelamis","skipjack tuna",87,"Poland","POL","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+"Thunnus obesus","bigeye tuna",57,"Portugal","PRT","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+"Thunnus obesus","bigeye tuna",87,"Portugal","PRT","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+"Thunnus albacares","yellowfin tuna",57,"Portugal","PRT","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+"Thunnus albacares","yellowfin tuna",87,"Portugal","PRT","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+"Thunnus obesus","bigeye tuna",57,"Seychelles","SYC","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+"Katsuwonus pelamis","skipjack tuna",57,"Seychelles","SYC","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+"Thunnus albacares","yellowfin tuna",57,"Seychelles","SYC","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+"Thunnus obesus","bigeye tuna",57,"Spain","ESP","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+"Thunnus obesus","bigeye tuna",87,"Spain","ESP","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+"Katsuwonus pelamis","skipjack tuna",57,"Spain","ESP","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+"Katsuwonus pelamis","skipjack tuna",87,"Spain","ESP","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+NA,"tuna-like fishes nei",87,"Spain","ESP","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+NA,"tunas nei",87,"Spain","ESP","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+"Thunnus albacares","yellowfin tuna",57,"Spain","ESP","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+"Thunnus albacares","yellowfin tuna",87,"Spain","ESP","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+"Thunnus obesus","bigeye tuna",57,"Sri Lanka","LKA","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+"Auxis rochei","bullet tuna",57,"Sri Lanka","LKA","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+NA,"frigate and bullet tunas",57,"Sri Lanka","LKA","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+"Auxis thazard","frigate tuna",57,"Sri Lanka","LKA","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+"Thunnus tonggol","longtail tuna",57,"Sri Lanka","LKA","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+"Katsuwonus pelamis","skipjack tuna",57,"Sri Lanka","LKA","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+NA,"tuna-like fishes nei",57,"Sri Lanka","LKA","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+"Thunnus albacares","yellowfin tuna",57,"Sri Lanka","LKA","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+"Thunnus obesus","bigeye tuna",57,"Taiwan Province of China","TWN","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+"Thunnus obesus","bigeye tuna",87,"Taiwan Province of China","TWN","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+"Thunnus tonggol","longtail tuna",57,"Taiwan Province of China","TWN","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+"Katsuwonus pelamis","skipjack tuna",57,"Taiwan Province of China","TWN","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+"Katsuwonus pelamis","skipjack tuna",87,"Taiwan Province of China","TWN","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+"Thunnus maccoyii","southern bluefin tuna",57,"Taiwan Province of China","TWN","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+"Thunnus albacares","yellowfin tuna",57,"Taiwan Province of China","TWN","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+"Thunnus albacares","yellowfin tuna",87,"Taiwan Province of China","TWN","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+"Thunnus obesus","bigeye tuna",57,"Tanzania, United Rep. of","TZA","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+"Thunnus obesus","bigeye tuna",57,"Thailand","THA","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+"Auxis thazard","frigate tuna",57,"Thailand","THA","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+"Thunnus tonggol","longtail tuna",57,"Thailand","THA","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+"Katsuwonus pelamis","skipjack tuna",57,"Thailand","THA","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+"Thunnus albacares","yellowfin tuna",57,"Thailand","THA","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+NA,"tuna-like fishes nei",57,"Timor-Leste","TLS","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+"Thunnus albacares","yellowfin tuna",57,"Timor-Leste","TLS","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+"Thunnus albacares","yellowfin tuna",57,"United Kingdom","GBR","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+"Thunnus obesus","bigeye tuna",87,"United States of America","USA","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+"Katsuwonus pelamis","skipjack tuna",87,"United States of America","USA","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+"Thunnus albacares","yellowfin tuna",87,"United States of America","USA","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+"Thunnus obesus","bigeye tuna",87,"Vanuatu","VUT","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+"Katsuwonus pelamis","skipjack tuna",87,"Vanuatu","VUT","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+"Thunnus albacares","yellowfin tuna",87,"Vanuatu","VUT","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+"Thunnus obesus","bigeye tuna",87,"Venezuela (Boliv Rep of)","VEN","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+"Katsuwonus pelamis","skipjack tuna",87,"Venezuela (Boliv Rep of)","VEN","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+"Thunnus albacares","yellowfin tuna",87,"Venezuela (Boliv Rep of)","VEN","no","yes",1,"yes","biomar","FishStat capture","Tuna Spp.",18375,0
+"Scomberomorus guttatus","indo-pacific king mackerel",71,"Brunei Darussalam","BRN","yes","yes",0.97,"yes","biomar","FishStat capture","Pacific Mackerel Spp.",1492.83,15094.17
+"Scomber japonicus","pacific chub mackerel",87,"Chile","CHL","yes","yes",0.97,"yes","biomar","FishStat capture","Pacific Mackerel Spp.",1492.83,15094.17
+"Scomber japonicus","pacific chub mackerel",87,"China","CHN","yes","yes",0.97,"yes","biomar","FishStat capture","Pacific Mackerel Spp.",1492.83,15094.17
+"Scomber japonicus","pacific chub mackerel",87,"Ecuador","ECU","yes","yes",0.97,"yes","biomar","FishStat capture","Pacific Mackerel Spp.",1492.83,15094.17
+"Scomber japonicus","pacific chub mackerel",87,"Germany","DEU","yes","yes",0.97,"yes","biomar","FishStat capture","Pacific Mackerel Spp.",1492.83,15094.17
+"Scomberomorus guttatus","indo-pacific king mackerel",71,"Indonesia","IDN","yes","yes",0.97,"yes","biomar","FishStat capture","Pacific Mackerel Spp.",1492.83,15094.17
+"Scomber japonicus","pacific chub mackerel",87,"Korea, Republic of","KOR","yes","yes",0.97,"yes","biomar","FishStat capture","Pacific Mackerel Spp.",1492.83,15094.17
+"Scomber japonicus","pacific chub mackerel",71,"Korea, Republic of","KOR","yes","yes",0.97,"yes","biomar","FishStat capture","Pacific Mackerel Spp.",1492.83,15094.17
+"Scomber japonicus","pacific chub mackerel",87,"Lithuania","LTU","yes","yes",0.97,"yes","biomar","FishStat capture","Pacific Mackerel Spp.",1492.83,15094.17
+"Scomber japonicus","pacific chub mackerel",77,"Mexico","MEX","yes","yes",0.97,"yes","biomar","FishStat capture","Pacific Mackerel Spp.",1492.83,15094.17
+"Trachurus symmetricus","pacific jack mackerel",77,"Mexico","MEX","yes","yes",0.97,"yes","biomar","FishStat capture","Pacific Mackerel Spp.",1492.83,15094.17
+"Scomber japonicus","pacific chub mackerel",87,"Netherlands","NLD","yes","yes",0.97,"yes","biomar","FishStat capture","Pacific Mackerel Spp.",1492.83,15094.17
+"Scomber japonicus","pacific chub mackerel",87,"Peru","PER","yes","yes",0.97,"yes","biomar","FishStat capture","Pacific Mackerel Spp.",1492.83,15094.17
+"Scomber japonicus","pacific chub mackerel",71,"Philippines","PHL","yes","yes",0.97,"yes","biomar","FishStat capture","Pacific Mackerel Spp.",1492.83,15094.17
+"Scomber japonicus","pacific chub mackerel",87,"Poland","POL","yes","yes",0.97,"yes","biomar","FishStat capture","Pacific Mackerel Spp.",1492.83,15094.17
+"Scomber japonicus","pacific chub mackerel",87,"Russian Federation","RUS","yes","yes",0.97,"yes","biomar","FishStat capture","Pacific Mackerel Spp.",1492.83,15094.17
+"Scomber japonicus","pacific chub mackerel",77,"United States of America","USA","yes","yes",0.97,"yes","biomar","FishStat capture","Pacific Mackerel Spp.",1492.83,15094.17
+"Scomber japonicus","pacific chub mackerel",87,"Vanuatu","VUT","yes","yes",0.97,"yes","biomar","FishStat capture","Pacific Mackerel Spp.",1492.83,15094.17
+"Sardina pilchardus","european pilchard(=sardine)",37,"Albania","ALB","yes","yes",0.8,"yes","biomar","FishStat capture","Atlantic Sardine",11882.4,2970.6
+"Sardina pilchardus","european pilchard(=sardine)",37,"Algeria","DZA","yes","yes",0.8,"yes","biomar","FishStat capture","Atlantic Sardine",11882.4,2970.6
+NA,"sardinellas nei",37,"Algeria","DZA","yes","yes",0.8,"yes","biomar","FishStat capture","Atlantic Sardine",11882.4,2970.6
+"Sardina pilchardus","european pilchard(=sardine)",27,"Belgium","BEL","yes","yes",0.8,"yes","biomar","FishStat capture","Atlantic Sardine",11882.4,2970.6
+"Sardina pilchardus","european pilchard(=sardine)",34,"Belize","BLZ","yes","yes",0.8,"yes","biomar","FishStat capture","Atlantic Sardine",11882.4,2970.6
+NA,"sardinellas nei",34,"Belize","BLZ","yes","yes",0.8,"yes","biomar","FishStat capture","Atlantic Sardine",11882.4,2970.6
+NA,"sardinellas nei",34,"Benin","BEN","yes","yes",0.8,"yes","biomar","FishStat capture","Atlantic Sardine",11882.4,2970.6
+"Sardina pilchardus","european pilchard(=sardine)",37,"Bulgaria","BGR","yes","yes",0.8,"yes","biomar","FishStat capture","Atlantic Sardine",11882.4,2970.6
+"Sardinella maderensis","madeiran sardinella",34,"Cameroon","CMR","yes","yes",0.8,"yes","biomar","FishStat capture","Atlantic Sardine",11882.4,2970.6
+"Sardinella aurita","round sardinella",34,"Cameroon","CMR","yes","yes",0.8,"yes","biomar","FishStat capture","Atlantic Sardine",11882.4,2970.6
+NA,"sardinellas nei",34,"Cameroon","CMR","yes","yes",0.8,"yes","biomar","FishStat capture","Atlantic Sardine",11882.4,2970.6
+"Sardina pilchardus","european pilchard(=sardine)",34,"China","CHN","yes","yes",0.8,"yes","biomar","FishStat capture","Atlantic Sardine",11882.4,2970.6
+NA,"sardinellas nei",34,"China","CHN","yes","yes",0.8,"yes","biomar","FishStat capture","Atlantic Sardine",11882.4,2970.6
+"Sardinella maderensis","madeiran sardinella",34,"Congo","COG","yes","yes",0.8,"yes","biomar","FishStat capture","Atlantic Sardine",11882.4,2970.6
+"Sardinella aurita","round sardinella",34,"Congo","COG","yes","yes",0.8,"yes","biomar","FishStat capture","Atlantic Sardine",11882.4,2970.6
+NA,"sardinellas nei",34,"Congo","COG","yes","yes",0.8,"yes","biomar","FishStat capture","Atlantic Sardine",11882.4,2970.6
+"Sardina pilchardus","european pilchard(=sardine)",37,"Croatia","HRV","yes","yes",0.8,"yes","biomar","FishStat capture","Atlantic Sardine",11882.4,2970.6
+"Sardinella aurita","round sardinella",37,"Croatia","HRV","yes","yes",0.8,"yes","biomar","FishStat capture","Atlantic Sardine",11882.4,2970.6
+"Sardina pilchardus","european pilchard(=sardine)",37,"Cyprus","CYP","yes","yes",0.8,"yes","biomar","FishStat capture","Atlantic Sardine",11882.4,2970.6
+NA,"herrings, sardines nei",37,"Cyprus","CYP","yes","yes",0.8,"yes","biomar","FishStat capture","Atlantic Sardine",11882.4,2970.6
+"Sardinella aurita","round sardinella",37,"Cyprus","CYP","yes","yes",0.8,"yes","biomar","FishStat capture","Atlantic Sardine",11882.4,2970.6
+"Sardinella maderensis","madeiran sardinella",34,"Côte d'Ivoire","CIV","yes","yes",0.8,"yes","biomar","FishStat capture","Atlantic Sardine",11882.4,2970.6
+"Sardinella aurita","round sardinella",34,"Côte d'Ivoire","CIV","yes","yes",0.8,"yes","biomar","FishStat capture","Atlantic Sardine",11882.4,2970.6
+NA,"sardinellas nei",34,"Côte d'Ivoire","CIV","yes","yes",0.8,"yes","biomar","FishStat capture","Atlantic Sardine",11882.4,2970.6
+"Sardina pilchardus","european pilchard(=sardine)",34,"Denmark","DNK","yes","yes",0.8,"yes","biomar","FishStat capture","Atlantic Sardine",11882.4,2970.6
+"Sardina pilchardus","european pilchard(=sardine)",27,"Denmark","DNK","yes","yes",0.8,"yes","biomar","FishStat capture","Atlantic Sardine",11882.4,2970.6
+NA,"sardinellas nei",37,"Egypt","EGY","yes","yes",0.8,"yes","biomar","FishStat capture","Atlantic Sardine",11882.4,2970.6
+"Sardina pilchardus","european pilchard(=sardine)",27,"France","FRA","yes","yes",0.8,"yes","biomar","FishStat capture","Atlantic Sardine",11882.4,2970.6
+"Sardina pilchardus","european pilchard(=sardine)",37,"France","FRA","yes","yes",0.8,"yes","biomar","FishStat capture","Atlantic Sardine",11882.4,2970.6
+"Sardinella aurita","round sardinella",37,"France","FRA","yes","yes",0.8,"yes","biomar","FishStat capture","Atlantic Sardine",11882.4,2970.6
+NA,"sardinellas nei",34,"Gambia","GMB","yes","yes",0.8,"yes","biomar","FishStat capture","Atlantic Sardine",11882.4,2970.6
+"Sardina pilchardus","european pilchard(=sardine)",34,"Georgia","GEO","yes","yes",0.8,"yes","biomar","FishStat capture","Atlantic Sardine",11882.4,2970.6
+NA,"sardinellas nei",34,"Georgia","GEO","yes","yes",0.8,"yes","biomar","FishStat capture","Atlantic Sardine",11882.4,2970.6
+"Sardina pilchardus","european pilchard(=sardine)",34,"Germany","DEU","yes","yes",0.8,"yes","biomar","FishStat capture","Atlantic Sardine",11882.4,2970.6
+"Sardina pilchardus","european pilchard(=sardine)",27,"Germany","DEU","yes","yes",0.8,"yes","biomar","FishStat capture","Atlantic Sardine",11882.4,2970.6
+"Sardinella maderensis","madeiran sardinella",34,"Germany","DEU","yes","yes",0.8,"yes","biomar","FishStat capture","Atlantic Sardine",11882.4,2970.6
+"Sardinella aurita","round sardinella",34,"Germany","DEU","yes","yes",0.8,"yes","biomar","FishStat capture","Atlantic Sardine",11882.4,2970.6
+"Sardinella maderensis","madeiran sardinella",34,"Ghana","GHA","yes","yes",0.8,"yes","biomar","FishStat capture","Atlantic Sardine",11882.4,2970.6
+"Sardinella aurita","round sardinella",34,"Ghana","GHA","yes","yes",0.8,"yes","biomar","FishStat capture","Atlantic Sardine",11882.4,2970.6
+NA,"sardinellas nei",34,"Ghana","GHA","yes","yes",0.8,"yes","biomar","FishStat capture","Atlantic Sardine",11882.4,2970.6
+"Sardina pilchardus","european pilchard(=sardine)",37,"Greece","GRC","yes","yes",0.8,"yes","biomar","FishStat capture","Atlantic Sardine",11882.4,2970.6
+"Sardinella aurita","round sardinella",37,"Greece","GRC","yes","yes",0.8,"yes","biomar","FishStat capture","Atlantic Sardine",11882.4,2970.6
+NA,"sardinellas nei",34,"Guinea","GIN","yes","yes",0.8,"yes","biomar","FishStat capture","Atlantic Sardine",11882.4,2970.6
+NA,"sardinellas nei",34,"Guinea-Bissau","GNB","yes","yes",0.8,"yes","biomar","FishStat capture","Atlantic Sardine",11882.4,2970.6
+"Sardina pilchardus","european pilchard(=sardine)",27,"Ireland","IRL","yes","yes",0.8,"yes","biomar","FishStat capture","Atlantic Sardine",11882.4,2970.6
+"Sardinella aurita","round sardinella",37,"Israel","ISR","yes","yes",0.8,"yes","biomar","FishStat capture","Atlantic Sardine",11882.4,2970.6
+NA,"sardinellas nei",37,"Israel","ISR","yes","yes",0.8,"yes","biomar","FishStat capture","Atlantic Sardine",11882.4,2970.6
+"Sardina pilchardus","european pilchard(=sardine)",37,"Italy","ITA","yes","yes",0.8,"yes","biomar","FishStat capture","Atlantic Sardine",11882.4,2970.6
+"Sardinella aurita","round sardinella",37,"Italy","ITA","yes","yes",0.8,"yes","biomar","FishStat capture","Atlantic Sardine",11882.4,2970.6
+"Sardina pilchardus","european pilchard(=sardine)",34,"Korea, Republic of","KOR","yes","yes",0.8,"yes","biomar","FishStat capture","Atlantic Sardine",11882.4,2970.6
+"Sardina pilchardus","european pilchard(=sardine)",34,"Latvia","LVA","yes","yes",0.8,"yes","biomar","FishStat capture","Atlantic Sardine",11882.4,2970.6
+NA,"sardinellas nei",34,"Latvia","LVA","yes","yes",0.8,"yes","biomar","FishStat capture","Atlantic Sardine",11882.4,2970.6
+"Sardinella aurita","round sardinella",37,"Lebanon","LBN","yes","yes",0.8,"yes","biomar","FishStat capture","Atlantic Sardine",11882.4,2970.6
+"Sardinella maderensis","madeiran sardinella",34,"Liberia","LBR","yes","yes",0.8,"yes","biomar","FishStat capture","Atlantic Sardine",11882.4,2970.6
+"Sardinella aurita","round sardinella",34,"Liberia","LBR","yes","yes",0.8,"yes","biomar","FishStat capture","Atlantic Sardine",11882.4,2970.6
+NA,"sardinellas nei",34,"Liberia","LBR","yes","yes",0.8,"yes","biomar","FishStat capture","Atlantic Sardine",11882.4,2970.6
+"Sardinella aurita","round sardinella",37,"Libya","LBY","yes","yes",0.8,"yes","biomar","FishStat capture","Atlantic Sardine",11882.4,2970.6
+"Sardina pilchardus","european pilchard(=sardine)",34,"Lithuania","LTU","yes","yes",0.8,"yes","biomar","FishStat capture","Atlantic Sardine",11882.4,2970.6
+"Sardina pilchardus","european pilchard(=sardine)",27,"Lithuania","LTU","yes","yes",0.8,"yes","biomar","FishStat capture","Atlantic Sardine",11882.4,2970.6
+"Sardinella maderensis","madeiran sardinella",34,"Lithuania","LTU","yes","yes",0.8,"yes","biomar","FishStat capture","Atlantic Sardine",11882.4,2970.6
+"Sardinella aurita","round sardinella",34,"Lithuania","LTU","yes","yes",0.8,"yes","biomar","FishStat capture","Atlantic Sardine",11882.4,2970.6
+NA,"sardinellas nei",34,"Lithuania","LTU","yes","yes",0.8,"yes","biomar","FishStat capture","Atlantic Sardine",11882.4,2970.6
+"Sardina pilchardus","european pilchard(=sardine)",37,"Malta","MLT","yes","yes",0.8,"yes","biomar","FishStat capture","Atlantic Sardine",11882.4,2970.6
+"Sardinella aurita","round sardinella",37,"Malta","MLT","yes","yes",0.8,"yes","biomar","FishStat capture","Atlantic Sardine",11882.4,2970.6
+NA,"sardinellas nei",37,"Malta","MLT","yes","yes",0.8,"yes","biomar","FishStat capture","Atlantic Sardine",11882.4,2970.6
+"Sardina pilchardus","european pilchard(=sardine)",34,"Mauritania","MRT","yes","yes",0.8,"yes","biomar","FishStat capture","Atlantic Sardine",11882.4,2970.6
+NA,"sardinellas nei",34,"Mauritania","MRT","yes","yes",0.8,"yes","biomar","FishStat capture","Atlantic Sardine",11882.4,2970.6
+"Sardina pilchardus","european pilchard(=sardine)",37,"Montenegro","MNE","yes","yes",0.8,"yes","biomar","FishStat capture","Atlantic Sardine",11882.4,2970.6
+"Sardinella aurita","round sardinella",37,"Montenegro","MNE","yes","yes",0.8,"yes","biomar","FishStat capture","Atlantic Sardine",11882.4,2970.6
+"Sardina pilchardus","european pilchard(=sardine)",34,"Morocco","MAR","yes","yes",0.8,"yes","biomar","FishStat capture","Atlantic Sardine",11882.4,2970.6
+"Sardina pilchardus","european pilchard(=sardine)",37,"Morocco","MAR","yes","yes",0.8,"yes","biomar","FishStat capture","Atlantic Sardine",11882.4,2970.6
+"Sardinella maderensis","madeiran sardinella",34,"Morocco","MAR","yes","yes",0.8,"yes","biomar","FishStat capture","Atlantic Sardine",11882.4,2970.6
+"Sardinella aurita","round sardinella",34,"Morocco","MAR","yes","yes",0.8,"yes","biomar","FishStat capture","Atlantic Sardine",11882.4,2970.6
+NA,"sardinellas nei",37,"Morocco","MAR","yes","yes",0.8,"yes","biomar","FishStat capture","Atlantic Sardine",11882.4,2970.6
+"Sardina pilchardus","european pilchard(=sardine)",34,"Netherlands","NLD","yes","yes",0.8,"yes","biomar","FishStat capture","Atlantic Sardine",11882.4,2970.6
+"Sardina pilchardus","european pilchard(=sardine)",27,"Netherlands","NLD","yes","yes",0.8,"yes","biomar","FishStat capture","Atlantic Sardine",11882.4,2970.6
+"Sardinella maderensis","madeiran sardinella",34,"Netherlands","NLD","yes","yes",0.8,"yes","biomar","FishStat capture","Atlantic Sardine",11882.4,2970.6
+"Sardinella aurita","round sardinella",34,"Netherlands","NLD","yes","yes",0.8,"yes","biomar","FishStat capture","Atlantic Sardine",11882.4,2970.6
+"Sardinella maderensis","madeiran sardinella",34,"Nigeria","NGA","yes","yes",0.8,"yes","biomar","FishStat capture","Atlantic Sardine",11882.4,2970.6
+NA,"sardinellas nei",34,"Nigeria","NGA","yes","yes",0.8,"yes","biomar","FishStat capture","Atlantic Sardine",11882.4,2970.6
+"Sardina pilchardus","european pilchard(=sardine)",27,"Norway","NOR","yes","yes",0.8,"yes","biomar","FishStat capture","Atlantic Sardine",11882.4,2970.6
+"Sardina pilchardus","european pilchard(=sardine)",34,"Other nei",NA,"yes","yes",0.8,"yes","biomar","FishStat capture","Atlantic Sardine",11882.4,2970.6
+NA,"sardinellas nei",34,"Other nei",NA,"yes","yes",0.8,"yes","biomar","FishStat capture","Atlantic Sardine",11882.4,2970.6
+NA,"sardinellas nei",37,"Palestine","PSE","yes","yes",0.8,"yes","biomar","FishStat capture","Atlantic Sardine",11882.4,2970.6
+"Sardina pilchardus","european pilchard(=sardine)",34,"Poland","POL","yes","yes",0.8,"yes","biomar","FishStat capture","Atlantic Sardine",11882.4,2970.6
+"Sardina pilchardus","european pilchard(=sardine)",27,"Poland","POL","yes","yes",0.8,"yes","biomar","FishStat capture","Atlantic Sardine",11882.4,2970.6
+NA,"sardinellas nei",34,"Poland","POL","yes","yes",0.8,"yes","biomar","FishStat capture","Atlantic Sardine",11882.4,2970.6
+"Sardina pilchardus","european pilchard(=sardine)",34,"Portugal","PRT","yes","yes",0.8,"yes","biomar","FishStat capture","Atlantic Sardine",11882.4,2970.6
+"Sardina pilchardus","european pilchard(=sardine)",27,"Portugal","PRT","yes","yes",0.8,"yes","biomar","FishStat capture","Atlantic Sardine",11882.4,2970.6
+"Sardinella maderensis","madeiran sardinella",34,"Portugal","PRT","yes","yes",0.8,"yes","biomar","FishStat capture","Atlantic Sardine",11882.4,2970.6
+"Sardina pilchardus","european pilchard(=sardine)",34,"Russian Federation","RUS","yes","yes",0.8,"yes","biomar","FishStat capture","Atlantic Sardine",11882.4,2970.6
+"Sardinella aurita","round sardinella",34,"Russian Federation","RUS","yes","yes",0.8,"yes","biomar","FishStat capture","Atlantic Sardine",11882.4,2970.6
+"Sardina pilchardus","european pilchard(=sardine)",34,"Saint Kitts and Nevis","KNA","yes","yes",0.8,"yes","biomar","FishStat capture","Atlantic Sardine",11882.4,2970.6
+NA,"sardinellas nei",34,"Saint Kitts and Nevis","KNA","yes","yes",0.8,"yes","biomar","FishStat capture","Atlantic Sardine",11882.4,2970.6
+"Sardina pilchardus","european pilchard(=sardine)",34,"Saint Vincent/Grenadines","VCT","yes","yes",0.8,"yes","biomar","FishStat capture","Atlantic Sardine",11882.4,2970.6
+NA,"sardinellas nei",34,"Saint Vincent/Grenadines","VCT","yes","yes",0.8,"yes","biomar","FishStat capture","Atlantic Sardine",11882.4,2970.6
+NA,"sardinellas nei",34,"Sao Tome and Principe","STP","yes","yes",0.8,"yes","biomar","FishStat capture","Atlantic Sardine",11882.4,2970.6
+"Sardina pilchardus","european pilchard(=sardine)",34,"Senegal","SEN","yes","yes",0.8,"yes","biomar","FishStat capture","Atlantic Sardine",11882.4,2970.6
+"Sardinella maderensis","madeiran sardinella",34,"Senegal","SEN","yes","yes",0.8,"yes","biomar","FishStat capture","Atlantic Sardine",11882.4,2970.6
+"Sardinella aurita","round sardinella",34,"Senegal","SEN","yes","yes",0.8,"yes","biomar","FishStat capture","Atlantic Sardine",11882.4,2970.6
+NA,"sardinellas nei",34,"Senegal","SEN","yes","yes",0.8,"yes","biomar","FishStat capture","Atlantic Sardine",11882.4,2970.6
+NA,"sardinellas nei",34,"Sierra Leone","SLE","yes","yes",0.8,"yes","biomar","FishStat capture","Atlantic Sardine",11882.4,2970.6
+"Sardina pilchardus","european pilchard(=sardine)",37,"Slovenia","SVN","yes","yes",0.8,"yes","biomar","FishStat capture","Atlantic Sardine",11882.4,2970.6
+"Sardina pilchardus","european pilchard(=sardine)",34,"Spain","ESP","yes","yes",0.8,"yes","biomar","FishStat capture","Atlantic Sardine",11882.4,2970.6
+"Sardina pilchardus","european pilchard(=sardine)",27,"Spain","ESP","yes","yes",0.8,"yes","biomar","FishStat capture","Atlantic Sardine",11882.4,2970.6
+"Sardina pilchardus","european pilchard(=sardine)",37,"Spain","ESP","yes","yes",0.8,"yes","biomar","FishStat capture","Atlantic Sardine",11882.4,2970.6
+"Sardinella maderensis","madeiran sardinella",34,"Spain","ESP","yes","yes",0.8,"yes","biomar","FishStat capture","Atlantic Sardine",11882.4,2970.6
+"Sardinella aurita","round sardinella",34,"Spain","ESP","yes","yes",0.8,"yes","biomar","FishStat capture","Atlantic Sardine",11882.4,2970.6
+"Sardinella aurita","round sardinella",37,"Spain","ESP","yes","yes",0.8,"yes","biomar","FishStat capture","Atlantic Sardine",11882.4,2970.6
+NA,"sardinellas nei",27,"Spain","ESP","yes","yes",0.8,"yes","biomar","FishStat capture","Atlantic Sardine",11882.4,2970.6
+NA,"sardinellas nei",37,"Spain","ESP","yes","yes",0.8,"yes","biomar","FishStat capture","Atlantic Sardine",11882.4,2970.6
+NA,"sardinellas nei",37,"Syrian Arab Republic","SYR","yes","yes",0.8,"yes","biomar","FishStat capture","Atlantic Sardine",11882.4,2970.6
+"Sardinella maderensis","madeiran sardinella",34,"Togo","TGO","yes","yes",0.8,"yes","biomar","FishStat capture","Atlantic Sardine",11882.4,2970.6
+"Sardinella aurita","round sardinella",34,"Togo","TGO","yes","yes",0.8,"yes","biomar","FishStat capture","Atlantic Sardine",11882.4,2970.6
+"Sardina pilchardus","european pilchard(=sardine)",37,"Tunisia","TUN","yes","yes",0.8,"yes","biomar","FishStat capture","Atlantic Sardine",11882.4,2970.6
+NA,"sardinellas nei",37,"Tunisia","TUN","yes","yes",0.8,"yes","biomar","FishStat capture","Atlantic Sardine",11882.4,2970.6
+"Sardina pilchardus","european pilchard(=sardine)",37,"Türkiye","TUR","yes","yes",0.8,"yes","biomar","FishStat capture","Atlantic Sardine",11882.4,2970.6
+"Sardina pilchardus","european pilchard(=sardine)",34,"Ukraine","UKR","yes","yes",0.8,"yes","biomar","FishStat capture","Atlantic Sardine",11882.4,2970.6
+NA,"sardinellas nei",34,"Ukraine","UKR","yes","yes",0.8,"yes","biomar","FishStat capture","Atlantic Sardine",11882.4,2970.6
+"Sardina pilchardus","european pilchard(=sardine)",27,"United Kingdom","GBR","yes","yes",0.8,"yes","biomar","FishStat capture","Atlantic Sardine",11882.4,2970.6
+"Trachurus trachurus","atlantic horse mackerel",27,"Belgium","BEL","yes","yes",0.77,"yes","biomar","FishStat capture","Atlantic Mackerel Spp.",11335.17,3385.83
+"Scomber scombrus","atlantic mackerel",27,"Belgium","BEL","yes","yes",0.77,"yes","biomar","FishStat capture","Atlantic Mackerel Spp.",11335.17,3385.83
+"Scomber colias","atlantic chub mackerel",34,"Belize","BLZ","yes","yes",0.77,"yes","biomar","FishStat capture","Atlantic Mackerel Spp.",11335.17,3385.83
+"Scomber colias","atlantic chub mackerel",34,"China","CHN","yes","yes",0.77,"yes","biomar","FishStat capture","Atlantic Mackerel Spp.",11335.17,3385.83
+"Scomber colias","atlantic chub mackerel",34,"Congo","COG","yes","yes",0.77,"yes","biomar","FishStat capture","Atlantic Mackerel Spp.",11335.17,3385.83
+"Scomber colias","atlantic chub mackerel",34,"Côte d'Ivoire","CIV","yes","yes",0.77,"yes","biomar","FishStat capture","Atlantic Mackerel Spp.",11335.17,3385.83
+"Scomber colias","atlantic chub mackerel",34,"Denmark","DNK","yes","yes",0.77,"yes","biomar","FishStat capture","Atlantic Mackerel Spp.",11335.17,3385.83
+"Trachurus trachurus","atlantic horse mackerel",34,"Denmark","DNK","yes","yes",0.77,"yes","biomar","FishStat capture","Atlantic Mackerel Spp.",11335.17,3385.83
+"Trachurus trachurus","atlantic horse mackerel",27,"Denmark","DNK","yes","yes",0.77,"yes","biomar","FishStat capture","Atlantic Mackerel Spp.",11335.17,3385.83
+"Scomber scombrus","atlantic mackerel",27,"Denmark","DNK","yes","yes",0.77,"yes","biomar","FishStat capture","Atlantic Mackerel Spp.",11335.17,3385.83
+"Scomber colias","atlantic chub mackerel",34,"Equatorial Guinea","GNQ","yes","yes",0.77,"yes","biomar","FishStat capture","Atlantic Mackerel Spp.",11335.17,3385.83
+"Trachurus trachurus","atlantic horse mackerel",27,"Faroe Islands","FRO","yes","yes",0.77,"yes","biomar","FishStat capture","Atlantic Mackerel Spp.",11335.17,3385.83
+"Scomber scombrus","atlantic mackerel",27,"Faroe Islands","FRO","yes","yes",0.77,"yes","biomar","FishStat capture","Atlantic Mackerel Spp.",11335.17,3385.83
+"Scomber colias","atlantic chub mackerel",27,"France","FRA","yes","yes",0.77,"yes","biomar","FishStat capture","Atlantic Mackerel Spp.",11335.17,3385.83
+"Trachurus trachurus","atlantic horse mackerel",27,"France","FRA","yes","yes",0.77,"yes","biomar","FishStat capture","Atlantic Mackerel Spp.",11335.17,3385.83
+"Scomber scombrus","atlantic mackerel",27,"France","FRA","yes","yes",0.77,"yes","biomar","FishStat capture","Atlantic Mackerel Spp.",11335.17,3385.83
+"Scomber colias","atlantic chub mackerel",34,"Gabon","GAB","yes","yes",0.77,"yes","biomar","FishStat capture","Atlantic Mackerel Spp.",11335.17,3385.83
+"Scomber colias","atlantic chub mackerel",34,"Gambia","GMB","yes","yes",0.77,"yes","biomar","FishStat capture","Atlantic Mackerel Spp.",11335.17,3385.83
+"Scomber colias","atlantic chub mackerel",34,"Georgia","GEO","yes","yes",0.77,"yes","biomar","FishStat capture","Atlantic Mackerel Spp.",11335.17,3385.83
+"Scomber colias","atlantic chub mackerel",34,"Germany","DEU","yes","yes",0.77,"yes","biomar","FishStat capture","Atlantic Mackerel Spp.",11335.17,3385.83
+"Trachurus trachurus","atlantic horse mackerel",34,"Germany","DEU","yes","yes",0.77,"yes","biomar","FishStat capture","Atlantic Mackerel Spp.",11335.17,3385.83
+"Trachurus trachurus","atlantic horse mackerel",27,"Germany","DEU","yes","yes",0.77,"yes","biomar","FishStat capture","Atlantic Mackerel Spp.",11335.17,3385.83
+"Scomber scombrus","atlantic mackerel",27,"Germany","DEU","yes","yes",0.77,"yes","biomar","FishStat capture","Atlantic Mackerel Spp.",11335.17,3385.83
+"Scomber colias","atlantic chub mackerel",34,"Ghana","GHA","yes","yes",0.77,"yes","biomar","FishStat capture","Atlantic Mackerel Spp.",11335.17,3385.83
+"Scomber scombrus","atlantic mackerel",27,"Greenland","GRL","yes","yes",0.77,"yes","biomar","FishStat capture","Atlantic Mackerel Spp.",11335.17,3385.83
+"Scomber colias","atlantic chub mackerel",34,"Guinea","GIN","yes","yes",0.77,"yes","biomar","FishStat capture","Atlantic Mackerel Spp.",11335.17,3385.83
+"Scomber colias","atlantic chub mackerel",34,"Guinea-Bissau","GNB","yes","yes",0.77,"yes","biomar","FishStat capture","Atlantic Mackerel Spp.",11335.17,3385.83
+"Scomber scombrus","atlantic mackerel",27,"Iceland","ISL","yes","yes",0.77,"yes","biomar","FishStat capture","Atlantic Mackerel Spp.",11335.17,3385.83
+"Trachurus trachurus","atlantic horse mackerel",27,"Ireland","IRL","yes","yes",0.77,"yes","biomar","FishStat capture","Atlantic Mackerel Spp.",11335.17,3385.83
+"Scomber scombrus","atlantic mackerel",27,"Ireland","IRL","yes","yes",0.77,"yes","biomar","FishStat capture","Atlantic Mackerel Spp.",11335.17,3385.83
+"Scomber scombrus","atlantic mackerel",27,"Isle of Man","IMN","yes","yes",0.77,"yes","biomar","FishStat capture","Atlantic Mackerel Spp.",11335.17,3385.83
+"Scomber colias","atlantic chub mackerel",34,"Korea, Republic of","KOR","yes","yes",0.77,"yes","biomar","FishStat capture","Atlantic Mackerel Spp.",11335.17,3385.83
+"Scomber colias","atlantic chub mackerel",34,"Latvia","LVA","yes","yes",0.77,"yes","biomar","FishStat capture","Atlantic Mackerel Spp.",11335.17,3385.83
+"Scomber colias","atlantic chub mackerel",34,"Liberia","LBR","yes","yes",0.77,"yes","biomar","FishStat capture","Atlantic Mackerel Spp.",11335.17,3385.83
+"Trachurus trachurus","atlantic horse mackerel",34,"Liberia","LBR","yes","yes",0.77,"yes","biomar","FishStat capture","Atlantic Mackerel Spp.",11335.17,3385.83
+"Scomber colias","atlantic chub mackerel",34,"Lithuania","LTU","yes","yes",0.77,"yes","biomar","FishStat capture","Atlantic Mackerel Spp.",11335.17,3385.83
+"Trachurus trachurus","atlantic horse mackerel",34,"Lithuania","LTU","yes","yes",0.77,"yes","biomar","FishStat capture","Atlantic Mackerel Spp.",11335.17,3385.83
+"Trachurus trachurus","atlantic horse mackerel",27,"Lithuania","LTU","yes","yes",0.77,"yes","biomar","FishStat capture","Atlantic Mackerel Spp.",11335.17,3385.83
+"Scomber scombrus","atlantic mackerel",27,"Lithuania","LTU","yes","yes",0.77,"yes","biomar","FishStat capture","Atlantic Mackerel Spp.",11335.17,3385.83
+"Scomber colias","atlantic chub mackerel",34,"Mauritania","MRT","yes","yes",0.77,"yes","biomar","FishStat capture","Atlantic Mackerel Spp.",11335.17,3385.83
+"Scomber colias","atlantic chub mackerel",34,"Morocco","MAR","yes","yes",0.77,"yes","biomar","FishStat capture","Atlantic Mackerel Spp.",11335.17,3385.83
+"Scomber colias","atlantic chub mackerel",34,"Netherlands","NLD","yes","yes",0.77,"yes","biomar","FishStat capture","Atlantic Mackerel Spp.",11335.17,3385.83
+"Trachurus trachurus","atlantic horse mackerel",27,"Netherlands","NLD","yes","yes",0.77,"yes","biomar","FishStat capture","Atlantic Mackerel Spp.",11335.17,3385.83
+"Scomber scombrus","atlantic mackerel",27,"Netherlands","NLD","yes","yes",0.77,"yes","biomar","FishStat capture","Atlantic Mackerel Spp.",11335.17,3385.83
+"Trachurus trachurus","atlantic horse mackerel",27,"Norway","NOR","yes","yes",0.77,"yes","biomar","FishStat capture","Atlantic Mackerel Spp.",11335.17,3385.83
+"Scomber scombrus","atlantic mackerel",27,"Norway","NOR","yes","yes",0.77,"yes","biomar","FishStat capture","Atlantic Mackerel Spp.",11335.17,3385.83
+"Scomber colias","atlantic chub mackerel",34,"Other nei",NA,"yes","yes",0.77,"yes","biomar","FishStat capture","Atlantic Mackerel Spp.",11335.17,3385.83
+"Scomber colias","atlantic chub mackerel",34,"Poland","POL","yes","yes",0.77,"yes","biomar","FishStat capture","Atlantic Mackerel Spp.",11335.17,3385.83
+"Trachurus trachurus","atlantic horse mackerel",27,"Poland","POL","yes","yes",0.77,"yes","biomar","FishStat capture","Atlantic Mackerel Spp.",11335.17,3385.83
+"Scomber scombrus","atlantic mackerel",27,"Poland","POL","yes","yes",0.77,"yes","biomar","FishStat capture","Atlantic Mackerel Spp.",11335.17,3385.83
+"Scomber colias","atlantic chub mackerel",34,"Portugal","PRT","yes","yes",0.77,"yes","biomar","FishStat capture","Atlantic Mackerel Spp.",11335.17,3385.83
+"Scomber colias","atlantic chub mackerel",27,"Portugal","PRT","yes","yes",0.77,"yes","biomar","FishStat capture","Atlantic Mackerel Spp.",11335.17,3385.83
+"Trachurus trachurus","atlantic horse mackerel",27,"Portugal","PRT","yes","yes",0.77,"yes","biomar","FishStat capture","Atlantic Mackerel Spp.",11335.17,3385.83
+"Scomber scombrus","atlantic mackerel",27,"Portugal","PRT","yes","yes",0.77,"yes","biomar","FishStat capture","Atlantic Mackerel Spp.",11335.17,3385.83
+"Scomber colias","atlantic chub mackerel",34,"Russian Federation","RUS","yes","yes",0.77,"yes","biomar","FishStat capture","Atlantic Mackerel Spp.",11335.17,3385.83
+"Trachurus trachurus","atlantic horse mackerel",27,"Russian Federation","RUS","yes","yes",0.77,"yes","biomar","FishStat capture","Atlantic Mackerel Spp.",11335.17,3385.83
+"Scomber scombrus","atlantic mackerel",34,"Russian Federation","RUS","yes","yes",0.77,"yes","biomar","FishStat capture","Atlantic Mackerel Spp.",11335.17,3385.83
+"Scomber scombrus","atlantic mackerel",27,"Russian Federation","RUS","yes","yes",0.77,"yes","biomar","FishStat capture","Atlantic Mackerel Spp.",11335.17,3385.83
+"Scomber colias","atlantic chub mackerel",34,"Saint Kitts and Nevis","KNA","yes","yes",0.77,"yes","biomar","FishStat capture","Atlantic Mackerel Spp.",11335.17,3385.83
+"Scomber colias","atlantic chub mackerel",34,"Saint Vincent/Grenadines","VCT","yes","yes",0.77,"yes","biomar","FishStat capture","Atlantic Mackerel Spp.",11335.17,3385.83
+"Scomber colias","atlantic chub mackerel",34,"Senegal","SEN","yes","yes",0.77,"yes","biomar","FishStat capture","Atlantic Mackerel Spp.",11335.17,3385.83
+"Scomber colias","atlantic chub mackerel",34,"Spain","ESP","yes","yes",0.77,"yes","biomar","FishStat capture","Atlantic Mackerel Spp.",11335.17,3385.83
+"Scomber colias","atlantic chub mackerel",27,"Spain","ESP","yes","yes",0.77,"yes","biomar","FishStat capture","Atlantic Mackerel Spp.",11335.17,3385.83
+"Trachurus trachurus","atlantic horse mackerel",34,"Spain","ESP","yes","yes",0.77,"yes","biomar","FishStat capture","Atlantic Mackerel Spp.",11335.17,3385.83
+"Trachurus trachurus","atlantic horse mackerel",27,"Spain","ESP","yes","yes",0.77,"yes","biomar","FishStat capture","Atlantic Mackerel Spp.",11335.17,3385.83
+"Scomber scombrus","atlantic mackerel",34,"Spain","ESP","yes","yes",0.77,"yes","biomar","FishStat capture","Atlantic Mackerel Spp.",11335.17,3385.83
+"Scomber scombrus","atlantic mackerel",27,"Spain","ESP","yes","yes",0.77,"yes","biomar","FishStat capture","Atlantic Mackerel Spp.",11335.17,3385.83
+"Trachurus trachurus","atlantic horse mackerel",27,"Sweden","SWE","yes","yes",0.77,"yes","biomar","FishStat capture","Atlantic Mackerel Spp.",11335.17,3385.83
+"Scomber scombrus","atlantic mackerel",27,"Sweden","SWE","yes","yes",0.77,"yes","biomar","FishStat capture","Atlantic Mackerel Spp.",11335.17,3385.83
+"Scomber colias","atlantic chub mackerel",34,"Togo","TGO","yes","yes",0.77,"yes","biomar","FishStat capture","Atlantic Mackerel Spp.",11335.17,3385.83
+"Scomber colias","atlantic chub mackerel",34,"Ukraine","UKR","yes","yes",0.77,"yes","biomar","FishStat capture","Atlantic Mackerel Spp.",11335.17,3385.83
+"Trachurus trachurus","atlantic horse mackerel",27,"United Kingdom","GBR","yes","yes",0.77,"yes","biomar","FishStat capture","Atlantic Mackerel Spp.",11335.17,3385.83
+"Scomber scombrus","atlantic mackerel",27,"United Kingdom","GBR","yes","yes",0.77,"yes","biomar","FishStat capture","Atlantic Mackerel Spp.",11335.17,3385.83
+"Euphausia superba","antarctic krill",48,"Chile","CHL","yes","no",0,"yes","biomar","FishStat capture","Antarctic Krill",0,13834
+"Euphausia superba","antarctic krill",48,"China","CHN","yes","no",0,"yes","biomar","FishStat capture","Antarctic Krill",0,13834
+"Euphausia superba","antarctic krill",48,"Korea, Republic of","KOR","yes","no",0,"yes","biomar","FishStat capture","Antarctic Krill",0,13834
+"Euphausia superba","antarctic krill",48,"Norway","NOR","yes","no",0,"yes","biomar","FishStat capture","Antarctic Krill",0,13834
+"Euphausia superba","antarctic krill",48,"Ukraine","UKR","yes","no",0,"yes","biomar","FishStat capture","Antarctic Krill",0,13834
+"Engraulis encrasicolus","european anchovy",37,"Albania","ALB","yes","yes",0.11,"yes","biomar","FishStat capture","Anchovy",1430.33,11572.67
+"Engraulis encrasicolus","european anchovy",37,"Algeria","DZA","yes","yes",0.11,"yes","biomar","FishStat capture","Anchovy",1430.33,11572.67
+"Engraulis encrasicolus","european anchovy",47,"Angola","AGO","yes","yes",0.11,"yes","biomar","FishStat capture","Anchovy",1430.33,11572.67
+"Engraulis encrasicolus","european anchovy",34,"Belize","BLZ","yes","yes",0.11,"yes","biomar","FishStat capture","Anchovy",1430.33,11572.67
+"Engraulis encrasicolus","european anchovy",34,"Benin","BEN","yes","yes",0.11,"yes","biomar","FishStat capture","Anchovy",1430.33,11572.67
+"Engraulis encrasicolus","european anchovy",37,"Bulgaria","BGR","yes","yes",0.11,"yes","biomar","FishStat capture","Anchovy",1430.33,11572.67
+"Engraulis encrasicolus","european anchovy",34,"China","CHN","yes","yes",0.11,"yes","biomar","FishStat capture","Anchovy",1430.33,11572.67
+"Engraulis japonicus","japanese anchovy",61,"China","CHN","yes","yes",0.11,"yes","biomar","FishStat capture","Anchovy",1430.33,11572.67
+NA,"stolephorus anchovies nei",61,"China, Hong Kong SAR","HKG","yes","yes",0.11,"yes","biomar","FishStat capture","Anchovy",1430.33,11572.67
+"Cetengraulis mysticetus","pacific anchoveta",87,"Colombia","COL","yes","yes",0.11,"yes","biomar","FishStat capture","Anchovy",1430.33,11572.67
+"Engraulis encrasicolus","european anchovy",37,"Croatia","HRV","yes","yes",0.11,"yes","biomar","FishStat capture","Anchovy",1430.33,11572.67
+"Engraulis encrasicolus","european anchovy",37,"Cyprus","CYP","yes","yes",0.11,"yes","biomar","FishStat capture","Anchovy",1430.33,11572.67
+"Engraulis encrasicolus","european anchovy",27,"Denmark","DNK","yes","yes",0.11,"yes","biomar","FishStat capture","Anchovy",1430.33,11572.67
+"Anchoa nasus","longnose anchovy",87,"Ecuador","ECU","yes","yes",0.11,"yes","biomar","FishStat capture","Anchovy",1430.33,11572.67
+"Cetengraulis mysticetus","pacific anchoveta",87,"Ecuador","ECU","yes","yes",0.11,"yes","biomar","FishStat capture","Anchovy",1430.33,11572.67
+"Engraulis encrasicolus","european anchovy",37,"Egypt","EGY","yes","yes",0.11,"yes","biomar","FishStat capture","Anchovy",1430.33,11572.67
+"Engraulis encrasicolus","european anchovy",27,"France","FRA","yes","yes",0.11,"yes","biomar","FishStat capture","Anchovy",1430.33,11572.67
+"Engraulis encrasicolus","european anchovy",37,"France","FRA","yes","yes",0.11,"yes","biomar","FishStat capture","Anchovy",1430.33,11572.67
+"Engraulis encrasicolus","european anchovy",34,"Georgia","GEO","yes","yes",0.11,"yes","biomar","FishStat capture","Anchovy",1430.33,11572.67
+"Engraulis encrasicolus","european anchovy",37,"Georgia","GEO","yes","yes",0.11,"yes","biomar","FishStat capture","Anchovy",1430.33,11572.67
+"Engraulis encrasicolus","european anchovy",27,"Germany","DEU","yes","yes",0.11,"yes","biomar","FishStat capture","Anchovy",1430.33,11572.67
+"Engraulis encrasicolus","european anchovy",34,"Ghana","GHA","yes","yes",0.11,"yes","biomar","FishStat capture","Anchovy",1430.33,11572.67
+"Engraulis encrasicolus","european anchovy",37,"Greece","GRC","yes","yes",0.11,"yes","biomar","FishStat capture","Anchovy",1430.33,11572.67
+"Engraulis encrasicolus","european anchovy",27,"Ireland","IRL","yes","yes",0.11,"yes","biomar","FishStat capture","Anchovy",1430.33,11572.67
+"Engraulis encrasicolus","european anchovy",37,"Italy","ITA","yes","yes",0.11,"yes","biomar","FishStat capture","Anchovy",1430.33,11572.67
+"Engraulis japonicus","japanese anchovy",61,"Japan","JPN","yes","yes",0.11,"yes","biomar","FishStat capture","Anchovy",1430.33,11572.67
+"Engraulis japonicus","japanese anchovy",61,"Korea, Republic of","KOR","yes","yes",0.11,"yes","biomar","FishStat capture","Anchovy",1430.33,11572.67
+"Engraulis encrasicolus","european anchovy",37,"Lebanon","LBN","yes","yes",0.11,"yes","biomar","FishStat capture","Anchovy",1430.33,11572.67
+"Engraulis encrasicolus","european anchovy",34,"Liberia","LBR","yes","yes",0.11,"yes","biomar","FishStat capture","Anchovy",1430.33,11572.67
+"Engraulis encrasicolus","european anchovy",37,"Malta","MLT","yes","yes",0.11,"yes","biomar","FishStat capture","Anchovy",1430.33,11572.67
+"Engraulis encrasicolus","european anchovy",34,"Mauritania","MRT","yes","yes",0.11,"yes","biomar","FishStat capture","Anchovy",1430.33,11572.67
+"Engraulis mordax","californian anchovy",77,"Mexico","MEX","yes","yes",0.11,"yes","biomar","FishStat capture","Anchovy",1430.33,11572.67
+"Cetengraulis mysticetus","pacific anchoveta",77,"Mexico","MEX","yes","yes",0.11,"yes","biomar","FishStat capture","Anchovy",1430.33,11572.67
+"Engraulis encrasicolus","european anchovy",37,"Montenegro","MNE","yes","yes",0.11,"yes","biomar","FishStat capture","Anchovy",1430.33,11572.67
+"Engraulis encrasicolus","european anchovy",34,"Morocco","MAR","yes","yes",0.11,"yes","biomar","FishStat capture","Anchovy",1430.33,11572.67
+"Engraulis encrasicolus","european anchovy",37,"Morocco","MAR","yes","yes",0.11,"yes","biomar","FishStat capture","Anchovy",1430.33,11572.67
+"Engraulis encrasicolus","european anchovy",34,"Netherlands","NLD","yes","yes",0.11,"yes","biomar","FishStat capture","Anchovy",1430.33,11572.67
+"Engraulis encrasicolus","european anchovy",27,"Netherlands","NLD","yes","yes",0.11,"yes","biomar","FishStat capture","Anchovy",1430.33,11572.67
+"Engraulis encrasicolus","european anchovy",27,"Norway","NOR","yes","yes",0.11,"yes","biomar","FishStat capture","Anchovy",1430.33,11572.67
+"Engraulis encrasicolus","european anchovy",34,"Other nei",NA,"yes","yes",0.11,"yes","biomar","FishStat capture","Anchovy",1430.33,11572.67
+"Cetengraulis mysticetus","pacific anchoveta",77,"Panama","PAN","yes","yes",0.11,"yes","biomar","FishStat capture","Anchovy",1430.33,11572.67
+"Anchoa nasus","longnose anchovy",87,"Peru","PER","yes","yes",0.11,"yes","biomar","FishStat capture","Anchovy",1430.33,11572.67
+"Cetengraulis mysticetus","pacific anchoveta",87,"Peru","PER","yes","yes",0.11,"yes","biomar","FishStat capture","Anchovy",1430.33,11572.67
+"Engraulis encrasicolus","european anchovy",34,"Poland","POL","yes","yes",0.11,"yes","biomar","FishStat capture","Anchovy",1430.33,11572.67
+"Engraulis encrasicolus","european anchovy",27,"Portugal","PRT","yes","yes",0.11,"yes","biomar","FishStat capture","Anchovy",1430.33,11572.67
+"Engraulis encrasicolus","european anchovy",37,"Romania","ROU","yes","yes",0.11,"yes","biomar","FishStat capture","Anchovy",1430.33,11572.67
+NA,"anchovies, etc. nei",61,"Russian Federation","RUS","yes","yes",0.11,"yes","biomar","FishStat capture","Anchovy",1430.33,11572.67
+"Engraulis encrasicolus","european anchovy",34,"Russian Federation","RUS","yes","yes",0.11,"yes","biomar","FishStat capture","Anchovy",1430.33,11572.67
+"Engraulis encrasicolus","european anchovy",37,"Russian Federation","RUS","yes","yes",0.11,"yes","biomar","FishStat capture","Anchovy",1430.33,11572.67
+"Engraulis encrasicolus","european anchovy",34,"Saint Kitts and Nevis","KNA","yes","yes",0.11,"yes","biomar","FishStat capture","Anchovy",1430.33,11572.67
+"Engraulis encrasicolus","european anchovy",34,"Saint Vincent/Grenadines","VCT","yes","yes",0.11,"yes","biomar","FishStat capture","Anchovy",1430.33,11572.67
+"Engraulis encrasicolus","european anchovy",34,"Senegal","SEN","yes","yes",0.11,"yes","biomar","FishStat capture","Anchovy",1430.33,11572.67
+"Engraulis encrasicolus","european anchovy",34,"Sierra Leone","SLE","yes","yes",0.11,"yes","biomar","FishStat capture","Anchovy",1430.33,11572.67
+"Engraulis encrasicolus","european anchovy",37,"Slovenia","SVN","yes","yes",0.11,"yes","biomar","FishStat capture","Anchovy",1430.33,11572.67
+"Engraulis capensis","southern african anchovy",47,"South Africa","ZAF","yes","yes",0.11,"yes","biomar","FishStat capture","Anchovy",1430.33,11572.67
+"Engraulis encrasicolus","european anchovy",34,"Spain","ESP","yes","yes",0.11,"yes","biomar","FishStat capture","Anchovy",1430.33,11572.67
+"Engraulis encrasicolus","european anchovy",27,"Spain","ESP","yes","yes",0.11,"yes","biomar","FishStat capture","Anchovy",1430.33,11572.67
+"Engraulis encrasicolus","european anchovy",37,"Spain","ESP","yes","yes",0.11,"yes","biomar","FishStat capture","Anchovy",1430.33,11572.67
+"Engraulis encrasicolus","european anchovy",27,"Sweden","SWE","yes","yes",0.11,"yes","biomar","FishStat capture","Anchovy",1430.33,11572.67
+"Engraulis japonicus","japanese anchovy",61,"Taiwan Province of China","TWN","yes","yes",0.11,"yes","biomar","FishStat capture","Anchovy",1430.33,11572.67
+"Engraulis encrasicolus","european anchovy",34,"Togo","TGO","yes","yes",0.11,"yes","biomar","FishStat capture","Anchovy",1430.33,11572.67
+"Engraulis encrasicolus","european anchovy",37,"Tunisia","TUN","yes","yes",0.11,"yes","biomar","FishStat capture","Anchovy",1430.33,11572.67
+"Engraulis encrasicolus","european anchovy",37,"Türkiye","TUR","yes","yes",0.11,"yes","biomar","FishStat capture","Anchovy",1430.33,11572.67
+"Engraulis encrasicolus","european anchovy",37,"Ukraine","UKR","yes","yes",0.11,"yes","biomar","FishStat capture","Anchovy",1430.33,11572.67
+"Engraulis encrasicolus","european anchovy",27,"United Kingdom","GBR","yes","yes",0.11,"yes","biomar","FishStat capture","Anchovy",1430.33,11572.67
+"Engraulis mordax","californian anchovy",77,"United States of America","USA","yes","yes",0.11,"yes","biomar","FishStat capture","Anchovy",1430.33,11572.67
+"Gadus morhua","atlantic cod",27,"Belgium","BEL","no","yes",1,"yes","biomar","FishStat capture","Atlantic Cod",10577,0
+"Gadus morhua","atlantic cod",27,"Denmark","DNK","no","yes",1,"yes","biomar","FishStat capture","Atlantic Cod",10577,0
+"Gadus morhua","atlantic cod",27,"Estonia","EST","no","yes",1,"yes","biomar","FishStat capture","Atlantic Cod",10577,0
+"Gadus morhua","atlantic cod",27,"Faroe Islands","FRO","no","yes",1,"yes","biomar","FishStat capture","Atlantic Cod",10577,0
+"Gadus morhua","atlantic cod",27,"Finland","FIN","no","yes",1,"yes","biomar","FishStat capture","Atlantic Cod",10577,0
+"Gadus morhua","atlantic cod",27,"France","FRA","no","yes",1,"yes","biomar","FishStat capture","Atlantic Cod",10577,0
+"Gadus morhua","atlantic cod",27,"Germany","DEU","no","yes",1,"yes","biomar","FishStat capture","Atlantic Cod",10577,0
+"Gadus morhua","atlantic cod",27,"Greenland","GRL","no","yes",1,"yes","biomar","FishStat capture","Atlantic Cod",10577,0
+"Gadus morhua","atlantic cod",27,"Iceland","ISL","no","yes",1,"yes","biomar","FishStat capture","Atlantic Cod",10577,0
+"Gadus morhua","atlantic cod",27,"Ireland","IRL","no","yes",1,"yes","biomar","FishStat capture","Atlantic Cod",10577,0
+"Gadus morhua","atlantic cod",27,"Isle of Man","IMN","no","yes",1,"yes","biomar","FishStat capture","Atlantic Cod",10577,0
+"Gadus morhua","atlantic cod",27,"Latvia","LVA","no","yes",1,"yes","biomar","FishStat capture","Atlantic Cod",10577,0
+"Gadus morhua","atlantic cod",27,"Lithuania","LTU","no","yes",1,"yes","biomar","FishStat capture","Atlantic Cod",10577,0
+"Gadus morhua","atlantic cod",27,"Netherlands","NLD","no","yes",1,"yes","biomar","FishStat capture","Atlantic Cod",10577,0
+"Gadus morhua","atlantic cod",27,"Norway","NOR","no","yes",1,"yes","biomar","FishStat capture","Atlantic Cod",10577,0
+"Gadus morhua","atlantic cod",27,"Poland","POL","no","yes",1,"yes","biomar","FishStat capture","Atlantic Cod",10577,0
+"Gadus morhua","atlantic cod",27,"Portugal","PRT","no","yes",1,"yes","biomar","FishStat capture","Atlantic Cod",10577,0
+"Gadus morhua","atlantic cod",27,"Russian Federation","RUS","no","yes",1,"yes","biomar","FishStat capture","Atlantic Cod",10577,0
+"Gadus morhua","atlantic cod",27,"Spain","ESP","no","yes",1,"yes","biomar","FishStat capture","Atlantic Cod",10577,0
+"Gadus morhua","atlantic cod",27,"Sweden","SWE","no","yes",1,"yes","biomar","FishStat capture","Atlantic Cod",10577,0
+"Gadus morhua","atlantic cod",27,"United Kingdom","GBR","no","yes",1,"yes","biomar","FishStat capture","Atlantic Cod",10577,0
+"Strangomera bentincki","araucanian herring",87,"Chile","CHL","yes","no",0,"yes","biomar","FishStat capture","Araucanian Herring",0,10200
+NA,"sardinellas nei",51,"Bahrain","BHR","yes","yes",0.15,"yes","biomar","FishStat capture","Sardine",1351.95,7661.05
+NA,"sardinellas nei",51,"Comoros","COM","yes","yes",0.15,"yes","biomar","FishStat capture","Sardine",1351.95,7661.05
+NA,"sardinellas nei",51,"Egypt","EGY","yes","yes",0.15,"yes","biomar","FishStat capture","Sardine",1351.95,7661.05
+"Sardinella longiceps","indian oil sardine",51,"India","IND","yes","yes",0.15,"yes","biomar","FishStat capture","Sardine",1351.95,7661.05
+"Sardinella longiceps","indian oil sardine",51,"Iran (Islamic Rep. of)","IRN","yes","yes",0.15,"yes","biomar","FishStat capture","Sardine",1351.95,7661.05
+NA,"sardinellas nei",51,"Jordan","JOR","yes","yes",0.15,"yes","biomar","FishStat capture","Sardine",1351.95,7661.05
+"Sardinella longiceps","indian oil sardine",51,"Oman","OMN","yes","yes",0.15,"yes","biomar","FishStat capture","Sardine",1351.95,7661.05
+"Sardinella longiceps","indian oil sardine",51,"Pakistan","PAK","yes","yes",0.15,"yes","biomar","FishStat capture","Sardine",1351.95,7661.05
+NA,"sardinellas nei",51,"Qatar","QAT","yes","yes",0.15,"yes","biomar","FishStat capture","Sardine",1351.95,7661.05
+NA,"sardinellas nei",51,"Tanzania, United Rep. of","TZA","yes","yes",0.15,"yes","biomar","FishStat capture","Sardine",1351.95,7661.05
+NA,"sardinellas nei",51,"United Arab Emirates","ARE","yes","yes",0.15,"yes","biomar","FishStat capture","Sardine",1351.95,7661.05
+"Sardinella longiceps","indian oil sardine",51,"Yemen","YEM","yes","yes",0.15,"yes","biomar","FishStat capture","Sardine",1351.95,7661.05
+NA,"sardinellas nei",51,"Zanzibar","EAZ","yes","yes",0.15,"yes","biomar","FishStat capture","Sardine",1351.95,7661.05
+"Sprattus sprattus","european sprat",27,"Belgium","BEL","yes","yes",0.2,"yes","biomar","FishStat capture","Sprat",1037.2,4148.8
+"Sprattus sprattus","european sprat",27,"Denmark","DNK","yes","yes",0.2,"yes","biomar","FishStat capture","Sprat",1037.2,4148.8
+"Sprattus sprattus","european sprat",27,"Estonia","EST","yes","yes",0.2,"yes","biomar","FishStat capture","Sprat",1037.2,4148.8
+"Sprattus sprattus","european sprat",27,"Faroe Islands","FRO","yes","yes",0.2,"yes","biomar","FishStat capture","Sprat",1037.2,4148.8
+"Sprattus sprattus","european sprat",27,"Finland","FIN","yes","yes",0.2,"yes","biomar","FishStat capture","Sprat",1037.2,4148.8
+"Sprattus sprattus","european sprat",27,"France","FRA","yes","yes",0.2,"yes","biomar","FishStat capture","Sprat",1037.2,4148.8
+"Sprattus sprattus","european sprat",27,"Germany","DEU","yes","yes",0.2,"yes","biomar","FishStat capture","Sprat",1037.2,4148.8
+"Sprattus sprattus","european sprat",27,"Ireland","IRL","yes","yes",0.2,"yes","biomar","FishStat capture","Sprat",1037.2,4148.8
+"Sprattus sprattus","european sprat",27,"Latvia","LVA","yes","yes",0.2,"yes","biomar","FishStat capture","Sprat",1037.2,4148.8
+"Sprattus sprattus","european sprat",27,"Lithuania","LTU","yes","yes",0.2,"yes","biomar","FishStat capture","Sprat",1037.2,4148.8
+"Sprattus sprattus","european sprat",27,"Netherlands","NLD","yes","yes",0.2,"yes","biomar","FishStat capture","Sprat",1037.2,4148.8
+"Sprattus sprattus","european sprat",27,"Norway","NOR","yes","yes",0.2,"yes","biomar","FishStat capture","Sprat",1037.2,4148.8
+"Sprattus sprattus","european sprat",27,"Poland","POL","yes","yes",0.2,"yes","biomar","FishStat capture","Sprat",1037.2,4148.8
+"Sprattus sprattus","european sprat",27,"Russian Federation","RUS","yes","yes",0.2,"yes","biomar","FishStat capture","Sprat",1037.2,4148.8
+"Sprattus sprattus","european sprat",27,"Spain","ESP","yes","yes",0.2,"yes","biomar","FishStat capture","Sprat",1037.2,4148.8
+"Sprattus sprattus","european sprat",27,"Sweden","SWE","yes","yes",0.2,"yes","biomar","FishStat capture","Sprat",1037.2,4148.8
+"Sprattus sprattus","european sprat",27,"United Kingdom","GBR","yes","yes",0.2,"yes","biomar","FishStat capture","Sprat",1037.2,4148.8
+"Sardinops sagax","pacific sardine",87,"Chile","CHL","yes","no",0,"yes","biomar","FishStat capture","Pacific Sardine",0,4690
+"Sardinops sagax","pacific sardine",61,"China","CHN","yes","no",0,"yes","biomar","FishStat capture","Pacific Sardine",0,4690
+"Sardinops sagax","pacific sardine",87,"Ecuador","ECU","yes","no",0,"yes","biomar","FishStat capture","Pacific Sardine",0,4690
+"Sardinops sagax","pacific sardine",61,"Japan","JPN","yes","no",0,"yes","biomar","FishStat capture","Pacific Sardine",0,4690
+"Sardinops sagax","pacific sardine",61,"Korea, Republic of","KOR","yes","no",0,"yes","biomar","FishStat capture","Pacific Sardine",0,4690
+"Sardinops sagax","pacific sardine",77,"Mexico","MEX","yes","no",0,"yes","biomar","FishStat capture","Pacific Sardine",0,4690
+"Sardinops sagax","pacific sardine",81,"New Zealand","NZL","yes","no",0,"yes","biomar","FishStat capture","Pacific Sardine",0,4690
+"Sardinops sagax","pacific sardine",87,"Peru","PER","yes","no",0,"yes","biomar","FishStat capture","Pacific Sardine",0,4690
+"Sardinops sagax","pacific sardine",61,"Russian Federation","RUS","yes","no",0,"yes","biomar","FishStat capture","Pacific Sardine",0,4690
+"Sardinops sagax","pacific sardine",77,"United States of America","USA","yes","no",0,"yes","biomar","FishStat capture","Pacific Sardine",0,4690
+NA,"sandeels(=sandlances) nei",27,"Denmark","DNK","yes","no",0,"yes","biomar","FishStat capture","Sandeel",0,4660
+NA,"sandeels(=sandlances) nei",27,"France","FRA","yes","no",0,"yes","biomar","FishStat capture","Sandeel",0,4660
+NA,"sandeels(=sandlances) nei",27,"Germany","DEU","yes","no",0,"yes","biomar","FishStat capture","Sandeel",0,4660
+NA,"sandeels(=sandlances) nei",27,"Norway","NOR","yes","no",0,"yes","biomar","FishStat capture","Sandeel",0,4660
+NA,"sandeels(=sandlances) nei",27,"Poland","POL","yes","no",0,"yes","biomar","FishStat capture","Sandeel",0,4660
+"Ammodytes tobianus","small sandeel",27,"Poland","POL","yes","no",0,"yes","biomar","FishStat capture","Sandeel",0,4660
+NA,"sandeels(=sandlances) nei",27,"Portugal","PRT","yes","no",0,"yes","biomar","FishStat capture","Sandeel",0,4660
+NA,"sandeels(=sandlances) nei",27,"Spain","ESP","yes","no",0,"yes","biomar","FishStat capture","Sandeel",0,4660
+"Ammodytes tobianus","small sandeel",27,"Spain","ESP","yes","no",0,"yes","biomar","FishStat capture","Sandeel",0,4660
+"Gymnammodytes semisquamatus","smooth sandeel",27,"Spain","ESP","yes","no",0,"yes","biomar","FishStat capture","Sandeel",0,4660
+NA,"sandeels(=sandlances) nei",27,"Sweden","SWE","yes","no",0,"yes","biomar","FishStat capture","Sandeel",0,4660
+NA,"sandeels(=sandlances) nei",27,"United Kingdom","GBR","yes","no",0,"yes","biomar","FishStat capture","Sandeel",0,4660
+"Ethmidium maculatum","pacific menhaden",87,"Chile","CHL","yes","no",0,"yes","biomar","FishStat capture","Menhaden",0,577
+"Ethmidium maculatum","pacific menhaden",87,"Peru","PER","yes","no",0,"yes","biomar","FishStat capture","Menhaden",0,577
+"Gadus chalcogrammus","alaska pollock(=walleye poll.)",67,"Canada","CAN","no","yes",1,"yes","biomar","FishStat capture","Alaska Pollock",5126,0
+"Gadus chalcogrammus","alaska pollock(=walleye poll.)",67,"Russian Federation","RUS","no","yes",1,"yes","biomar","FishStat capture","Alaska Pollock",5126,0
+"Gadus chalcogrammus","alaska pollock(=walleye poll.)",67,"United States of America","USA","no","yes",1,"yes","biomar","FishStat capture","Alaska Pollock",5126,0
+"Salmo salar","atlantic salmon",87,"Chile","CHL","no","yes",1,"no","biomar","FishStat aquaculture","Farmed Seafood By-Products",13258,0
+"Salmo salar","atlantic salmon",27,"Faroe Islands","FRO","no","yes",1,"no","biomar","FishStat aquaculture","Farmed Seafood By-Products",13258,0
+"Salmo salar","atlantic salmon",27,"Iceland","ISL","no","yes",1,"no","biomar","FishStat aquaculture","Farmed Seafood By-Products",13258,0
+"Salmo salar","atlantic salmon",27,"Ireland","IRL","no","yes",1,"no","biomar","FishStat aquaculture","Farmed Seafood By-Products",13258,0
+"Salmo salar","atlantic salmon",27,"Norway","NOR","no","yes",1,"no","biomar","FishStat aquaculture","Farmed Seafood By-Products",13258,0
+"Salmo salar","atlantic salmon",27,"Russian Federation","RUS","no","yes",1,"no","biomar","FishStat aquaculture","Farmed Seafood By-Products",13258,0
+"Salmo salar","atlantic salmon",27,"Spain","ESP","no","yes",1,"no","biomar","FishStat aquaculture","Farmed Seafood By-Products",13258,0
+"Salmo salar","atlantic salmon",27,"Sweden","SWE","no","yes",1,"no","biomar","FishStat aquaculture","Farmed Seafood By-Products",13258,0
+"Salmo salar","atlantic salmon",27,"United Kingdom","GBR","no","yes",1,"no","biomar","FishStat aquaculture","Farmed Seafood By-Products",13258,0
+"Trachurus trachurus","atlantic horse mackerel",27,"Channel Islands","GGY","yes","yes",0.77,"yes","biomar","FishStat capture","Atlantic Mackerel Spp.",11335.17,3385.83
+"Trachurus trachurus","atlantic horse mackerel",27,"Channel Islands"," JEY","yes","yes",0.77,"yes","biomar","FishStat capture","Atlantic Mackerel Spp.",11335.17,3385.83
+"Scomber scombrus","atlantic mackerel",27,"Channel Islands","GGY","yes","yes",0.77,"yes","biomar","FishStat capture","Atlantic Mackerel Spp.",11335.17,3385.83
+"Scomber scombrus","atlantic mackerel",27,"Channel Islands"," JEY","yes","yes",0.77,"yes","biomar","FishStat capture","Atlantic Mackerel Spp.",11335.17,3385.83
+"Gadus morhua","atlantic cod",27,"Channel Islands","GGY","no","yes",1,"yes","biomar","FishStat capture","Atlantic Cod",10577,0
+"Gadus morhua","atlantic cod",27,"Channel Islands"," JEY","no","yes",1,"yes","biomar","FishStat capture","Atlantic Cod",10577,0
+NA,"sandeels(=sandlances) nei",27,"Channel Islands","GGY","yes","no",0,"yes","biomar","FishStat capture","Sandeel",0,4660
+NA,"sandeels(=sandlances) nei",27,"Channel Islands"," JEY","yes","no",0,"yes","biomar","FishStat capture","Sandeel",0,4660

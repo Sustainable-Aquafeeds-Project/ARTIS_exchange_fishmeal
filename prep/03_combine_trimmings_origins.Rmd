@@ -1,0 +1,173 @@
+---
+title: "Establish trimmings origins"
+output: html_document
+date: "2024-07-24"
+---
+
+## Summary
+
+Combine origins information from Cargill, Skretting, and BioMar, aggregated in previous 3 scripts (02a-c).
+
+    
+When there are countries and species which are in multiple reports (e.g., Atlantic herring exists for Denmaark for both Cargill and BioMar, but they report different trimmings proportions, we will weight by the total trimmings weight the company reports).
+
+
+## Setup
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(here)
+library(tidyverse)
+library(glue)
+library(sf)
+library(devtools)
+library(janitor)
+library(countrycode)
+library(taxize)
+library(qs)
+
+source(here("R/directories.R"))
+
+full_artis <- qs::qread(file.path(artis_dir, "full_artis_fm_fillet.qs"))
+
+fm_artis <- full_artis %>% 
+  filter(hs6 == 230120)
+
+artis_genus_df <- read.csv(file.path(artis_dir, "artis_full_data/data/attribute tables/sciname.csv")) ## read in attribute table with common names
+
+
+```
+
+
+
+```{r}
+biomar_int <- read.csv(here("int/material_origins_biomar_raw.csv")) %>%
+  dplyr::select(-fao_fishing_area) %>% # dont need this
+  mutate(
+         common_name = ifelse(common_name == "pacific sardine", "south american pilchard", common_name)) %>% #  ## just missing "pacific sardine", which is sardinops sagax, common name is reported as south american pilchard in ARTIS.. we'll use what is listed in ARTIS for the name
+  mutate(country = ifelse(country == "Other nei", "unknown", country),
+         iso3c = ifelse(country == "unknown", "unknown", iso3c)) %>%
+  mutate(sciname = tolower(sciname)) %>%
+      mutate(common_name = ifelse(common_name %in% c("herrings, sardines nei"), "herrings", common_name)) %>% # fix this one
+  dplyr::select(-sciname) %>%
+  left_join(artis_genus_df, by = "common_name") %>% # keep artis scinames
+  dplyr::select(1:13)
+
+ 
+cargill_int <- read.csv(here("int/material_origins_cargill.csv")) %>%
+  mutate(capture = ifelse(sciname == "Salmo salar", "no", "yes")) %>%  ## add capture column
+  filter(!is.na(sciname)) %>%
+  filter(!(common_name %in% c("Miscellaneous species", "Mixed fish"))) %>%
+  mutate(common_name = tolower(common_name),
+         sciname = tolower(sciname)) %>%
+    mutate(common_name = case_when(
+    sciname == "ammodytes sp." ~ "sandeels(=sandlances) nei",
+    common_name %in% c("peruvian anchoveta") ~ "anchoveta(=peruvian anchovy)",
+    common_name == "blue whiting" ~ "blue whiting(=poutassou)",
+    common_name == "european pilchard" ~ "european pilchard(=sardine)", 
+    common_name == "chub mackerel" ~ "pacific chub mackerel", 
+    common_name == "alaska pollock" ~ "alaska pollock(=walleye poll.)",
+    common_name == "sardine" ~ "sardinellas nei",
+    common_name == "humboldt squid" ~ "jumbo flying squid",
+    common_name == "thread herring" ~ "pacific thread herring",
+    common_name == "pangasius" ~ "pangas catfishes nei",
+    TRUE ~ common_name
+  )) %>%
+      left_join(artis_genus_df, by = "common_name") %>%
+    dplyr::select(-sciname.x) %>%
+  rename(sciname = sciname.y) %>%
+  dplyr::select(1:13)
+
+
+
+  
+  
+skretting_int <- read.csv(here("int/material_origins_skretting_global.csv")) %>%
+    filter(!is.na(country)) %>% # ok skretting is just missing trimmings_tonnes and wholefish_tonnes, for now we'll leave as NA 
+    mutate(trimmings_tonnes = NA, wholefish_tonnes = NA) %>%
+  mutate(common_name = ifelse(sciname == "ammodytes tobianus", "small sandeel", common_name)) %>%
+  mutate(common_name = ifelse(sciname == "ammodytes spp", "sandeels(=sandlances) nei", common_name)) %>%
+  mutate(common_name = case_when(
+    sciname == "ammodytes tobianus" ~ "small sandeel",
+    sciname == "ammodytes spp" ~ "sandeels(=sandlances) nei",
+    common_name == "sardine" ~ "sardinellas nei",
+    sciname == "thunnini spp" ~ "tunas nei",
+    common_name == "hake" ~ "hakes nei",
+    common_name == "menhaden" ~ "gulf menhaden",
+    common_name %in% c("chilean anchoveta", "peruvian anchoveta") ~ "anchoveta(=peruvian anchovy)",
+    common_name == "cod" ~ "atlantic cod",
+    common_name == "blue whiting" ~ "blue whiting(=poutassou)",
+    common_name == "coho salmon" ~ "coho(=silver) salmon", 
+    sciname == "pollachius pollachius" ~ "pollack",
+    sciname == "pollachius virens" ~ "saithe(=pollock)",
+    sciname == "prionotus carolinus" ~ "northern searobin",
+    common_name == "european sardine" ~ "european pilchard(=sardine)", 
+    common_name == "chub mackerel" ~ "pacific chub mackerel", 
+    common_name == "orange-spotted spinefoot" ~ "goldlined spinefoot",
+    common_name == "sprat" ~ "european sprat", 
+    common_name == "jackmackerel" ~ "pacific jack mackerel",
+    TRUE ~ common_name
+  )) %>%
+  left_join(artis_genus_df, by = "common_name") %>%
+  dplyr::select(-sciname.x) %>%
+  rename(sciname = sciname.y) %>%
+  dplyr::select(1:13)
+
+
+  
+all_int_dfs <- rbind(biomar_int, cargill_int, skretting_int) %>%
+  mutate(sciname = tolower(sciname),
+         common_name = tolower(common_name)) %>%
+  mutate(capture = ifelse(iso3c == "MEX" & common_name == "yellowfin tuna", "no", capture)) # make sure mexico is listed as aquaculture. Oman also lists wholefish reduction, however, oman doesnt have any tuna aquaculture
+
+write.csv(all_int_dfs, here("int/material_origins_biomar_cargill_skretting.csv"), row.names = FALSE)
+
+test <- all_int_dfs %>%
+  filter(iso3c == "MEX")
+
+## check if there is any tuna aquaculture in mexico? 
+
+fao_aqua <- read.csv("/mnt/rdsi/raw_data/fao/FAO_fishstat_2020/global_aquaculture_production_1950_2020.csv") %>%
+  clean_names()
+
+test2 <- fao_aqua %>% 
+  filter(country_name == "Mexico") ## ok they do report yellowfin tuna aquaculture in mexico, so maybe we should assume that is not capture production
+
+
+```
+
+Now lets summarise so that we don't have any duplicate countries and species. 
+
+ - I will try weighted mean of trim_prop based on trimmings_tonnes (this will exclude skretting though...)
+ - I will also do regular mean
+ - For the ones where skretting was excluded, grab their value from the regular mean column
+ 
+ 
+```{r}
+
+int_dfs_summary <- all_int_dfs %>%
+  group_by(sciname, common_name, iso3c, capture) %>%
+  summarise(trim_prop_w_mean = weighted.mean(trim_prop, trimmings_tonnes, na.rm = TRUE),
+            trim_prop_mean = mean(trim_prop, na.rm = TRUE)) %>%
+  ungroup() %>%
+  mutate(trim_prop_w_mean = ifelse(trim_prop_w_mean == "NaN", 0, trim_prop_w_mean)) %>% # fix those with 0 trimmings tonnes
+  mutate(trim_prop_w_mean = ifelse(is.na(trim_prop_w_mean), trim_prop_mean, trim_prop_w_mean)) %>%
+  dplyr::select(sciname, common_name, iso3c, capture, trim_prop = trim_prop_w_mean) %>%
+  mutate(trimmings = case_when(
+    trim_prop == 1 ~ "yes",
+    trim_prop > 0 & trim_prop < 1 ~ "yes",
+    trim_prop == 0 ~ "no"
+  ),
+  wholefish = case_when(
+    trim_prop == 1 ~ "no",
+        trim_prop > 0 & trim_prop < 1 ~ "yes",
+    trim_prop == 0 ~ "yes"
+  )) 
+
+
+write.csv(int_dfs_summary, here("outputs/all_fmfo_material_origins_reports.csv"), row.names = FALSE)
+
+```
+ 
+

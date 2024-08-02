@@ -1,0 +1,752 @@
+---
+title: "Establish trimmings origins for BioMar"
+output: html_document
+date: "2024-07-24"
+---
+
+## Summary
+
+Create a dataset which describes for every country and FAO fishing area the species which contribute (or don't) to trimmings fishmeal, based on feed sustainability reports from [BioMar](https://www.biomar.com/our-promise/sustainability-report). Because BioMar only provides the FAO fishing area of their sources, we have to apply a slightly different methodology than with Skretting or Cargill:
+
+ - look up species and country (or FAO area) listed in biomar report in the FAO capture production data
+ - take distinct of species, country, FAO area
+ - Fill in the rest of the info (e.g., wholefish (yes/no), trimmings (yes/no), capture (yes/no), and data source info
+ - Join into one dataset
+ 
+ Example: 
+ 
+  - Biomar reports Atlantic Herring in FAO Fishing Area 27 as being used in trimmings AND render fisheries
+  - Filter the FAO FishStat capture production data for atlantic herring and FAO fishing area 27
+  - Filter for there actually being production in that country/fishing area
+  - Fill in columns for render (i.e., is this used for render FM), trimmings (i.e., is this used for trimmings FM), capture (i.e., does this FM come from capture production), and then datasource info (from biomar, skrettying, etc.)
+    - sciname = Clupea harengus, common_name = Atlantic herring, render = yes, trimmings = yes, capture = yes, datasource_feed = biomar, datasource_fao_area_country = FishStat capture, feed_report_spp_name = Atlantic Herring
+    
+    
+When there are countries and species which are in multiple reports (e.g., Atlantic herring exists for Denmark for Cargill, Skretting, and BioMar, but they report different trimmings proportions, we will weight by the total trimmings weight the company reports).
+
+
+**NOTE:** Consider filtering the ARTIS database for country origins rather than the FAO capture database? It should be the same, right? And this would avoid weird name mismatches. Although ARTIS doesn't include FAO fishing areas...
+
+## Setup
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(here)
+library(tidyverse)
+library(glue)
+library(sf)
+library(devtools)
+library(janitor)
+library(countrycode)
+library(taxize)
+library(qs)
+
+source(here("R/directories.R"))
+
+full_artis <- qs::qread(file.path(artis_dir, "full_artis_fm_fillet.qs"))
+
+fm_artis <- full_artis %>% 
+  filter(hs6 == 230120)
+
+```
+
+
+Read in FAO fisheries capture data
+
+```{r}
+fao_fish <- read.csv(file.path("/mnt/rdsi/raw_data/fao/FAO_fishstat_2020/global_capture_production_1950-2020.csv")) %>%
+  clean_names()
+
+```
+
+Create empty dataframe which has columns: `sciname`, `common_name`, `fao_fishing_area`, `country`, `iso3c`, `render`, `trimmings`, `capture` , `data_source_feed`, `data_source_fao_area_country`, `feed_report_spp_name`
+
+```{r}
+fm_origins_df <- data.frame(sciname = NA, 
+                         common_name = NA,
+                         fao_fishing_area = NA, 
+                         country = NA, 
+                         iso3c = NA, 
+                         wholefish = NA, 
+                         trimmings = NA, 
+                         trim_prop = NA,
+                         capture = NA, 
+                         data_source_feed = NA,
+                         data_source_fao_area_country = NA,
+                         feed_report_spp_name = NA,
+                         trimmings_tonnes = NA,
+                         wholefish_tonnes = NA)
+
+```
+
+
+Start working through species listed in BioMar sustainability report. 
+
+```{r}
+
+biomar_trimmings <- read.csv(here("data/Trimmings info - biomar.csv")) %>%
+  clean_names() %>%
+  filter(marine_protein_share != "0.00%") %>% ## filter out any species/regions that do not do fish meal
+  mutate(total_volume_tonnes = as.numeric(str_remove(total_volume_tonnes, ","))) %>%
+  mutate(wholefish_tonnes = total_volume_tonnes - total_volume_trimmings)
+
+
+head(biomar_trimmings, 1)
+## biomar Atlantic Herring  27; trimming % = 78%
+
+sci = as.character(comm2sci(com = "Atlantic herring"))
+
+biomar_herring <- fao_fish %>% 
+    filter(fao_major_fishing_area_code == 27) %>%
+  filter(str_detect(asfis_species_name, "Atlantic herring")) %>%
+  filter(x_2015 >0 |x_2016 >0 |x_2017 >0 |x_2018 >0 |x_2019 >0 |x_2020 >0) %>%
+    distinct(country_name, asfis_species_name, asfis_species_name_1, fao_major_fishing_area_code, fao_major_fishing_area_name, unit_name) %>% 
+  dplyr::select(common_name = asfis_species_name, fao_fishing_area = fao_major_fishing_area_code, country = country_name) %>%
+  mutate(iso3c = countrycode(sourcevar = country, destination = "iso3c", origin = "country.name"),
+         sciname = sci, 
+         wholefish = "yes",
+         trimmings = "yes", 
+         capture = "yes",
+         trim_prop = 0.78, 
+         data_source_feed = "biomar",
+         data_source_fao_area_country = "FishStat capture", 
+         feed_report_spp_name = "Atlantic Herring",
+         trimmings_tonnes = 37805.82,
+         wholefish_tonnes = 10663.18) # check to see these are filled in
+
+fm_origins_df <- rbind(fm_origins_df, biomar_herring) %>%
+  filter(!is.na(fao_fishing_area))
+
+head(biomar_trimmings, 2)
+## biomar Peruvian Anchoveta	87; trim prop = 0.15
+
+# sci = as.character(comm2sci(com = "Peruvian anchoveta")) # nothing...
+sci = "Engraulis ringens"
+
+biomar_peru_anchovy <- fao_fish %>% 
+    filter(fao_major_fishing_area_code == 87) %>%
+  filter(str_detect(asfis_species_name, "Anchoveta")) %>%
+  filter(x_2015 >0 |x_2016 >0 |x_2017 >0 |x_2018 >0 |x_2019 >0 |x_2020 >0 ) %>%
+    distinct(country_name, asfis_species_name, asfis_species_name_1, fao_major_fishing_area_code, fao_major_fishing_area_name, unit_name) %>% 
+  dplyr::select(common_name = asfis_species_name, fao_fishing_area = fao_major_fishing_area_code, country = country_name) %>%
+  mutate(iso3c = countrycode(sourcevar = country, destination = "iso3c", origin = "country.name"),
+         sciname = sci, 
+         wholefish = "yes",
+         trimmings = "yes", 
+         trim_prop = 0.15,
+         capture = "yes",
+         data_source_feed = "biomar",
+         data_source_fao_area_country = "FishStat capture", 
+         feed_report_spp_name = "Peruvian Anchoveta",
+         trimmings_tonnes = 5893.65,
+         wholefish_tonnes = 33397.35) # check to see these are filled in
+
+fm_origins_df <- rbind(fm_origins_df, biomar_peru_anchovy)
+
+
+head(biomar_trimmings, 3)
+## biomar Blue Whiting	27; trim_prop = 0.02
+
+# sci = as.character(comm2sci(com = "Blue whiting")) ## nothing
+sci = "Micromesistius poutassou"
+
+biomar_whiting <- fao_fish %>% 
+    filter(fao_major_fishing_area_code == 27) %>%
+  filter(str_detect(asfis_species_name, "Blue whiting")) %>%
+  filter(x_2015 >0 |x_2016 >0 |x_2017 >0 |x_2018 >0 |x_2019 >0 |x_2020 >0 ) %>%
+    distinct(country_name, asfis_species_name, asfis_species_name_1, fao_major_fishing_area_code, fao_major_fishing_area_name, unit_name) %>% 
+  dplyr::select(common_name = asfis_species_name, fao_fishing_area = fao_major_fishing_area_code, country = country_name) %>%
+  mutate(iso3c = countrycode(sourcevar = country, destination = "iso3c", origin = "country.name"),
+         sciname = sci, 
+         wholefish = "yes",
+         trimmings = "yes", 
+         trim_prop = 0.02,
+         capture = "yes",
+         data_source_feed = "biomar",
+         data_source_fao_area_country = "FishStat capture", 
+         feed_report_spp_name = "Blue Whiting",
+         trimmings_tonnes = 647.16,
+         wholefish_tonnes = 31710.84) # check to see these are filled in
+
+fm_origins_df <- rbind(fm_origins_df, biomar_whiting)
+
+
+head(biomar_trimmings, 4)
+## biomar Capelin	27; trim_prop = 0.6
+
+# sci = as.character(comm2sci(com = "Capelin", db = "worms")) # nothing
+sci <- "Mallotus villosus"
+
+
+biomar_capelin <- fao_fish %>% 
+    filter(fao_major_fishing_area_code == 27) %>%
+  filter(str_detect(asfis_species_name, "Capelin|capelin")) %>%
+  filter(x_2015 >0 |x_2016 >0 |x_2017 >0 |x_2018 >0 |x_2019 >0 |x_2020 >0 ) %>%
+    distinct(country_name, asfis_species_name, asfis_species_name_1, fao_major_fishing_area_code, fao_major_fishing_area_name, unit_name) %>% 
+  dplyr::select(common_name = asfis_species_name, fao_fishing_area = fao_major_fishing_area_code, country = country_name) %>%
+  mutate(iso3c = countrycode(sourcevar = country, destination = "iso3c", origin = "country.name"),
+         sciname = sci, 
+         wholefish = "yes",
+         trimmings = "yes", 
+         trim_prop = 0.6,
+         capture = "yes",
+         data_source_feed = "biomar",
+         data_source_fao_area_country = "FishStat capture", 
+         feed_report_spp_name = "Capelin",
+         trimmings_tonnes = 11593.20,
+         wholefish_tonnes = 7728.80) # check to see these are filled in
+
+fm_origins_df <- rbind(fm_origins_df, biomar_capelin)
+
+head(biomar_trimmings, 5)
+## biomar Tuna Spp.	87, 57; trim_prop = 1
+
+# sci = comm2sci(com = "Capelin") 
+
+biomar_tuna <- fao_fish %>% 
+    filter(fao_major_fishing_area_code == 87 | fao_major_fishing_area_code == 57) %>%
+  filter(str_detect(asfis_species_name, "Tuna|tuna")) %>%
+  filter(x_2015 >0 |x_2016 >0 |x_2017 >0 |x_2018 >0 |x_2019 >0 |x_2020 >0 ) %>%
+    distinct(country_name, asfis_species_name, asfis_species_name_1, fao_major_fishing_area_code, fao_major_fishing_area_name, unit_name) %>% 
+  dplyr::select(common_name = asfis_species_name, fao_fishing_area = fao_major_fishing_area_code, country = country_name) %>%
+  mutate(iso3c = countrycode(sourcevar = country, destination = "iso3c", origin = "country.name"),
+         wholefish = "no",
+         trimmings = "yes", 
+         capture = "yes",
+         trim_prop = 1,
+         data_source_feed = "biomar",
+         data_source_fao_area_country = "FishStat capture", 
+         feed_report_spp_name = "Tuna Spp.",
+         trimmings_tonnes = 18375.00,
+         wholefish_tonnes = 0) # check to see these are all filled in
+
+comm_names_list <- unique(biomar_tuna$common_name)
+com_sci_df <- data.frame(common_name = comm_names_list) %>%
+  mutate(sciname = as.character(comm2sci(com = common_name))) %>%
+  mutate(sciname = ifelse(sciname == "character(0)", NA, sciname))
+
+biomar_tuna <- biomar_tuna %>%
+  left_join(., com_sci_df, by = "common_name")
+
+
+fm_origins_df <- rbind(fm_origins_df, biomar_tuna)
+
+head(biomar_trimmings, 6)
+## biomar Pacific Mackerel Spp.	87, 77, 71; prop_trim = 0.97: because there are mackerel species which have "pacific" in their names, I'll filter for pacific in the name as well below
+
+biomar_p_mack <- fao_fish %>% 
+    filter(fao_major_fishing_area_code == 87 | fao_major_fishing_area_code == 77| fao_major_fishing_area_code == 71) %>%
+  filter(str_detect(asfis_species_name, "Pacific|pacific")) %>%
+    filter(str_detect(asfis_species_name, "Mackerel|mackerel")) %>%
+  filter(x_2015 >0 |x_2016 >0 |x_2017 >0 |x_2018 >0 |x_2019 >0 |x_2020 >0 ) %>%
+    distinct(country_name, asfis_species_name, asfis_species_name_1, fao_major_fishing_area_code, fao_major_fishing_area_name, unit_name) %>% 
+  dplyr::select(common_name = asfis_species_name, fao_fishing_area = fao_major_fishing_area_code, country = country_name) %>%
+  mutate(iso3c = countrycode(sourcevar = country, destination = "iso3c", origin = "country.name"),
+         wholefish = "yes",
+         trimmings = "yes", 
+         capture = "yes",
+         trim_prop = 0.97,
+         data_source_feed = "biomar",
+         data_source_fao_area_country = "FishStat capture", 
+         feed_report_spp_name = "Pacific Mackerel Spp.",
+         trimmings_tonnes = 1492.83,
+         wholefish_tonnes = 15094.17) # check to see these are all filled in
+
+comm_names_list <- unique(biomar_p_mack$common_name)
+com_sci_df <- data.frame(common_name = comm_names_list) %>%
+  mutate(sciname = as.character(comm2sci(com = common_name))) %>%
+  mutate(sciname = ifelse(sciname == "character(0)", NA, sciname)) %>%
+  mutate(sciname = ifelse(common_name == "Pacific chub mackerel", "Scomber japonicus", sciname)) # fix this one since it's missing
+
+biomar_p_mack <- biomar_p_mack %>%
+  left_join(., com_sci_df, by = "common_name")
+
+
+fm_origins_df <- rbind(fm_origins_df, biomar_p_mack)
+
+
+head(biomar_trimmings, 8) ## skipping row 7, since it is "Wild Seafood By-Products, which we're not sure of what spp that could be.
+## biomar Atlantic Sardine	27, 34, 37, 87; trim_prop =0.8; assuming this could mean any sardine species in the atlantic...
+ 
+
+biomar_a_sardine <- fao_fish %>% 
+    filter(fao_major_fishing_area_code == 27 | fao_major_fishing_area_code == 34 | fao_major_fishing_area_code == 37 | fao_major_fishing_area_code == 87) %>%
+  filter(str_detect(asfis_species_name, "Sardine|sardine")) %>%
+  filter(!str_detect(asfis_species_name, "Pacific|pacific")) %>% ## filter this out since it has its own row in the biomar data
+  filter(x_2015 >0 |x_2016 >0 |x_2017 >0 |x_2018 >0 |x_2019 >0 |x_2020 >0 ) %>%
+    distinct(country_name, asfis_species_name, asfis_species_name_1, fao_major_fishing_area_code, fao_major_fishing_area_name, unit_name) %>% 
+  dplyr::select(common_name = asfis_species_name, fao_fishing_area = fao_major_fishing_area_code, country = country_name) %>%
+  mutate(iso3c = countrycode(sourcevar = country, destination = "iso3c", origin = "country.name"),
+         wholefish = "yes",
+         trimmings = "yes", 
+         capture = "yes",
+         trim_prop = 0.8,
+         data_source_feed = "biomar",
+         data_source_fao_area_country = "FishStat capture", 
+         feed_report_spp_name = "Atlantic Sardine",
+         trimmings_tonnes = 11882.40,
+         wholefish_tonnes = 2970.60) # check to see these are all filled in
+
+comm_names_list <- unique(biomar_a_sardine$common_name)
+com_sci_df <- data.frame(common_name = comm_names_list) %>%
+  mutate(sciname = as.character(comm2sci(com = common_name, db = "worms"))) %>%
+  mutate(sciname = ifelse(sciname == "character(0)", NA, sciname)) %>%
+  mutate(sciname = ifelse(common_name == "European pilchard(=Sardine)", "Sardina pilchardus", sciname)) # fix this one since it is missing
+
+biomar_a_sardine <- biomar_a_sardine %>%
+  left_join(., com_sci_df, by = "common_name")
+
+
+fm_origins_df <- rbind(fm_origins_df, biomar_a_sardine)
+
+
+head(biomar_trimmings, 9) 
+## biomar Atlantic Mackerel Spp. 27, 34; trim_prop = 0.77; assuming this could mean any mackerel species that has "atlantic" in its name, since there are species with that (e.g., atlantic mackerel, atlantic chub mackerel)
+ 
+
+biomar_a_mack <- fao_fish %>% 
+    filter(fao_major_fishing_area_code == 27 | fao_major_fishing_area_code == 34) %>%
+  filter(str_detect(asfis_species_name, "Mackerel|mackerel")) %>%
+  filter(!str_detect(asfis_species_name, "Pacific|pacific")) %>% ## filter this out since it has its own row in the biomar data
+    filter(str_detect(asfis_species_name, "Atlantic|atlantic")) %>% 
+  filter(x_2015 >0 |x_2016 >0 |x_2017 >0 |x_2018 >0 |x_2019 >0 |x_2020 >0 ) %>%
+    distinct(country_name, asfis_species_name, asfis_species_name_1, fao_major_fishing_area_code, fao_major_fishing_area_name, unit_name) %>% 
+  dplyr::select(common_name = asfis_species_name, fao_fishing_area = fao_major_fishing_area_code, country = country_name) %>%
+  mutate(iso3c = countrycode(sourcevar = country, destination = "iso3c", origin = "country.name"),
+         wholefish = "yes",
+         trimmings = "yes", 
+         capture = "yes",
+         trim_prop = 0.77,
+         data_source_feed = "biomar",
+         data_source_fao_area_country = "FishStat capture", 
+         feed_report_spp_name = "Atlantic Mackerel Spp.",
+         wholefish_tonnes = 3385.83, 
+         trimmings_tonnes = 11335.17) # check to see these are all filled in
+
+comm_names_list <- unique(biomar_a_mack$common_name)
+com_sci_df <- data.frame(common_name = comm_names_list) %>%
+  mutate(sciname = as.character(comm2sci(com = common_name))) %>%
+  mutate(sciname = ifelse(sciname == "character(0)", NA, sciname)) 
+
+biomar_a_mack <- biomar_a_mack %>%
+  left_join(., com_sci_df, by = "common_name")
+ ## will need to fix "channel islands" at the end. Will just have to split this into GGY and JEY 
+
+fm_origins_df <- rbind(fm_origins_df, biomar_a_mack)
+
+head(biomar_trimmings, 10) 
+## biomar Antarctic Krill 48 
+ 
+
+biomar_krill <- fao_fish %>% 
+    filter(fao_major_fishing_area_code == 48) %>%
+  filter(str_detect(asfis_species_name, "Antarctic Krill|Antarctic krill")) %>%
+  filter(x_2015 >0 |x_2016 >0 |x_2017 >0 |x_2018 >0 |x_2019 >0 |x_2020 >0 ) %>%
+    distinct(country_name, asfis_species_name, asfis_species_name_1, fao_major_fishing_area_code, fao_major_fishing_area_name, unit_name) %>% 
+  dplyr::select(common_name = asfis_species_name, fao_fishing_area = fao_major_fishing_area_code, country = country_name) %>%
+  mutate(iso3c = countrycode(sourcevar = country, destination = "iso3c", origin = "country.name"),
+         wholefish = "yes",
+         trimmings = "no", 
+         capture = "yes",
+         trim_prop = 0,
+         data_source_feed = "biomar",
+         data_source_fao_area_country = "FishStat capture", 
+         feed_report_spp_name = "Antarctic Krill",
+         trimmings_tonnes = 0, 
+         wholefish_tonnes = 13834.00) # check to see these are all filled in
+
+comm_names_list <- unique(biomar_krill$common_name)
+com_sci_df <- data.frame(common_name = comm_names_list) %>%
+  mutate(sciname = as.character(comm2sci(com = common_name))) %>%
+  mutate(sciname = ifelse(sciname == "character(0)", "Euphausia superba", sciname)) 
+
+biomar_krill <- biomar_krill %>%
+  left_join(., com_sci_df, by = "common_name")
+
+fm_origins_df <- rbind(fm_origins_df, biomar_krill)
+
+
+head(biomar_trimmings, 12) # skipping 11, as we will do farmed seafood trimmings separately 
+## biomar Anchovy 47, 77, 37, 27, 34, 87, 61 # we will take any anchovy species in these areas
+ 
+
+biomar_anch <- fao_fish %>% 
+    filter(fao_major_fishing_area_code == 47 | fao_major_fishing_area_code == 77 | fao_major_fishing_area_code == 37 | fao_major_fishing_area_code == 27 | fao_major_fishing_area_code == 34 | fao_major_fishing_area_code == 87 | fao_major_fishing_area_code == 61) %>%
+  filter(str_detect(asfis_species_name, "Anchovy|anchovy|anchoveta|Anchoveta|Anchovies|anchovies")) %>%
+    filter(asfis_species_name != "Anchoveta(=Peruvian anchovy)") %>% # make sure not this one as it is already done
+  filter(x_2015 >0 |x_2016 >0 |x_2017 >0 |x_2018 >0 |x_2019 >0 |x_2020 >0 ) %>%
+    distinct(country_name, asfis_species_name, asfis_species_name_1, fao_major_fishing_area_code, fao_major_fishing_area_name, unit_name) %>% 
+  dplyr::select(common_name = asfis_species_name, fao_fishing_area = fao_major_fishing_area_code, country = country_name) %>%
+  mutate(iso3c = countrycode(sourcevar = country, destination = "iso3c", origin = "country.name"),
+         wholefish = "yes",
+         trimmings = "yes", 
+         capture = "yes",
+         trim_prop = 0.11,
+         data_source_feed = "biomar",
+         data_source_fao_area_country = "FishStat capture", 
+         feed_report_spp_name = "Anchovy",
+         trimmings_tonnes = 1430.33,
+         wholefish_tonnes = 11572.67) # check to see these are all filled in
+
+comm_names_list <- unique(biomar_anch$common_name)
+com_sci_df <- data.frame(common_name = comm_names_list) %>%
+  mutate(sciname = as.character(comm2sci(com = common_name))) %>%
+  mutate(sciname = ifelse(sciname == "character(0)", NA, sciname)) %>%
+  mutate(sciname = ifelse(common_name == "Californian anchovy", "Engraulis mordax", sciname)) %>%
+  mutate(sciname = ifelse(common_name == "Southern African anchovy", "Engraulis capensis", sciname)) # fix the couple that are missing
+ 
+
+biomar_anch <- biomar_anch %>%
+  left_join(., com_sci_df, by = "common_name")
+
+fm_origins_df <- rbind(fm_origins_df, biomar_anch)
+
+
+head(biomar_trimmings, 13) # skipping 11, as we will do farmed seafood trimmings separately 
+## biomar Atlantic cod 27 
+ 
+
+biomar_a_cod <- fao_fish %>% 
+    filter(fao_major_fishing_area_code == 27) %>%
+  filter(str_detect(asfis_species_name, "Atlantic cod|Atlantic Cod")) %>%
+    filter(asfis_species_name != "North Atlantic codling") %>% # make sure not this one as it is already done
+  filter(x_2015 >0 |x_2016 >0 |x_2017 >0 |x_2018 >0 |x_2019 >0 |x_2020 >0 ) %>%
+    distinct(country_name, asfis_species_name, asfis_species_name_1, fao_major_fishing_area_code, fao_major_fishing_area_name, unit_name) %>% 
+  dplyr::select(common_name = asfis_species_name, fao_fishing_area = fao_major_fishing_area_code, country = country_name) %>%
+  mutate(iso3c = countrycode(sourcevar = country, destination = "iso3c", origin = "country.name"),
+         wholefish = "no",
+         trimmings = "yes", 
+         capture = "yes",
+         trim_prop = 1,
+         data_source_feed = "biomar",
+         data_source_fao_area_country = "FishStat capture", 
+         feed_report_spp_name = "Atlantic Cod",
+         trimmings_tonnes = 10577.00,
+         wholefish_tonnes = 0) # check to see these are all filled in
+
+comm_names_list <- unique(biomar_a_cod$common_name)
+com_sci_df <- data.frame(common_name = comm_names_list) %>%
+  mutate(sciname = as.character(comm2sci(com = common_name))) %>%
+  mutate(sciname = ifelse(sciname == "character(0)", NA, sciname)) 
+ 
+
+biomar_a_cod <- biomar_a_cod %>%
+  left_join(., com_sci_df, by = "common_name")
+
+fm_origins_df <- rbind(fm_origins_df, biomar_a_cod)
+
+
+
+
+head(biomar_trimmings, 14) 
+## biomar Araucanian Herring 87
+ 
+
+biomar_a_herring <- fao_fish %>% 
+    filter(fao_major_fishing_area_code == 87) %>%
+  filter(str_detect(asfis_species_name, "Araucanian Herring|Araucanian herring")) %>%
+  filter(x_2015 >0 |x_2016 >0 |x_2017 >0 |x_2018 >0 |x_2019 >0 |x_2020 >0 ) %>%
+    distinct(country_name, asfis_species_name, asfis_species_name_1, fao_major_fishing_area_code, fao_major_fishing_area_name, unit_name) %>% 
+  dplyr::select(common_name = asfis_species_name, fao_fishing_area = fao_major_fishing_area_code, country = country_name) %>%
+  mutate(iso3c = countrycode(sourcevar = country, destination = "iso3c", origin = "country.name"),
+         wholefish = "yes",
+         trimmings = "no", 
+         capture = "yes",
+         trim_prop = 0,
+         data_source_feed = "biomar",
+         data_source_fao_area_country = "FishStat capture", 
+         feed_report_spp_name = "Araucanian Herring",
+         trimmings_tonnes = 0,
+         wholefish_tonnes = 10200.00) # check to see these are all filled in
+
+comm_names_list <- unique(biomar_a_herring$common_name)
+
+com_sci_df <- data.frame(common_name = comm_names_list) %>%
+  mutate(sciname = as.character(comm2sci(com = common_name))) %>%
+  mutate(sciname = ifelse(sciname == "character(0)", "Strangomera bentincki", sciname))  # comm2sci didn't pick it up
+ 
+
+biomar_a_herring <- biomar_a_herring %>%
+  left_join(., com_sci_df, by = "common_name")
+
+
+fm_origins_df <- rbind(fm_origins_df, biomar_a_herring)
+
+
+head(biomar_trimmings, 15) 
+## biomar Sardine 51: assume any sardine species in this area except "atlantic sardine" and "pacific sardine" since those are already/will be done separately
+ 
+
+biomar_sardine <- fao_fish %>% 
+    filter(fao_major_fishing_area_code == 51) %>%
+  filter(str_detect(asfis_species_name, "Sardine|sardine")) %>%
+    filter(!str_detect(asfis_species_name, "Pacific|pacific")) %>%
+  filter(x_2015 >0 |x_2016 >0 |x_2017 >0 |x_2018 >0 |x_2019 >0 |x_2020 >0 ) %>%
+    distinct(country_name, asfis_species_name, asfis_species_name_1, fao_major_fishing_area_code, fao_major_fishing_area_name, unit_name) %>% 
+  dplyr::select(common_name = asfis_species_name, fao_fishing_area = fao_major_fishing_area_code, country = country_name) %>%
+  mutate(iso3c = countrycode(sourcevar = country, destination = "iso3c", origin = "country.name"),
+         wholefish = "yes",
+         trimmings = "yes", 
+         capture = "yes",
+         trim_prop = 0.15,
+         data_source_feed = "biomar",
+         data_source_fao_area_country = "FishStat capture", 
+         feed_report_spp_name = "Sardine",
+         trimmings_tonnes = 1351.95,
+         wholefish_tonnes = 7661.05)  %>%# check to see these are all filled in
+  mutate(iso3c = ifelse(is.na(iso3c), "EAZ", iso3c)) # fill in missing zanzibar iso3c
+
+comm_names_list <- unique(biomar_sardine$common_name)
+com_sci_df <- data.frame(common_name = comm_names_list) %>%
+  mutate(sciname = as.character(comm2sci(com = common_name))) %>%
+  mutate(sciname = ifelse(sciname == "character(0)", NA, sciname))  # comm2sci didn't pick it up
+ 
+
+biomar_sardine <- biomar_sardine %>%
+  left_join(., com_sci_df, by = "common_name")
+
+fm_origins_df <- rbind(fm_origins_df, biomar_sardine)
+
+
+head(biomar_trimmings, 16) 
+## biomar Sprat 27
+ 
+
+biomar_sprat <- fao_fish %>% 
+    filter(fao_major_fishing_area_code == 27) %>%
+  filter(str_detect(asfis_species_name, "Sprat|sprat")) %>%
+  filter(x_2015 >0 |x_2016 >0 |x_2017 >0 |x_2018 >0 |x_2019 >0 |x_2020 >0 ) %>%
+    distinct(country_name, asfis_species_name, asfis_species_name_1, fao_major_fishing_area_code, fao_major_fishing_area_name, unit_name) %>% 
+  dplyr::select(common_name = asfis_species_name, fao_fishing_area = fao_major_fishing_area_code, country = country_name) %>%
+  mutate(iso3c = countrycode(sourcevar = country, destination = "iso3c", origin = "country.name"),
+         wholefish = "yes",
+         trimmings = "yes", 
+         capture = "yes",
+         trim_prop = 0.2,
+         data_source_feed = "biomar",
+         data_source_fao_area_country = "FishStat capture", 
+         feed_report_spp_name = "Sprat",
+         trimmings_tonnes = 1037.20,
+         wholefish_tonnes = 4148.80) # check to see these are all filled in
+
+comm_names_list <- unique(biomar_sprat$common_name)
+com_sci_df <- data.frame(common_name = comm_names_list) %>%
+  mutate(sciname = as.character(comm2sci(com = common_name))) %>%
+  mutate(sciname = ifelse(sciname == "character(0)", NA, sciname))  # comm2sci didn't pick it up
+ 
+
+biomar_sprat <- biomar_sprat %>%
+  left_join(., com_sci_df, by = "common_name")
+
+fm_origins_df <- rbind(fm_origins_df, biomar_sprat)
+
+
+
+head(biomar_trimmings, 17) 
+## biomar Pacific Sardine 77, 81, 61, 87 ; treat it same way we do atlantic sardine; also filter for south american pilchard for common name... nevermind, they don't use that. 
+ 
+
+biomar_p_sardine <- fao_fish %>% 
+    filter(fao_major_fishing_area_code == 77 | fao_major_fishing_area_code == 81 | fao_major_fishing_area_code == 61 | fao_major_fishing_area_code == 87) %>%
+  filter(str_detect(asfis_species_name, "Sardine|sardine")) %>%
+    filter(str_detect(asfis_species_name, "Pacific|pacific")) %>%
+  filter(x_2015 >0 |x_2016 >0 |x_2017 >0 |x_2018 >0 |x_2019 >0 |x_2020 >0) %>%
+    distinct(country_name, asfis_species_name, asfis_species_name_1, fao_major_fishing_area_code, fao_major_fishing_area_name, unit_name) %>% 
+  dplyr::select(common_name = asfis_species_name, fao_fishing_area = fao_major_fishing_area_code, country = country_name) %>%
+  mutate(iso3c = countrycode(sourcevar = country, destination = "iso3c", origin = "country.name"),
+         wholefish = "yes",
+         trimmings = "no", 
+         capture = "yes",
+         trim_prop = 0,
+         data_source_feed = "biomar",
+         data_source_fao_area_country = "FishStat capture", 
+         feed_report_spp_name = "Pacific Sardine",
+         trimmings_tonnes = 0,
+         wholefish_tonnes = 4690.00) # check to see these are all filled in
+
+comm_names_list <- unique(biomar_p_sardine$common_name)
+com_sci_df <- data.frame(common_name = comm_names_list) %>%
+  mutate(sciname = as.character(comm2sci(com = common_name))) %>%
+  mutate(sciname = ifelse(sciname == "character(0)", "Sardinops sagax", sciname))  # comm2sci didn't pick it up
+ 
+
+biomar_p_sardine <- biomar_p_sardine %>%
+  left_join(., com_sci_df, by = "common_name")
+
+fm_origins_df <- rbind(fm_origins_df, biomar_p_sardine)
+
+
+head(biomar_trimmings, 18) 
+## biomar Sandeel 27 
+ 
+
+biomar_sandeel <- fao_fish %>% 
+    filter(fao_major_fishing_area_code == 27) %>%
+  filter(str_detect(asfis_species_name, "Sandeel|sandeel")) %>%
+  filter(x_2015 >0 |x_2016 >0 |x_2017 >0 |x_2018 >0 |x_2019 >0 |x_2020 >0) %>%
+    distinct(country_name, asfis_species_name, asfis_species_name_1, fao_major_fishing_area_code, fao_major_fishing_area_name, unit_name) %>% 
+  dplyr::select(common_name = asfis_species_name, fao_fishing_area = fao_major_fishing_area_code, country = country_name) %>%
+  mutate(iso3c = countrycode(sourcevar = country, destination = "iso3c", origin = "country.name"),
+         wholefish = "yes",
+         trimmings = "no", 
+         capture = "yes",
+         trim_prop = 0,
+         data_source_feed = "biomar",
+         data_source_fao_area_country = "FishStat capture", 
+         feed_report_spp_name = "Sandeel",
+         trimmings_tonnes = 0,
+         wholefish_tonnes = 4660.00) # check to see these are all filled in
+
+comm_names_list <- unique(biomar_sandeel$common_name)
+com_sci_df <- data.frame(common_name = comm_names_list) %>%
+  mutate(sciname = as.character(comm2sci(com = common_name))) %>%
+  mutate(sciname = ifelse(sciname == "character(0)", NA, sciname))  # comm2sci didn't pick it up
+ 
+
+biomar_sandeel <- biomar_sandeel %>%
+  left_join(., com_sci_df, by = "common_name")
+
+fm_origins_df <- rbind(fm_origins_df, biomar_sandeel)
+
+
+
+head(biomar_trimmings, 19) 
+## biomar Menhaden 87, 61 
+ 
+
+biomar_menhaden <- fao_fish %>% 
+    filter(fao_major_fishing_area_code == 87 | fao_major_fishing_area_code == 61) %>%
+  filter(str_detect(asfis_species_name, "Menhaden|menhaden")) %>%
+  filter(x_2015 >0 |x_2016 >0 |x_2017 >0 |x_2018 >0 |x_2019 >0 |x_2020 >0) %>%
+    distinct(country_name, asfis_species_name, asfis_species_name_1, fao_major_fishing_area_code, fao_major_fishing_area_name, unit_name) %>% 
+  dplyr::select(common_name = asfis_species_name, fao_fishing_area = fao_major_fishing_area_code, country = country_name) %>%
+  mutate(iso3c = countrycode(sourcevar = country, destination = "iso3c", origin = "country.name"),
+         wholefish = "yes",
+         trimmings = "no", 
+         trim_prop = 0,
+         capture = "yes",
+         data_source_feed = "biomar",
+         data_source_fao_area_country = "FishStat capture", 
+         feed_report_spp_name = "Menhaden",
+         trimmings_tonnes = 0,
+         wholefish_tonnes = 577.00) # check to see these are all filled in
+
+comm_names_list <- unique(biomar_menhaden$common_name)
+com_sci_df <- data.frame(common_name = comm_names_list) %>%
+  mutate(sciname = as.character(comm2sci(com = common_name))) %>%
+  mutate(sciname = ifelse(sciname == "character(0)", NA, sciname))  # comm2sci didn't pick it up
+ 
+
+biomar_menhaden <- biomar_menhaden %>%
+  left_join(., com_sci_df, by = "common_name")
+
+fm_origins_df <- rbind(fm_origins_df, biomar_menhaden)
+
+
+## the last row of biomar report is "Other" so we will skip that
+
+## based on feedback from rich, I'll also include species that biomar use for fish oil
+
+biomar_trimmings <- read.csv(here("data/Trimmings info - biomar.csv")) %>%
+  clean_names() %>%
+  filter(marine_protein_share == "0.00%") ## filter out any species/regions that do not do fish meal
+
+
+
+## biomar Alaska Pollock 67
+ 
+
+biomar_pollock <- fao_fish %>% 
+    filter(fao_major_fishing_area_code == 67) %>%
+  filter(str_detect(asfis_species_name, "Alaska pollock|Alaska Pollock")) %>%
+  filter(x_2015 >0 |x_2016 >0 |x_2017 >0 |x_2018 >0 |x_2019 >0 |x_2020 >0) %>%
+    distinct(country_name, asfis_species_name, asfis_species_name_1, fao_major_fishing_area_code, fao_major_fishing_area_name, unit_name) %>% 
+  dplyr::select(common_name = asfis_species_name, fao_fishing_area = fao_major_fishing_area_code, country = country_name) %>%
+  mutate(iso3c = countrycode(sourcevar = country, destination = "iso3c", origin = "country.name"),
+         wholefish = "no",
+         trimmings = "yes", 
+         trim_prop = 1,
+         capture = "yes",
+         data_source_feed = "biomar",
+         data_source_fao_area_country = "FishStat capture", 
+         feed_report_spp_name = "Alaska Pollock",
+         trimmings_tonnes = 5126.00,
+         wholefish_tonnes = 0) # check to see these are all filled in
+
+comm_names_list <- unique(biomar_pollock$common_name)
+com_sci_df <- data.frame(common_name = comm_names_list) %>%
+  mutate(sciname = as.character(comm2sci(com = common_name))) %>%
+  mutate(sciname = ifelse(sciname == "character(0)", "Gadus chalcogrammus", sciname))  # comm2sci didn't pick it up
+ 
+
+biomar_pollock <- biomar_pollock %>%
+  left_join(., com_sci_df, by = "common_name")
+
+fm_origins_df <- rbind(fm_origins_df, biomar_pollock)
+
+## we'll leave out sardinella bc it is already represented in the fish meal portion and we don't want duplicates
+
+```
+
+Now do the species in the biomar report that were aquaculture, E.g., "Farmed Seafood By-Products". We will assume all of these are Atlantic salmon and will use the FAO aquaculture production dataset for this instead of capture production dataset. 
+
+
+```{r}
+## read in aquaculture data from fao fishstat
+fao_aqua <- read.csv("/mnt/rdsi/raw_data/fao/FAO_fishstat_2020/global_aquaculture_production_1950_2020.csv") %>%
+  clean_names()
+
+# biomar Farmed Seafood By-Products 87, 27; will assume it is all Atlantic salmon
+
+biomar_farmed_trim <- fao_aqua %>%
+    filter(fao_major_fishing_area_code == 87 | fao_major_fishing_area_code == 27) %>%
+  filter(str_detect(asfis_species_name, "Atlantic salmon|Atlantic Salmon")) %>%
+  filter(x_2015 >0 |x_2016 >0 |x_2017 >0 |x_2018 >0 |x_2019 >0 |x_2020 >0 ) %>%
+    distinct(country_name, asfis_species_name, asfis_species_name_1, fao_major_fishing_area_code, fao_major_fishing_area_name, unit_name) %>% 
+  dplyr::select(common_name = asfis_species_name, fao_fishing_area = fao_major_fishing_area_code, country = country_name) %>%
+  mutate(iso3c = countrycode(sourcevar = country, destination = "iso3c", origin = "country.name"),
+         wholefish = "no",
+         trimmings = "yes", 
+         capture = "no",
+         trim_prop = 1,
+         data_source_feed = "biomar",
+         data_source_fao_area_country = "FishStat aquaculture", 
+         feed_report_spp_name = "Farmed Seafood By-Products",
+         trimmings_tonnes = 13258.00,
+         wholefish_tonnes = 0)  %>% # check to see these are all filled in
+  mutate(sciname = "Salmo salar")
+
+fm_origins_df <- rbind(fm_origins_df, biomar_farmed_trim)
+
+```
+
+
+
+Clean the data:
+
+ - Split "Channel Islands" into GGY and JEY; 2 separate rows 
+ - remove any duplicates 
+ - fix mismatched or missing scientific names of higher level taxon names by matching to ARTIS lookup table on `common_name`: `ARTIS/artis_full_data/data/attribute tables/sciname.csv`
+
+ 
+```{r}
+channel_islands_df <- fm_origins_df %>%
+  filter(country == "Channel Islands") %>%
+  mutate(iso3c = "GGY, JEY") %>%
+  separate_rows(iso3c, sep = ",")
+
+
+fm_origins_df_fin <- fm_origins_df %>%
+  filter(country != "Channel Islands") %>%
+  rbind(., channel_islands_df) %>%
+  distinct() %>%
+    mutate(sciname = ifelse(common_name == "Ridge scaled rattail", "Macrourus carinatus", sciname)) %>% # fix this one
+  mutate(common_name = tolower(common_name))
+
+
+write.csv(fm_origins_df_fin, here("int/material_origins_biomar_raw.csv"), row.names = FALSE)
+
+
+```
+ 

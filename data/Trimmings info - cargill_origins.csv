@@ -1,0 +1,47 @@
+common_name,sciname,countries,percent_total_material,feed_type,raw_material,tonnes
+Blue whiting,Micromesistius poutassou,"Denmark, Faroe Islands, Iceland, Norway",30.64%,coldwater,forage fish,55880.09464
+South American pilchard,Sardinops sagax,"Chile, Japan, Mexico, Panama",12.18%,coldwater,forage fish,22213.43188
+Peruvian anchoveta,Engraulis ringens,"Chile, Peru",10.12%,coldwater,forage fish,18456.48035
+Atlantic herring,Clupea harengus,"Denmark, Iceland, Norway",8.90%,coldwater,forage fish,16231.48963
+European sprat,Sprattus sprattus,"Denmark, Norway",7.08%,coldwater,forage fish,12912.24119
+Indian oil sardine,Sardinella longiceps,"India, Oman",6.77%,coldwater,forage fish,12346.8747
+Sandeel,Ammodytes sp.,"Denmark, Norway",3.97%,coldwater,forage fish,7240.338634
+European pilchard,Sardina pilchardus,"Mauretania, Norway",3.74%,coldwater,forage fish,6820.873171
+Gulf menhaden,Brevoortia patronus,U.S.,3.62%,coldwater,forage fish,6602.021626
+Capelin,Mallotus villosus,"Denmark, Iceland, Norway",3.07%,coldwater,forage fish,5598.952042
+Araucanian herring,Strangomera bentincki,Chile,2.13%,coldwater,forage fish,3884.614934
+Chilean jack mackerel,Trachurus murphyi,Chile,2.03%,coldwater,forage fish,3702.238646
+Japanese anchovy,Engraulis japonicus,"China, Japan",1.96%,coldwater,forage fish,3574.575245
+Norway pout,Trisopterus esmarkii,"Denmark, Norway",1.06%,coldwater,forage fish,1933.188653
+Miscellaneous species,NA,"Chile, Denmark, India, Ireland, Mexico, Morocco, Norway, South Africa",2.74%,coldwater,forage fish,4997.110291
+Gulf menhaden,Brevoortia patronus,U.S.,22.00%,warmwater,forage fish,5345.10108
+Pacific anchoveta,Cetengraulis mysticetus,Peru,9.90%,warmwater,forage fish,2405.295486
+Peruvian anchoveta,Engraulis ringens,"Ecuador, Norway, Peru, U.S.",7.19%,warmwater,forage fish,1746.876217
+Indian oil sardine,Sardinella longiceps,India,1.91%,warmwater,forage fish,464.0519574
+Sardine,Sardinella sp.,Mexico,1.79%,warmwater,forage fish,434.8968606
+Japanese anchovy,Engraulis japonicus,China,1.21%,warmwater,forage fish,293.9805594
+Miscellaneous species,NA,"China, Ecuador, India, Morocco, Norway, Other, Thailand, U.S., Vietnam",56.00%,warmwater,forage fish,13605.71184
+Atlantic herring,Clupea harengus,"Denmark, Faroe Islands, Iceland, Ireland, Norway",43.73%,coldwater,trimmings,33253.91526
+Atlantic mackerel,Scomber scombrus,"Denmark, Faroe Islands, Iceland, Ireland, Norway, U.K.",15.95%,coldwater,trimmings,12128.97206
+Capelin,Mallotus villosus,"Denmark, Iceland, Norway",6.36%,coldwater,trimmings,4836.380083
+Alaska pollock,Theragra chalcogramma,U.S.,4.89%,coldwater,trimmings,3718.537517
+Chilean jack mackerel,Trachurus murphyi,Chile,4.02%,coldwater,trimmings,3056.957222
+Argentine hake,Merluccius hubbsi,Argentina,1.38%,coldwater,trimmings,1049.403226
+Blue whiting,Micromesistius poutassou,"Ireland, Norway, U.K.",1.30%,coldwater,trimmings,988.568256
+Peruvian anchoveta,Engraulis ringens,Peru,1.23%,coldwater,trimmings,935.3376576
+Mixed whitefish*,NA,"Denmark, Iceland, Ireland, Morocco, Norway, U.K.",16.00%,coldwater,trimmings,12166.99392
+Miscellaneous species,NA,"Argentina, Brazil, Chile, India, Ireland, Mexico, Morocco, Norway, Philippines, U.S.",5.15%,coldwater,trimmings,3916.251168
+Yellowfin tuna,Thunnus albacares,"Ecuador, Mexico, Peru, Philippines, South Africa, Thailand, Vietnam",19.09%,warmwater,trimmings,6288.453317
+Skipjack tuna,Katsuwonus pelamis,"Ecuador, Mauritius, Peru, Vietnam",15.44%,warmwater,trimmings,5086.103678
+Chub mackerel,Scomber japonicus,"Ecuador, Peru",14.07%,warmwater,trimmings,4634.8108
+Peruvian anchoveta,Engraulis ringens,"Ecuador, Peru",7.99%,warmwater,trimmings,2631.992771
+Pacific bonito,Sarda chiliensis,"Ecuador, Peru",7.44%,warmwater,trimmings,2450.816798
+Thread herring,Opisthonema sp.,Ecuador,5.74%,warmwater,trimmings,1890.818336
+Indian oil sardine,Sardinella longiceps,India,5.62%,warmwater,trimmings,1851.289033
+Humboldt squid,Dosidicus gigas,"Argentina, Ecuador, Peru, South Korea",4.66%,warmwater,trimmings,1535.054608
+Atlantic salmon,Salmo salar,Chile,4.47%,warmwater,trimmings,1472.466544
+Chilean jack mackerel,Trachurus murphyi,"Ecuador, Peru",3.27%,warmwater,trimmings,1077.173512
+Pangasius,Hypothalamus sp.,Vietnam,1.51%,warmwater,trimmings,497.4103986
+Common dolphinfish,Coryphaena hippurus,"Ecuador, Peru",1.09%,warmwater,trimmings,359.0578374
+Mixed fish,,"Thailand, Vietnam",6.26%,warmwater,trimmings,2062.111984
+Miscellaneous species,,"Colombia, Ecuador, Norway, Peru, U.S.",3.36%,warmwater,trimmings,1106.82049

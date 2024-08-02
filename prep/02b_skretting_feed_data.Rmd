@@ -1,0 +1,85 @@
+---
+title: "Skretting material origins"
+output: html_document
+date: "2024-07-24"
+---
+
+
+```{r setup}
+
+knitr::opts_chunk$set(echo = TRUE)
+
+library(here)
+library(tidyverse)
+library(glue)
+library(sf)
+library(devtools)
+library(janitor)
+library(countrycode)
+library(taxize)
+library(qs)
+
+source(here("R/directories.R"))
+
+
+```
+
+## Summary
+
+Skretting reports forage fish and trimmings amounts percentages of fishmeal and oil, on pages 57 of their [global sustainability report](https://www.skretting.com/en-au/sustainability/sustainability-reporting/sustainability-report-2022/). Here we take this information and figure out weightings for each species (and country combination) of how much of their raw materials come from trimmings vs forage fish. 
+
+I cannot find information on the magnitude of tonnage of FMFO skretting uses, however, they report that 61% of their marine ingredients come from whole fish while 39% come from trimmings fish. We will apply these percentages to the percentages reported in the sustainability, to get an idea of the proportion of the total amount of marine ingredients from trimmings vs wholefish by species and country. 
+
+For example:
+
+ - Skipjack tuna from Ecuador and Spain is 23% of the fishmeal derived from trimmings that skretting uses. 
+ - We know that overall, trimmings represent 39% of all marine ingredients used
+ - So we can say that 23*0.39 = 8.97% of total fishmeal ingredients used by skretting come from skipjack tuna trimmings sourced from Ecuador or Spain. 
+ - Then we can do the same thing for fish oil
+ 
+ 
+From there, skretting reports that on average, 12.6% of feeds used by their producers are fishmeal and 5.7% are fish oil. We can weight the proportions based off of these as well: 12.6+5.7 = 18.3 ==> 0.6885246 is the fm weight and 0.3114754 is the fish oil weight
+
+## Methods
+
+```{r}
+skretting_raw <- read.csv(here("data/Trimmings info - skretting_origin_global.csv")) %>%
+  dplyr::select(-fao_fishing_area) # remove fishing area because ARTIS is only resolved to country level information
+
+## group by species, countries, raw material type and get tonnage
+
+skretting_df <- skretting_raw %>%
+  mutate(sciname = tolower(sciname),
+         common_name = tolower(common_name)) %>%
+  mutate(country = ifelse(country == "Several", NA, country)) %>%
+  mutate(prop_fm_total = ifelse(raw_material == "trimmings", perc_fishmeal*0.39*0.01*0.6885246, perc_fishmeal*0.61*0.01*0.6885246),
+         prop_fo_total = ifelse(raw_material == "trimmings", perc_fishoil*0.39*0.01*0.3114754, perc_fishoil*0.61*0.01*0.3114754)) %>%
+  mutate(prop_material_total = prop_fm_total + prop_fo_total) %>% # > sum(skretting_df$prop_material_total) [1] 0.9630544 - cool, almost 1
+   dplyr::select(-perc_fishmeal, -perc_fishoil, -prop_fo_total, -prop_fm_total) %>%
+  separate_rows(country, sep = ",") %>%
+  mutate(country = trimws(country)) %>%
+  mutate(country = ifelse(country == "Faroe Islands", "Denmark", country)) %>% # add faroe to denmark, as ARTIS is reported at sovereign national level
+  group_by(sciname, common_name, country, raw_material) %>%
+  summarise(prop_material_total = sum(prop_material_total, na.rm = TRUE)) %>%
+  group_by(sciname, common_name, country) %>%
+  mutate(total_prop = sum(prop_material_total, na.rm = TRUE)) %>%
+  ungroup() %>%
+    pivot_wider(names_from = raw_material, values_from = prop_material_total) %>%
+  mutate(trimmings_total = ifelse(is.na(trimmings), 0, trimmings),
+         wholefish_total = ifelse(is.na(wholefish), 0, wholefish)) %>%
+  mutate(trim_prop = trimmings_total/total_prop,
+         wholefish_prop = wholefish_total/total_prop) %>%
+  mutate(wholefish = ifelse(wholefish_prop > 0, "yes", "no"),
+         trimmings = ifelse(trim_prop > 0, "yes", "no")) %>%
+  dplyr::select(sciname, common_name, country, wholefish, trimmings, trim_prop) %>%
+  mutate(data_source_feed = "skretting", 
+         data_source_fao_area_country = NA,
+         feed_report_spp_name = common_name, 
+         iso3c = countrycode(sourcevar = country, origin = "country.name", destination = "iso3c")) %>%
+  mutate(capture = ifelse(str_detect(common_name, "salmon"), "no", "yes"))
+  
+
+write.csv(skretting_df, here("int/material_origins_skretting_global.csv"), row.names = FALSE)
+  
+```
+
