@@ -44,7 +44,8 @@ From there, skretting reports that on average, 12.6% of feeds used by their prod
 
 ```{r}
 skretting_raw <- read.csv(here("data/Trimmings info - skretting_origin_global.csv")) %>%
-  dplyr::select(-fao_fishing_area) # remove fishing area because ARTIS is only resolved to country level information
+  dplyr::select(-fao_fishing_area) %>%  # remove fishing area because ARTIS is only resolved to country level information
+  filter(str_detect(country, "Iceland"))
 
 ## group by species, countries, raw material type and get tonnage
 
@@ -61,6 +62,7 @@ skretting_df <- skretting_raw %>%
   mutate(country = ifelse(country == "Faroe Islands", "Denmark", country)) %>% # add faroe to denmark, as ARTIS is reported at sovereign national level
   group_by(sciname, common_name, country, raw_material) %>%
   summarise(prop_material_total = sum(prop_material_total, na.rm = TRUE)) %>%
+  ungroup() %>%
   group_by(sciname, common_name, country) %>%
   mutate(total_prop = sum(prop_material_total, na.rm = TRUE)) %>%
   ungroup() %>%

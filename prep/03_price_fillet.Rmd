@@ -159,6 +159,8 @@ Data checking and exploration
 
 ```{r}
 
+artis_trimmings_all_gf <- read.csv(file.path(artis_dir, "artis_exchange/artis_fishmeal_trimmings_not_gf.csv"))
+
 ### lets do some exploration on what is missing! 
 
 ## do some data checks for 2020 
@@ -335,8 +337,7 @@ ggplot(circle_plot_df, aes(x = 2, y = prop, fill = fishmeal_type)) +
  scale_fill_manual(values = c("#FF9999", "#FFCC99", "#99CCFF")) +
   theme_void() +
   xlim(0.5, 2.5) +
-  labs(fill = "Fishmeal Type",
-       title = "World's fishmeal in 2020") +
+  labs(fill = "Fishmeal Type") +
   theme(
     plot.title = element_text(hjust = 0.5, size = 15, face = "bold"),
     plot.subtitle = element_text(hjust = 0.5, size = 12)
@@ -1046,4 +1047,111 @@ ggplot(circle_plot_df, aes(x = 2, y = prop, fill = fishmeal_type)) +
 
 ```
 
+Let's take a look at the distribution of the "not sure" category in our data
+
+ - by continent
+ - by species taxa grouping
+
+
+```{r}
+
+artis_trimmings <- read.csv(file.path(artis_dir, "artis_exchange/artis_fishmeal_trimmings_not_gf.csv"))
+colnames(artis_trimmings)
+
+unknown_fm <- artis_trimmings %>% 
+  filter(year == 2020) %>%
+  filter(is.na(trimmings_gf) & is.na(wholefish_gf)) %>%
+  dplyr::select(-X)
+
+unique(unknown_fm$source_country_iso3c)
+length(unique(unknown_fm$sciname))
+
+test <- unknown_fm %>% 
+  group_by(source_country_iso3c, sciname) %>%
+  summarise(live_weight_t = sum(live_weight_t, na.rm = TRUE),
+            product_weight_t = sum(product_weight_t, na.rm = TRUE)) %>%
+  ungroup()
+
+
+## test out plotting family
+
+# Summarize the total product_weight_t for each family
+family_summary <- unknown_fm %>%
+  group_by(class) %>%
+  summarise(total_product_weight = sum(product_weight_t, na.rm = TRUE)) %>%
+  filter(total_product_weight > 0)  # Filter out families with no weight
+
+# Group smaller families into "Other"
+# threshold <- 0.01 * sum(family_summary$total_product_weight)  # 1% threshold
+# family_summary <- family_summary %>%
+#   mutate(family = ifelse(total_product_weight < threshold, "Other", family)) %>%
+#   group_by(family) %>%
+#   summarise(total_product_weight = sum(total_product_weight))
+
+# Create the pie chart
+ggplot(family_summary, aes(x = "", y = total_product_weight, fill = class)) +
+  geom_bar(stat = "identity", width = 1) +
+  coord_polar(theta = "y") +
+  labs(title = "Fish meal with missing information",
+       x = NULL, y = NULL) +
+  theme_void() +
+  theme(legend.position = "right")
+
+test <- unknown_fm %>% filter(is.na(class))
+
+test <- unknown_fm %>% filter(class == "actinopterygii") %>%
+  group_by(sciname) %>% 
+  summarise(product_w = sum(product_weight_t)) %>%
+  ungroup() %>%
+  mutate(prop = product_w/363945.9)
+
+## try isscaap category
+
+
+# Summarize the total product_weight_t for each family
+family_summary <- unknown_fm %>%
+  group_by(isscaap) %>%
+  summarise(total_product_weight = sum(product_weight_t, na.rm = TRUE)) %>%
+  filter(total_product_weight > 0)  # Filter out families with no weight
+
+# Create the pie chart
+ggplot(family_summary, aes(x = "", y = total_product_weight, fill = isscaap)) +
+  geom_bar(stat = "identity", width = 1) +
+  coord_polar(theta = "y") +
+  labs(title = "Fish meal with missing information",
+       x = NULL, y = NULL) +
+  theme_void() +
+  theme(legend.position = "right")
+
+test <- unknown_fm %>% filter(str_detect(common_name, "prawn|shrimp"))
+
+## now try continent 
+
+countries <- read.csv(here("data/countries.csv"))
+
+unknown_fm_countries <- unknown_fm %>%
+  left_join(countries, by = c("source_country_iso3c" = "iso3c"))
+
+
+
+# Summarize the total product_weight_t for each family
+summary <- unknown_fm_countries %>%
+  group_by(owid_region) %>%
+  summarise(total_product_weight = sum(product_weight_t, na.rm = TRUE)) %>%
+  filter(total_product_weight > 0) %>%  # Filter out families with no weight
+  mutate(owid_region = ifelse(is.na(owid_region), "Unknown", owid_region))
+
+# Create the pie chart
+ggplot(summary, aes(x = "", y = total_product_weight, fill = owid_region)) +
+  geom_bar(stat = "identity", width = 1) +
+  coord_polar(theta = "y") +
+  labs(fill = "Continent",
+       x = NULL, y = NULL) +
+  theme_void() +
+  theme(legend.position = "right")
+
+test <- unknown_fm_countries %>% filter(is.na(owid_region))
+unique(test$source_country_iso3c) # all unknown
+
+```
 
