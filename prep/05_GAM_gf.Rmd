@@ -1,0 +1,114 @@
+---
+title: "Explore trimmings origins"
+output: html_document
+date: "2024-08-01"
+---
+
+## Summary
+
+
+## Setup
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(here)
+library(tidyverse)
+library(glue)
+library(sf)
+library(devtools)
+library(janitor)
+library(countrycode)
+library(qs)
+
+source(here("R/directories.R"))
+
+full_artis <- qs::qread(file.path(artis_dir, "full_artis_fm_fillet.qs"))
+
+# get fishmeal info
+fm_artis <- full_artis %>% 
+  filter(hs6 == 230120)
+
+# get fillet info
+fillet_artis <- full_artis %>%
+  filter(hs6 != 230120)
+
+
+artis_taxa <- read.csv(file.path(artis_dir, "artis_full_data/data/attribute tables/sciname.csv")) ## read in attribute table with common names
+
+countries <- read.csv(here("data/countries.csv")) ## artis countries with info
+
+prices <- read.csv("/mnt/rdsi/raw_data/sea-around-us/ex-vessel-prices/outputFMFO2021-03-12.csv")
+taxa <- read.csv("/mnt/rdsi/raw_data/sea-around-us/ex-vessel-prices/taxa.csv")
+
+entity <- read.csv("/mnt/rdsi/raw_data/sea-around-us/ex-vessel-prices/fishing_entity.csv") %>%
+  dplyr::select(-X) %>%
+  mutate(iso3c = countrycode(sourcevar = name, origin = "country.name", destination = "iso3c"))
+
+## get artis data matched with sustainability reports (not yet gapfilled)
+artis_trimmings_all <- read.csv(file.path(artis_dir, "artis_exchange/artis_fishmeal_trimmings_not_gf.csv"))
+
+
+```
+
+Classify ARTIS data into fillets or not filleted species
+
+```{r}
+fillet_data <- fillet_artis %>% 
+  filter(live_weight_t > 0) %>% # just to be sure
+  distinct(year, source_country_iso3c, sciname) %>%
+  mutate(filleted = "yes") 
+# %>%
+#   group_by(year, source_country_iso3c, sciname) %>%
+#   summarise(n())
+
+
+artis_trimmings_fillet <- artis_trimmings_all %>% # for now we'll join on source country, year, and species
+  left_join(fillet_data) %>%
+  mutate(filleted = ifelse(is.na(filleted), "no", "yes"))
+
+test <- artis_trimmings_fillet %>%
+  filter(filleted == "no")
+
+nrow(test)/nrow(artis_trimmings_fillet) # 0.2055661; only ~21% are not filleted!?
+
+test <- artis_trimmings_fillet %>% 
+  group_by(year, filleted) %>%
+  summarise(product_weight_t = sum(product_weight_t, na.rm = TRUE)) %>%
+  ungroup() # ok damn! 
+
+test <- artis_trimmings_fillet %>%
+  filter(!is.na(trimmings_gf)) %>%
+  filter(year == 2020) %>%
+  group_by(filleted) %>%
+  summarise(trim = sum(trim_product,na.rm = TRUE), 
+            whole = sum(wholefish_product, na.rm = TRUE)) 
+
+## wow a pretty significant portion (~90%) of whole fish rendered fish meal is used as fillets, so maybe our assumption isn't right!! 
+# ~70% of trimmings fish meal are also used as fillets, so that makes sense
+
+```
+
+
+Prep ex-vessel price data so that we can easily match to ARTIS data 
+
+```{r}
+prices_taxa <- prices %>% 
+  left_join(., taxa, by = "TaxonKey") %>%
+    clean_names() %>%
+  left_join(., entity, by = "fishing_entity_id") %>%
+  mutate(sciname = tolower(taxon_name),
+         common_name = tolower(common_name)) %>%
+  dplyr::select(year, source_country_iso3c = iso3c, sciname, year, price2010usd_mean, price2010usd_ci) %>%
+  filter(!is.na(source_country_iso3c)) 
+
+artis_trimmings_fillet_prices <- artis_trimmings_fillet %>%
+  left_join(prices_taxa) %>%
+  distinct()
+
+summary(artis_trimmings_fillet_prices)
+3298182/nrow(artis_trimmings_fillet_prices) # oof.. missing prices for ~87% of observations... maybe not the best predictor then? Maybe there are species names mismatches though. Also prices only go from 2011 to 2016, so we will need to gapfill those based on earliest and latest year (just assign 2011 price to anything before 2011 and 2016 price for after 2016)
+
+```
+
+
