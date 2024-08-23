@@ -1,0 +1,355 @@
+---
+title: "Model and predict trimmings proportions"
+output: html_document
+date: "2024-08-22"
+---
+
+## Summary
+
+Use GAMs to predict trimmings proportions
+
+## Setup
+
+```{r}
+
+library(here)
+library(tidyverse)
+library(glue)
+library(sf)
+library(devtools)
+library(janitor)
+library(countrycode)
+library(qs)
+library(GGally)
+library(PerformanceAnalytics) ## great correlation plots and other analysis tools
+library(mgcv)
+
+source(here("R/directories.R"))
+
+
+artis_taxa <- read.csv(file.path(artis_dir, "artis_full_data/data/attribute tables/sciname.csv")) ## read in attribute table with common names
+
+countries <- read.csv(here("data/countries.csv")) ## artis countries with info
+
+artis_trimmings <- qs::qread(here("int/artis_trimmings_fillet_prices.qs")) %>%
+  mutate(filleted = ifelse(filleted == "yes", 1, 0)) %>%
+  left_join(artis_taxa)
+
+```
+
+
+1. EDA
+
+Correlation chart 
+
+```{r}
+# Subset the relevant predictor columns
+predictors <- artis_trimmings[, c("price_gf", "filleted", "year")]
+
+# Convert categorical variables to factors if they are not already
+#  predictors$filleted <- as.factor(predictors$filleted)
+
+# Create the correlation plot (pair plot with correlation values)
+ggpairs(predictors, 
+        lower = list(continuous = "smooth", combo = "box_no_facet", discrete = "facetbar"),
+        upper = list(continuous = wrap("cor", size = 3)),
+        diag = list(continuous = "densityDiag", discrete = "barDiag"))
+
+# ggsave(here("prep/imgs/cor_chart_2.png"))
+
+chart.Correlation(artis_trimmings[,c("price_gf", "year", "filleted")]) # only takes numeric; at least price, year, and filleted don't seem super correlated
+ggsave(here("prep/imgs/cor_chart.png"))
+
+
+```
+
+
+```{r}
+# Plot `trim_prop_gf` against potential predictors
+ggplot(artis_trimmings %>% filter(year == 2020), aes(x = price_gf, y = trim_prop_gf)) + geom_point() + geom_smooth(method = "loess")
+ggplot(artis_trimmings %>% filter(year == 2020), aes(x = filleted, y = trim_prop_gf)) + geom_boxplot()
+# ggplot(artis_trimmings, aes(x = year, y = trim_prop_gf)) + geom_point() # + geom_smooth(method = "loess")
+ggplot(artis_trimmings %>% filter(year == 2020), aes(x = class, y = trim_prop_gf)) + geom_boxplot()
+
+ggplot(artis_trimmings %>% filter(year == 2020), aes(x = source_country_iso3c, y = trim_prop_gf)) + geom_boxplot()
+
+
+```
+
+2. Model Fitting
+
+```{r}
+
+## there are some levels of source_country_iso3c and family which do not have any trim_prop_gf values at all. Because of this, the model cannot predict values for those levels. To account for this, we will have to gapfill the still missing values with coarser models (e.g., models WITHOUT family and source_country_iso3c included), effectively giving them "global averages" rather than specific source/family information
+
+## the betar is taking way too long to run... so I think i will just stick with the regular gaussian gam, and then rescale the predictions to 0-1
+
+gam_model <- gam(trim_prop_gf ~ s(price_gf) + filleted + s(year) + 
+                 source_country_iso3c + family, 
+                 data = artis_trimmings, family = betar(), na.action = na.exclude)
+
+summary(gam_model)
+qs::qsave(gam_model, here("int/gam_model1_beta.qs"))
+
+gam_model2 <- gam(trim_prop_gf ~ s(price_gf) + s(year) + filleted +
+                  source_country_iso3c , 
+                  data = artis_trimmings, family = betar(), na.action = na.exclude)
+
+
+summary(gam_model2)
+qs::qsave(gam_model2, here("int/gam_model2_beta.qs"))
+
+
+gam_model3 <- gam(trim_prop_gf ~ s(price_gf) + s(year) + filleted +
+                  family, 
+                  data = artis_trimmings, family = betar(), na.action = na.exclude)
+
+
+summary(gam_model3)
+qs::qsave(gam_model3, here("int/gam_model3_beta.qs"))
+
+
+gam_model4 <- gam(trim_prop_gf ~ s(price_gf) + s(year) + filleted, 
+                  data = artis_trimmings, family = betar(), na.action = na.exclude)
+
+summary(gam_model4)
+
+qs::qsave(gam_model4, here("int/gam_model4_beta.qs"))
+
+
+# gam_model_lin <- gam(trim_prop_gf ~  price_gf + filleted + s(year) + 
+#                  source_country_iso3c + family, 
+#                  data = artis_trimmings, family = gaussian(), na.action = na.exclude)
+# 
+# summary(gam_model_lin)
+# qs::qsave(gam_model_lin, here("int/gam_model1_linear.qs"))
+
+# Compare models
+AIC(gam_model, gam_model2, gam_model3, gam_model4) # ok the first model with smoothed price fits the best 
+
+# AIC
+# <dbl>
+# gam_model		-1454907.22		
+# gam_model2		-44940.04		
+# gam_model3		353395.75		
+# gam_model_lin		-1264199.53	
+```
+
+3. Gap Filling
+
+Fill using a hierarchical model approach: 
+ - First fill with full model
+ - Then fill with model excluding family
+ - Then fill with model excluding iso3c
+ - Then fill with model excluding both
+
+```{r}
+gam_model <- qread(here("int/gam_model1.qs"))
+
+## first we need to exclude any observations that don't have levels in the data for source_country_iso3c AND for family
+
+# Assuming your model is stored in the variable `gam_model`
+coefficients <- coef(gam_model)
+
+# Extract the names of the coefficients
+coef_names <- names(coefficients)  
+
+# Filter for source_country_iso3c coefficients
+source_country_coefs <- grep("^source_country_iso3c", coef_names, value = TRUE)
+
+# Extract the country codes
+source_country_iso3c_codes <- gsub("source_country_iso3c", "", source_country_coefs)
+
+# Filter for source_country_iso3c coefficients
+family_coefs <- grep("^family", coef_names, value = TRUE)
+
+# Extract the country codes
+family_codes <- gsub("family", "", family_coefs)
+  
+predict_data_1 <- artis_trimmings %>% 
+  filter(source_country_iso3c %in% c(source_country_iso3c_codes)) %>%
+  filter(family %in% c(family_codes)) %>% # ok so we're mostly missing family names
+  mutate(gam_preds_1 = predict(gam_model, newdata = .))
+
+## next exclude any observations that don't have levels in the data for iso3c
+
+gam_model2 <- qread(here("int/gam_model2.qs"))
+
+predict_data_2 <- artis_trimmings %>% 
+  filter(source_country_iso3c %in% c(source_country_iso3c_codes)) %>%
+  mutate(gam_preds_2 = predict(gam_model2, newdata = .))
+
+## next exclude any observations that don't have levels in the data for family
+
+gam_model3 <- qread(here("int/gam_model3.qs"))
+
+predict_data_3 <- artis_trimmings %>% 
+  filter(family %in% c(family_codes)) %>% # ok so we're mostly missing family names
+  mutate(gam_preds_3 = predict(gam_model3, newdata = .))
+
+
+## Now make predictions for all data
+
+gam_model4 <- qread(here("int/gam_model4.qs"))
+
+predict_data_4 <- artis_trimmings %>% 
+  mutate(gam_preds_4 = predict(gam_model4, newdata = .))
+
+## now join all of these predictions to the full dataset
+
+predict_data_all <- predict_data_4 %>%
+  left_join(predict_data_1) %>%
+  left_join(predict_data_2) %>%
+  left_join(predict_data_3)
+
+predict_data_all_gf <- predict_data_all %>%
+  mutate(
+    gam_preds_1 = (gam_preds_1 - min(gam_preds_1, na.rm = TRUE)) / 
+                  (max(gam_preds_1, na.rm = TRUE) - min(gam_preds_1, na.rm = TRUE)),
+    gam_preds_2 = (gam_preds_2 - min(gam_preds_2, na.rm = TRUE)) / 
+                  (max(gam_preds_2, na.rm = TRUE) - min(gam_preds_2, na.rm = TRUE)),
+    gam_preds_3 = (gam_preds_3 - min(gam_preds_3, na.rm = TRUE)) / 
+                  (max(gam_preds_3, na.rm = TRUE) - min(gam_preds_3, na.rm = TRUE)),
+    gam_preds_4 = (gam_preds_4 - min(gam_preds_4, na.rm = TRUE)) / 
+                  (max(gam_preds_4, na.rm = TRUE) - min(gam_preds_4, na.rm = TRUE))
+  ) %>%
+ mutate(
+    # Start by assuming that trim_prop_gf_fin is the same as trim_prop_gf
+    trim_prop_gf_fin = ifelse(!is.na(trim_prop_gf), trim_prop_gf, NA),
+    
+    # Add the initial gapfill flag
+    gapfill_flag = ifelse(!is.na(trim_prop_gf), "Original", NA),
+    
+    # Fill missing values with gams_preds_1
+    trim_prop_gf_fin = ifelse(is.na(trim_prop_gf_fin), gam_preds_1, trim_prop_gf_fin),
+    gapfill_flag = ifelse(is.na(trim_prop_gf_fin) & is.na(gapfill_flag), "GAM1", gapfill_flag),
+    
+    # Fill missing values with gams_preds_2
+    trim_prop_gf_fin = ifelse(is.na(trim_prop_gf_fin), gam_preds_2, trim_prop_gf_fin),
+    gapfill_flag = ifelse(is.na(trim_prop_gf_fin) & is.na(gapfill_flag), "GAM2", gapfill_flag),
+    
+    # Fill missing values with gams_preds_3
+    trim_prop_gf_fin = ifelse(is.na(trim_prop_gf_fin), gam_preds_3, trim_prop_gf_fin),
+    gapfill_flag = ifelse(is.na(trim_prop_gf_fin) & is.na(gapfill_flag), "GAM3", gapfill_flag),
+    
+    # Fill missing values with gams_preds_4
+    trim_prop_gf_fin = ifelse(is.na(trim_prop_gf_fin), gam_preds_4, trim_prop_gf_fin),
+    gapfill_flag = ifelse(is.na(trim_prop_gf_fin) & is.na(gapfill_flag), "GAM4", gapfill_flag)
+  ) %>% 
+  dplyr::select(-gam_preds_4, -gam_preds_3, -gam_preds_2, -gam_preds_1, -isscaap, -kingdom, -phylum, -superclass, -class, -order, -subfamily, -genus, -trim_prop_gf)
+
+qsave(predict_data_all_gf, here("int/predicted_trimmings_values.qs"))
+
+```
+
+
+4. Validation
+
+```{r}
+library(gridExtra)
+library(grid)
+# Plot predicted vs actual values (for non-missing data) for first game
+p1 <- ggplot(predict_data_all_gf, aes(x = gam_preds_1, y = trim_prop_gf)) + geom_point() + geom_abline()
+p2 <- ggplot(predict_data_all_gf, aes(x = gam_preds_2, y = trim_prop_gf)) + geom_point() + geom_abline()
+p3 <- ggplot(predict_data_all_gf, aes(x = gam_preds_3, y = trim_prop_gf)) + geom_point() + geom_abline()
+p4 <- ggplot(predict_data_all_gf, aes(x = gam_preds_4, y = trim_prop_gf)) + geom_point() + geom_abline()
+grid.arrange(p1, p2, p3, p4, ncol=2)
+
+# Calculate residuals for first gam
+residuals <- predict_data_all_gf$trim_prop_gf - predict_data_all_gf$gam_preds_1
+ggplot(predict_data_all_gf, aes(x = residuals)) + geom_histogram(binwidth = 0.01)
+
+```
+
+5. Allocation to product weight 
+
+```{r}
+
+all_data_gf <- predict_data_all_gf %>%
+  mutate(trim_liveweight = trim_prop_gf_fin*live_weight_t,
+    trim_product = trim_prop_gf_fin*product_weight_t, 
+    wholefish_liveweight = (1-trim_prop_gf_fin)*live_weight_t,
+    wholefish_product = (1-trim_prop_gf_fin)*product_weight_t)
+
+for(year_loop in 1996:2020){
+
+artis_all_2020 <- all_data_gf %>%
+  filter(year == year_loop) %>%
+  left_join(countries, by = c("source_country_iso3c" = "iso3c")) %>%
+  mutate(owid_region = ifelse(is.na(owid_region), "unknown", owid_region)) %>%
+    mutate(owid_region = ifelse(owid_region == "Other nei", "unknown", owid_region))
+
+
+total_product_weight <- sum(artis_all_2020$product_weight_t, na.rm = TRUE) # 3494636
+
+
+## Let's make a bar plot and have x axis be the type of fish meal, y axis the proportion it represents, and fill by continent
+
+no_info_df <- artis_all_2020 %>%
+  filter(is.na(trim_prop_gf_fin)) %>%
+  mutate(fishmeal_type = "Not sure") %>%
+  group_by(fishmeal_type, owid_region) %>%
+  summarise(total = sum(product_weight_t)) %>%
+  ungroup()
+
+bar_plot_df <- artis_all_2020 %>% 
+  filter(!is.na(trim_prop_gf_fin)) %>% # shouldn't be any
+  pivot_longer(names_to = "fishmeal_type",
+               cols = c("wholefish_product", "trim_product")) %>%
+  mutate(fishmeal_type = ifelse(fishmeal_type == "trim_product", "Trimmings", "Whole fish")) %>%
+  group_by(fishmeal_type, owid_region) %>%
+  summarise(total = sum(value, na.rm = TRUE)) %>%
+  ungroup() %>%
+ # rbind(., no_info_df) %>%
+  mutate(total_product_t = total_product_weight) %>%
+  mutate(prop = total/total_product_t) %>%
+  mutate(perc = prop * 100) %>% # Convert to percentage
+  mutate(label = paste0(round(perc, 1), "%")) %>%
+  arrange(desc(fishmeal_type))  %>%
+  filter(prop > 0) %>%
+  arrange(-prop) 
+
+## oceania: #9F6144
+## Africa: #A660A1
+## Asia: #3F8D87
+## South America: #8F464E
+## North America: #E47669
+## Europe: #5E74A1
+## unknown: #808080
+## Other_nei: #808080
+  
+wholefish_prop <- bar_plot_df %>% filter(fishmeal_type == "Whole fish") %>% pull(prop) %>% sum()
+
+ggplot(bar_plot_df, aes(x = reorder(fishmeal_type, -prop), y = prop, fill = owid_region)) +
+  geom_bar(stat = "identity", color = "white") + 
+ scale_fill_manual(values = c("#A660A1", "#3F8D87", "#5E74A1", "#E47669", "#9F6144", "#8F464E", "#808080")) +
+  theme_classic() +
+  labs(fill = "Region", y = "Proportion of global trade", x = "Fishmeal type") + 
+    scale_x_discrete(expand = c(0,0)) +
+  scale_y_continuous(expand = c(0,0))
+
+ggsave(glue(here("outputs/figs/props_{wholefish_prop}_{year_loop}.png")))
+
+}
+
+bar_plot_df %>% filter(fishmeal_type == "Whole fish") %>% pull(prop) %>% sum() # 0.6831209 in 1990
+
+library(scales)
+yearly_table <- all_data_gf %>%
+  group_by(year) %>%
+  summarise(wholefish = sum(wholefish_product),
+            trimmings = sum(trim_product)) %>%
+  ungroup() %>%
+  mutate(total = wholefish+trimmings) %>%
+  mutate(prop_whole = wholefish/total,
+         prop_trim = trimmings/total) %>%
+    mutate(perc_whole = percent(wholefish / total, accuracy = 0.1),
+         perc_trim = percent(trimmings / total, accuracy = 0.1)) %>%
+  dplyr::select(year, perc_whole, perc_trim)
+
+print(yearly_table)
+
+```
+
+
+
