@@ -86,35 +86,64 @@ ggplot(artis_trimmings %>% filter(year == 2020), aes(x = source_country_iso3c, y
 
 gam_model <- gam(trim_prop_gf ~ s(price_gf) + filleted + s(year) + 
                  source_country_iso3c + family, 
-                 data = artis_trimmings, family = betar(), na.action = na.exclude)
+                 data = artis_trimmings, family = gaussian(), na.action = na.exclude)
+
+
+## try using bam function instead for parallel processing, unfortunately doesn't really work without major headache
+# df2 <- model.matrix( ~ trim_prop_gf + price_gf + filleted + year + 
+#                         source_country_iso3c
+#                          + family, data = artis_trimmings)
+# 
+# columns <- colnames(df2)
+# 
+# # Specify the columns that should be included in the smooth terms
+# smooth_columns <- c("price_gf", "year")
+# 
+# # Create the formula components
+# smooth_terms <- paste0("s(", smooth_columns, ")")
+# other_terms <- setdiff(columns, c("trim_prop_gf", smooth_columns, "(Intercept)"))
+# 
+# # Combine all the terms into a formula
+# formula_str <- paste("~", paste(c(smooth_terms, other_terms), collapse = " + "))
+# 
+# # Add the intercept term
+# final_formula <- as.formula(paste("trim_prop_gf", formula_str))
+# 
+# require(parallel)  
+# nc <- 16
+#   cl <- makeCluster(nc) 
+# 
+# gam_model <- bam(formula = final_formula, 
+#                  data = as.data.frame(df2), family = gaussian(), na.action = na.exclude, cluster=cl)
+# stopCluster(cl)
 
 summary(gam_model)
-qs::qsave(gam_model, here("int/gam_model1_beta.qs"))
+qs::qsave(gam_model, here("int/gam_model1_new_gauss.qs"))
 
 gam_model2 <- gam(trim_prop_gf ~ s(price_gf) + s(year) + filleted +
                   source_country_iso3c , 
-                  data = artis_trimmings, family = betar(), na.action = na.exclude)
+                  data = artis_trimmings, family = gaussian(), na.action = na.exclude)
 
 
 summary(gam_model2)
-qs::qsave(gam_model2, here("int/gam_model2_beta.qs"))
+qs::qsave(gam_model2, here("int/gam_model2.qs"))
 
 
 gam_model3 <- gam(trim_prop_gf ~ s(price_gf) + s(year) + filleted +
                   family, 
-                  data = artis_trimmings, family = betar(), na.action = na.exclude)
+                  data = artis_trimmings, family = gaussian(), na.action = na.exclude)
 
 
 summary(gam_model3)
-qs::qsave(gam_model3, here("int/gam_model3_beta.qs"))
+qs::qsave(gam_model3, here("int/gam_model3.qs"))
 
 
 gam_model4 <- gam(trim_prop_gf ~ s(price_gf) + s(year) + filleted, 
-                  data = artis_trimmings, family = betar(), na.action = na.exclude)
+                  data = artis_trimmings, family = gaussian(), na.action = na.exclude)
 
 summary(gam_model4)
 
-qs::qsave(gam_model4, here("int/gam_model4_beta.qs"))
+qs::qsave(gam_model4, here("int/gam_model4.qs"))
 
 
 # gam_model_lin <- gam(trim_prop_gf ~  price_gf + filleted + s(year) + 
@@ -124,6 +153,11 @@ qs::qsave(gam_model4, here("int/gam_model4_beta.qs"))
 # summary(gam_model_lin)
 # qs::qsave(gam_model_lin, here("int/gam_model1_linear.qs"))
 
+gam_model <- qread(here("int/gam_model1.qs"))
+gam_model2 <- qread(here("int/gam_model2.qs"))
+gam_model3 <- qread(here("int/gam_model3.qs"))
+gam_model4 <- qread(here("int/gam_model4.qs"))
+
 # Compare models
 AIC(gam_model, gam_model2, gam_model3, gam_model4) # ok the first model with smoothed price fits the best 
 
@@ -131,8 +165,10 @@ AIC(gam_model, gam_model2, gam_model3, gam_model4) # ok the first model with smo
 # <dbl>
 # gam_model		-1454907.22		
 # gam_model2		-44940.04		
-# gam_model3		353395.75		
-# gam_model_lin		-1264199.53	
+# gam_model3		-1181457.67		
+# gam_model_4		353395.75	
+
+## ok so we need to go 1, 3, 2, 4
 ```
 
 3. Gap Filling
@@ -145,6 +181,13 @@ Fill using a hierarchical model approach:
 
 ```{r}
 gam_model <- qread(here("int/gam_model1.qs"))
+
+
+# Predict `trim_prop_gf` values
+# predicted_values <- predict(gam_model, newdata = as.data.frame(df2), type = "response")
+# 
+# # Add the predictions to your dataframe
+# df2$predicted_trim_prop_gf <- predicted_values
 
 ## first we need to exclude any observations that don't have levels in the data for source_country_iso3c AND for family
 
@@ -224,21 +267,24 @@ predict_data_all_gf <- predict_data_all %>%
     trim_prop_gf_fin = ifelse(is.na(trim_prop_gf_fin), gam_preds_1, trim_prop_gf_fin),
     gapfill_flag = ifelse(is.na(trim_prop_gf_fin) & is.na(gapfill_flag), "GAM1", gapfill_flag),
     
-    # Fill missing values with gams_preds_2
-    trim_prop_gf_fin = ifelse(is.na(trim_prop_gf_fin), gam_preds_2, trim_prop_gf_fin),
-    gapfill_flag = ifelse(is.na(trim_prop_gf_fin) & is.na(gapfill_flag), "GAM2", gapfill_flag),
-    
     # Fill missing values with gams_preds_3
     trim_prop_gf_fin = ifelse(is.na(trim_prop_gf_fin), gam_preds_3, trim_prop_gf_fin),
     gapfill_flag = ifelse(is.na(trim_prop_gf_fin) & is.na(gapfill_flag), "GAM3", gapfill_flag),
+    
+    # Fill missing values with gams_preds_2
+    trim_prop_gf_fin = ifelse(is.na(trim_prop_gf_fin), gam_preds_2, trim_prop_gf_fin),
+    gapfill_flag = ifelse(is.na(trim_prop_gf_fin) & is.na(gapfill_flag), "GAM2", gapfill_flag),
     
     # Fill missing values with gams_preds_4
     trim_prop_gf_fin = ifelse(is.na(trim_prop_gf_fin), gam_preds_4, trim_prop_gf_fin),
     gapfill_flag = ifelse(is.na(trim_prop_gf_fin) & is.na(gapfill_flag), "GAM4", gapfill_flag)
   ) %>% 
-  dplyr::select(-gam_preds_4, -gam_preds_3, -gam_preds_2, -gam_preds_1, -isscaap, -kingdom, -phylum, -superclass, -class, -order, -subfamily, -genus, -trim_prop_gf)
+  dplyr::select(-isscaap, -kingdom, -phylum, -superclass, -class, -order, -subfamily, -genus)
 
-qsave(predict_data_all_gf, here("int/predicted_trimmings_values.qs"))
+
+predict_data_all_gf_fin <- predict_data_all_gf %>% 
+  dplyr::select(-gam_preds_1, -gam_preds_2, -gam_preds_3, -gam_preds_4, -trim_prop_gf)
+qsave(predict_data_all_gf_fin, here("int/predicted_trimmings_values.qs"))
 
 ```
 
@@ -265,7 +311,7 @@ ggplot(predict_data_all_gf, aes(x = residuals)) + geom_histogram(binwidth = 0.01
 
 ```{r}
 
-all_data_gf <- predict_data_all_gf %>%
+all_data_gf <- predict_data_all_gf_fin %>%
   mutate(trim_liveweight = trim_prop_gf_fin*live_weight_t,
     trim_product = trim_prop_gf_fin*product_weight_t, 
     wholefish_liveweight = (1-trim_prop_gf_fin)*live_weight_t,
@@ -332,7 +378,6 @@ ggsave(glue(here("outputs/figs/props_{wholefish_prop}_{year_loop}.png")))
 
 }
 
-bar_plot_df %>% filter(fishmeal_type == "Whole fish") %>% pull(prop) %>% sum() # 0.6831209 in 1990
 
 library(scales)
 yearly_table <- all_data_gf %>%
