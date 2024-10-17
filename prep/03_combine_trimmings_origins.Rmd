@@ -29,11 +29,6 @@ library(qs)
 
 source(here("R/directories.R"))
 
-full_artis <- qs::qread(file.path(artis_dir, "full_artis_fm_fillet.qs"))
-
-fm_artis <- full_artis %>% 
-  filter(hs6 == 230120)
-
 artis_genus_df <- read.csv(file.path(artis_dir, "artis_full_data/data/attribute tables/sciname.csv")) ## read in attribute table with common names
 
 

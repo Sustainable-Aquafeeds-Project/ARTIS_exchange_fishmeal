@@ -44,11 +44,6 @@ library(qs)
 
 source(here("R/directories.R"))
 
-full_artis <- qs::qread(file.path(artis_dir, "full_artis_fm_fillet.qs"))
-
-fm_artis <- full_artis %>% 
-  filter(hs6 == 230120)
-
 ```
 
 

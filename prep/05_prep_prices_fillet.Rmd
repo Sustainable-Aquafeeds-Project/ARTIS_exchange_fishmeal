@@ -144,7 +144,7 @@ ex_vessel_filled <- ex_vessel_fill_1 %>%
 
 ```
 
-We are still missing around 392 species in the ARTIS data that don't have prices. We will gapfill the one word species that don't match (i.e., their genus) to the average of all species in that genus that are in the price data.
+There are still 392 species in the ARTIS data that don't have prices. We will gapfill the one word species that don't match (i.e., their genus) to the average of all species in that genus that are in the price data.
 
 
 ```{r}
@@ -248,7 +248,7 @@ test <- artis_prices_gf %>%
 ## Perfect its all filled now
 
 
-qs::qsave(artis_prices_gf, here("int/artis_trimmings_fillet_prices.qs")) # wow ~4 million rows only 83 MB!
+qs::qsave(artis_prices_gf, here("int/artis_trimmings_fillet_prices.qs")) 
 
 
 ```

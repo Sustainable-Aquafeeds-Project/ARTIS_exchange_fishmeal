@@ -716,3 +716,28 @@ print(yearly_table)
 # 2020	45.2%	54.8%
 ```
 
+
+```{r}
+test <- read.csv(file.path("/mnt/rdsi/raw_data/fao/processed_products/CL_FI_COMMODITY_ISSCFC.csv"))
+
+# Fishmeal obtained from fish waste/offals
+# Code = 081.42.1.5.9.99
+# parent code = 081.42.1.5.9
+# ISSCAAP = 39
+# identifier = 1602
+
+
+countries <- read.csv("/mnt/rdsi/raw_data/fao/processed_products/CL_FI_COUNTRY_GROUPS.csv") %>%
+  clean_names()
+
+production <- read.csv(file.path("/mnt/rdsi/raw_data/fao/processed_products/TRADE_PP_QUANTITY.csv")) %>%
+  clean_names() %>%
+  filter(commodity_fao_code == "081.42.1.5.9.99") %>%
+  left_join(countries, by = c("country_un_code" = "un_code"))
+
+# only Chile and Peru are reporting.. so not much to go by from here. Could get trends from these countries and then apply it worldwide i suppose. 
+# big increase in Peru from 2017-2022
+# no increase in Chile from 1985-2017?
+
+```
+

@@ -2,6 +2,8 @@
 title: "Explore trimmings origins"
 output: html_document
 date: "2024-08-01"
+editor_options: 
+  chunk_output_type: console
 ---
 
 ## Summary
@@ -25,11 +27,22 @@ source(here("R/directories.R"))
 
 full_artis <- qs::qread(file.path(artis_dir, "full_artis_fm_fillet.qs"))
 
-fm_artis <- full_artis %>% 
-  filter(hs6 == 230120)
+# fm_artis <- full_artis %>% 
+#   filter(hs6 == 230120)
 
 fillet_artis <- full_artis %>%
-  filter(hs6 != 230120)
+  filter(hs6 != 230120) %>%
+  dplyr::select(-hs_version) %>%
+  rename(consumer_iso3c = importer_iso3c)
+
+fm_artis <- qs::qread(file.path(artis_dir, "full_artis_fm_2024_09_19.qs")) %>%
+  mutate(hs6 = 230120,
+         dom_source = ifelse(dom_source == "", consumption_type, dom_source)) %>%
+  dplyr::select(year, source_country_iso3c, exporter_iso3c, consumer_iso3c, dom_source, hs6, sciname, habitat, method, product_weight_t, live_weight_t = consumption_t_capped) %>%
+  mutate(exporter_iso3c = ifelse(source_country_iso3c == consumer_iso3c, source_country_iso3c, exporter_iso3c))
+
+setdiff(colnames(fillet_artis), colnames(fm_artis))
+setdiff(colnames(fm_artis), colnames(fillet_artis)) # 0 good
 
 
 artis_taxa <- read.csv(file.path(artis_dir, "artis_full_data/data/attribute tables/sciname.csv")) ## read in attribute table with common names
@@ -151,7 +164,7 @@ test <- artis_trimmings_all_gf %>% filter(is.na(common_name)) ## 0 ok this is go
 
 ## lets save this to RDSI
 
-write.csv(artis_trimmings_all_gf, file.path(artis_dir, "artis_exchange/artis_fishmeal_trimmings_not_gf.csv"), row.names = TRUE)
+write.csv(artis_trimmings_all_gf, file.path(artis_dir, "artis_exchange/artis_fishmeal_trimmings_not_gf_2024-10-17.csv"), row.names = TRUE)
 
 ```
 
@@ -162,7 +175,7 @@ Let's look at just finfish species and see how much is missing. We believe that 
 
 ```{r}
 
-artis_trimmings_all_gf <- read.csv(file.path(artis_dir, "artis_exchange/artis_fishmeal_trimmings_not_gf.csv"))
+artis_trimmings_all_gf <- read.csv(file.path(artis_dir, "artis_exchange/artis_fishmeal_trimmings_not_gf_2024-10-17.csv"))
 
 colnames(artis_trimmings_all_gf)
 
@@ -178,7 +191,19 @@ artis_all_2020 <- artis_trimmings_all_gf %>%
   left_join(countries, by = c("source_country_iso3c" = "iso3c")) %>%
   mutate(owid_region = ifelse(is.na(owid_region), "unknown", owid_region))
 
-total_product_weight <- sum(artis_all_2020$product_weight_t, na.rm = TRUE) # 3494636
+total_product_weight <- sum(artis_all_2020$product_weight_t, na.rm = TRUE) 
+# 3494636
+# 6158133 using new data with domestic consumption!? Not sure if that is right... FAO SOFIA says there is ~5 million tonnes
+
+test <- artis_all_2020 %>%
+  group_by(dom_source) %>%
+  summarise(sum_t = sum(product_weight_t, na.rm = TRUE))
+
+test <- artis_all_2020 %>%
+  mutate(fm_consumed_source = ifelse(source_country_iso3c != consumer_iso3c, "domestic", "foreign")) %>%
+  mutate(fm_consumed_source = ifelse(dom_source == "error", "error", fm_consumed_source)) %>%
+  group_by(fm_consumed_source) %>%
+  summarise(sum_t = sum(product_weight_t, na.rm = TRUE)) # interesting... claims about the same comes from domestic as foreign.. not sure that makes sense. 
 
 
 ## Let's make a bar plot and have x axis be the type of fish meal, y axis the proportion it represents, and fill by continent
@@ -221,7 +246,7 @@ ggplot(bar_plot_df, aes(x = reorder(fishmeal_type, -prop), y = prop, fill = owid
   theme_classic() +
   labs(fill = "Region", y = "Proportion of global trade", x = "Fishmeal type") + 
     scale_x_discrete(expand = c(0,0)) +
-  scale_y_continuous(expand = c(0,0)) 
+  scale_y_continuous(expand = c(0,0)) # oh gosh... with the new data now ~50% from trimmings WITHOUT gapfilling...
 
 
 
@@ -270,10 +295,8 @@ ggplot(bar_plot_fin, aes(x = reorder(source_country_iso3c, -prop), y = prop, fil
   geom_bar(stat = "identity", color = "white") + 
  scale_fill_manual(values = c("#FF9999", "#FFCC99", "#99CCFF")) +
   theme_bw() +
-  labs(fill = "Fishmeal type", y = "Proportion of global trade", x = "Country", title = "Top 30 fishmeal producers") 
-  
-#+
- # theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5))
+  labs(fill = "Fishmeal type", y = "Proportion of global trade", x = "Country", title = "Top 30 fishmeal producers") +
+theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5)) ## ok breaking down by country we see that its asia that is really contributing to trimmings... which tbh might not be THAT unreasonable...
 
 
 
@@ -387,6 +410,8 @@ ggplot(circle_plot_df, aes(x = fishmeal_type, y = prop, fill = fishmeal_type)) +
     plot.subtitle = element_text(hjust = 0.5, size = 12),
     legend.position="none"
   )
+
+## seems a bit more reasonable/matching to IFFO looking only at finfish...
 ```
 
 
@@ -425,7 +450,7 @@ bar_plot_df <- artis_chn %>%
   mutate(perc = prop * 100) %>% # Convert to percentage
   mutate(label = paste0(round(perc, 1), "%"))
 
-## ok right now, we have ~64% of China's FM coming from trimmings. This is really high, so its probably safe to assume that the rest is from wholefish, especially considering their large trash fish market there. 
+## ok right now, we have ~70% of China's FM coming from trimmings. This is really high, so its probably safe to assume that the rest is from wholefish, especially considering their large trash fish market there. 
 
 ## lets gapfill based on fillets and see where the proportions end up 
 
@@ -469,7 +494,7 @@ bar_plot_df <- artis_fillet_chn %>%
   mutate(perc = prop * 100) %>% # Convert to percentage
   mutate(label = paste0(round(perc, 1), "%"))
 
-## ok so doing the fillet thing seems pretty unreasonable... estimating ~90% from trimmings this way! 
+## ok so doing the fillet thing seems pretty unreasonable... estimating ~80% from trimmings this way! 
 
 ## maybe i need a list of trash fish species? 
 
@@ -478,7 +503,7 @@ bar_plot_df <- artis_fillet_chn %>%
 
 ```{r}
 
-artis_trimmings_all_gf <- read.csv(file.path(artis_dir, "artis_exchange/artis_fishmeal_trimmings_not_gf.csv"))
+artis_trimmings_all_gf <- read.csv(file.path(artis_dir, "artis_exchange/artis_fishmeal_trimmings_not_gf_2024-10-17.csv"))
 
 ### lets do some exploration on what is missing! 
 
@@ -502,55 +527,6 @@ total_product_weight <- artis_2020 %>%
 total_live_weight <- artis_2020 %>% 
   pull(live_weight_t) %>%
   sum() # 10397265
-
-
-662046.4/total_product_weight # 0.1894464 product
-1969725/total_live_weight # 0.1894464 liveweight
-
-## ok about 19% of FM production in 2020, we have no info for! 
-
-
-## make cirlce chart showing this 
-
-
-no_info_df <- artis_2020 %>%
-  filter(is.na(trimmings_gf)) %>%
-  mutate(fishmeal_type = "not sure") %>%
-  group_by(fishmeal_type) %>%
-  summarise(total = sum(product_weight_t)) %>%
-  ungroup()
-
-circle_plot_df <- artis_2020 %>% 
-  filter(!is.na(trimmings_gf)) %>%
-  pivot_longer(names_to = "fishmeal_type",
-               cols = c("wholefish_product", "trim_product")) %>%
-  mutate(fishmeal_type = ifelse(fishmeal_type == "trim_product", "trimmings", "wholefish")) %>%
-  group_by(fishmeal_type) %>%
-  summarise(total = sum(value, na.rm = TRUE)) %>%
-  ungroup() %>%
-  rbind(., no_info_df) %>%
-  mutate(total_product_t = total_product_weight) %>%
-  mutate(prop = total/total_product_t) %>%
-  mutate(perc = prop * 100) %>% # Convert to percentage
-  mutate(label = paste0(round(perc, 1), "%")) %>%
-  arrange(desc(fishmeal_type)) %>%
-  mutate(ypos = cumsum(prop) - 0.5 * prop)
-
-
-# Plot the donut chart
-ggplot(circle_plot_df, aes(x = 2, y = prop, fill = fishmeal_type)) +
-  geom_bar(stat = "identity", width = 1, color = "white") +
-  coord_polar(theta = "y", start = 0) +
-  geom_text(aes(y = ypos, label = label), color = "black") +
- scale_fill_manual(values = c("#FF9999", "#FFCC99", "#99CCFF")) +
-  theme_void() +
-  xlim(0.5, 2.5) +
-  labs(fill = "Fishmeal Type") +
-  theme(
-    plot.title = element_text(hjust = 0.5, size = 15, face = "bold"),
-    plot.subtitle = element_text(hjust = 0.5, size = 12)
-  )
-
 
 ```
 
@@ -644,7 +620,7 @@ ggplot(circle_plot_df, aes(x = 2, y = prop, fill = fishmeal_type)) +
     plot.title = element_text(hjust = 0.5, size = 15, face = "bold"),
     plot.subtitle = element_text(hjust = 0.5, size = 12)
   )
-
+## just adds more to trimmings
 ```
 
 
@@ -737,7 +713,7 @@ ggplot(circle_plot_df, aes(x = 2, y = prop, fill = fishmeal_type)) +
     plot.title = element_text(hjust = 0.5, size = 15, face = "bold"),
     plot.subtitle = element_text(hjust = 0.5, size = 12)
   )
-
+# yikes
 ```
 
 Ok, now lets gapfill the species level gapfill dataset with iso3c averages. So the gapfill flow is like this: 
@@ -842,7 +818,7 @@ Let's pull species which report fillets. We could do a number of things:
 ```{r}
 
 fillet_data <- fillet_artis %>% 
-  distinct(year, source_country_iso3c, exporter_iso3c, importer_iso3c, sciname) %>%
+  distinct(year, source_country_iso3c, exporter_iso3c, consumer_iso3c, sciname) %>%
   mutate(filleted = "yes")
 
 
@@ -878,7 +854,7 @@ test <- simple_fillet_gf %>%
 
 
 no_info_df <- simple_fillet_gf %>%
-  filter(year == 2020, source_country_iso3c == "CHN") %>%
+  filter(year == 2020) %>%
   filter(is.na(trimmings_gf)) %>%
   mutate(fishmeal_type = "not sure") %>%
   group_by(fishmeal_type) %>%
@@ -886,7 +862,7 @@ no_info_df <- simple_fillet_gf %>%
   ungroup()
 
 circle_plot_df <- simple_fillet_gf %>%
-  filter(year == 2020, source_country_iso3c == "CHN") %>% 
+  filter(year == 2020) %>% 
   filter(!is.na(trimmings_gf)) %>%
   pivot_longer(names_to = "fishmeal_type",
                cols = c("wholefish_product", "trim_product")) %>%
@@ -919,10 +895,12 @@ ggplot(circle_plot_df, aes(x = 2, y = prop, fill = fishmeal_type)) +
     plot.subtitle = element_text(hjust = 0.5, size = 12)
   )
 
+# a bit more in line with reality (we think)
+
 ```
 
 
-Any species that is filleted, assume these are all species which are "trimmings only" (for species that don't already have info). Join with price data with comprehensive trimmings info, and get an average price for trimmings species (any species in data with info and trimmings == yes). Any species below that price will be considered all whole fish fish meal, UNLESS it is a filleted species (since we're assuming those are ALL trimmings). 
+Any species that is filleted, assume these are all species which are "trimmings only" (for species that don't already have info). Join price data with comprehensive trimmings info, and get an average price for trimmings species (any species in data with info and trimmings == yes). Any species below that price will be considered all whole fish fish meal, UNLESS it is a filleted species (since we're assuming those are ALL trimmings). 
 
 ```{r}
 ## use price data to inform trimmings spp; for example, nobody will be catching snapper for wholefish rendering into FM.. if the fish is above a certain $$ ====> trimmings.. there is price data on rdsi specifically for FMFO.. Establish this cutoff price based on yearly prices. Can also incorporate fishmeal prices.. e.g. they wont render spp that exceed value of FM 
@@ -1005,14 +983,14 @@ avg_trim_prices <- artis_trimmings_all_gf %>%
   ungroup()
 
 
-global_avg_price <- 339.8605
+global_avg_price <- mean(avg_trim_prices$avg_year_iso3c_prices)
 
 
 fillet_price_empty_gf <- fillet_gf %>%
   filter(is.na(filleted)) %>%
   filter(is.na(trimmings_gf)) %>%
   left_join(avg_trim_prices) %>%
-  mutate(global_avg_price = 339.8605) %>%
+  mutate(global_avg_price = global_avg_price) %>%
   left_join(prices_taxa) %>%
   mutate(trim_prop_gf = ifelse(price2010usd_mean < avg_year_iso3c_prices, 0, trim_prop_gf)) %>%
     mutate(trim_prop_gf = ifelse(price2010usd_mean < avg_iso3c_price & is.na(trim_prop_gf), 0, trim_prop_gf)) %>%
@@ -1078,7 +1056,7 @@ ggplot(circle_plot_df, aes(x = 2, y = prop, fill = fishmeal_type)) +
     plot.title = element_text(hjust = 0.5, size = 15, face = "bold"),
     plot.subtitle = element_text(hjust = 0.5, size = 12)
   )
-
+## i guess there are still a lot of fish which are missing price info?
 ```
 
 
@@ -1264,7 +1242,7 @@ Let's take a look at the distribution of the "not sure" category in our data
 
 ```{r}
 
-artis_trimmings <- read.csv(file.path(artis_dir, "artis_exchange/artis_fishmeal_trimmings_not_gf.csv"))
+artis_trimmings <- read.csv(file.path(artis_dir, "artis_exchange/artis_fishmeal_trimmings_not_gf_2024-10-17.csv"))
 colnames(artis_trimmings)
 
 unknown_fm <- artis_trimmings %>% 
@@ -1361,6 +1339,8 @@ ggplot(summary, aes(x = "", y = total_product_weight, fill = owid_region)) +
 
 test <- unknown_fm_countries %>% filter(is.na(owid_region))
 unique(test$source_country_iso3c) # all unknown
+
+### mostly unknowns from Asia
 
 ```
 

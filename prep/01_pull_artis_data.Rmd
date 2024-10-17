@@ -33,10 +33,10 @@ codes <- read.csv(file.path(artis_dir, "artis_full_data/data/attribute tables/pr
 
 ```
 
-
+First, we save ARTIS data from KNB
 
 ```{r}
-# Example script for loading full ARTIS data
+# Example script for loading and saving full ARTIS data from KNB
 
 fillet_codes <- codes %>% 
   filter(presentation == "fillet") %>%
@@ -154,11 +154,90 @@ for(i in 1:25){
     bind_rows(df_i)
 }
 
-#  qs::qsave(df, here(intdir, "filtered_artis.qs"))  # too big for github ~150mb
-
 ## save to rdsi server 
 qs::qsave(df, file.path(artis_dir, "full_artis_fm_fillet.qs"))
 ```
 
 
+
+I've received an updated version of the database directly from Jessica Gephart, which contains the domestic production and consumption of fish meal. We will use this instead of the above so that we can incorporate domestic production and consumption fish meal (e.g., how much fish meal does China produce DOMESTICALLY and consume, or not trade).
+
+
+```{r}
+full_artis_new <- read.csv(file.path(artis_dir, "2024_09_19_consumption_midpoint_all_hs_all_years.csv")) # really big file, nearly 10 gb, takes awhile to load. We'll load it in full and filter for what we need below (fish meal and fillet hs codes)
+
+## save as a qs for easier loading and data space
+
+qs::qsave(full_artis_new, file.path(artis_dir, "2024_09_19_consumption_midpoint_all_hs_all_years.qs")) # cuts the file size by 9x
+
+
+# lets explore the new data a bit
+test <- full_artis_new %>% filter(year == 2020, end_use == "fishmeal", source_country_iso3c != consumer_iso3c, hs_version == 17) %>%
+  mutate(product_weight = consumption_t_capped/2.975207)
+sum(test$consumption_t_capped) # 9162738 - is this 9 million tonnes of fish meal or live weight? Let's check against what we pulled before
+sum(test$product_weight) # 3079698 - ok this seems pretty close to what we had before.. off by ~500k tonnes 
+
+old_fm <- qs::qread(file.path(artis_dir, "full_artis_fm_fillet.qs")) %>%
+  filter(year == 2020, hs6 == 230120)
+
+sum(old_fm$live_weight_t) # 10397265
+sum(old_fm$product_weight_t) # 3494636
+
+test2 <- full_artis_new %>% filter(end_use == "other", year == 2020, hs_version == 17)
+test3 <- full_artis_new %>% filter(end_use == "direct human consumption", year == 2020, hs_version == 17)
+sum(test3$consumption_t_capped) # 165401647
+
+9162738/165401647 # 0.0553969 ~ 5.5% of tonnage is fish meal
+
+## ok this makes me think the new data is tonnes liveweight. Which is fine. I think Jessica just applies a basic 2.975207x multiplier for the conversion. 
+
+
+# Select set of years and hs versions of interest
+hs_years <- data.frame(
+  hs_version_new = c(
+    # Length in each should match the set of selected years
+    rep(96, length(1996:2003)),
+    rep(2, length(2004:2009)),
+    rep(7, length(2010:2012)),
+    rep(12, length(2013:2016)),
+    rep(17, length(2017:2020))
+  ), 
+  year = c(
+    # HS96 years
+    1996:2003,
+    # HS02 years
+    2004:2009,
+    # HS07 years
+    2010:2012,
+    # HS12 years
+    2013:2016,
+    # HS17 years
+    2017:2020
+  )) 
+
+# Subset file_list to the set of HS versions and years of interest
+full_data_new <- full_artis_new %>%
+  left_join(hs_years,
+            by = c("year")) %>% 
+  filter(hs_version == hs_version_new)
+
+# test <- full_data_new %>% filter(year == 2020, end_use == "fishmeal", source_country_iso3c != consumer_iso3c) %>%
+#   mutate(product_weight = consumption_t_capped/2.975207)
+# sum(test$consumption_t_capped) 
+# sum(test$product_weight)
+# ## cool it matches what is was before 
+
+
+## lets just save the fishmeal part of this 
+
+full_data_fm <- full_data_new %>%
+  filter(end_use == "fishmeal") %>% 
+  mutate(product_weight_t = consumption_t_capped/2.975207)
+
+# old_fm <- qs::qread(file.path(artis_dir, "full_artis_fm_fillet.qs")) %>%
+#   filter(hs6 == 230120) # compare; new data has ~4.1 million rows, old data has 3.8 million rows.. makes sense there would be more rows in the new data, given there is domestic production and consumption included here 
+
+qs::qsave(full_data_fm, file.path(artis_dir, "full_artis_fm_2024_09_19.qs"))
+
+```
 
