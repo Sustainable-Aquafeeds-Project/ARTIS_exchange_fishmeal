@@ -1,0 +1,90 @@
+---
+title: "Establish trimmings origins for BioMar"
+output: html_document
+date: "2024-07-24"
+---
+
+
+```{r setup}
+
+knitr::opts_chunk$set(echo = TRUE)
+
+library(here)
+library(tidyverse)
+library(glue)
+library(sf)
+library(devtools)
+library(janitor)
+library(countrycode)
+library(taxize)
+library(qs)
+
+source(here("R/directories.R"))
+
+artis_taxa <- read.csv(file.path(artis_dir, "artis_full_data/data/attribute tables/sciname.csv")) ## read in attribute table with common names
+
+```
+
+## Summary
+
+Take data from Cao et al. 2015 regarding species used for fish meal in China. They report in Table S1 (`data/cao_2015_feed_fish_species.csv`) species targeted and non-targeted that are rendered from whole fish to fish meal. In table S2 (`data/cao_2015_trash_fish_species.csv`), they report trash fish which are used in fish meal in China. We assume that the trash fish species listed are rendered completely to fish meal from whole fish, same with the targeted/non-targeted species in Table S1. 
+
+### Data Sources
+
+**Reference**: Cao, L. et al. China’s aquaculture and the world’s wild fisheries. Science 347, 133–135 (2015). https://www.science.org/doi/10.1126/science.1260149
+
+**Reference**: Monterey Bay Aquarium Seafood Watch.  https://www.seafoodwatch.org/globalassets/sfw-data-blocks/reports/T/MBA_SeafoodWatch_TilapiaChinaReport.pdf
+
+
+```{r}
+
+## Read in the whole fish species (NOT TRASH FISH) file
+
+feed_species_chn <- read.csv(here("data/cao_2015_feed_fish_species.csv")) %>%
+  clean_names() %>%
+  filter(!str_detect(source_category, "Import")) %>% ## filter out imported species, we don't want those
+  dplyr::select("common_name" = "main_species",
+         "sciname" = "scientific_name") %>%
+  mutate(country = "China",
+         iso3c = "CHN", 
+         wholefish = "yes",
+         trimmings = "no",
+         trim_prop = 0,
+         data_source_feed = "Cao 2015",
+         data_source_fao_area_country = NA,
+         feed_report_spp_name = sciname,
+         capture = "yes") %>%
+    mutate(sciname = tolower(sciname),
+         common_name = tolower(common_name))
+
+trash_species_chn <- read.csv(here("data/cao_2015_trash_fish_species.csv")) %>%
+  clean_names() %>%
+  dplyr::select("common_name" = "fish_species",
+         "sciname" = "scientific_name") %>%
+  mutate(country = "China",
+         iso3c = "CHN", 
+         wholefish = "yes",
+         trimmings = "no",
+         trim_prop = 0,
+         data_source_feed = "Cao 2015",
+         data_source_fao_area_country = NA,
+         feed_report_spp_name = sciname,
+         capture = "yes") %>%
+  mutate(sciname = tolower(sciname),
+         common_name = tolower(common_name))
+
+
+ ## add rows for tilapia in China; Cao suggests any fish meal from tilapia is trimmings; SFW says that Nile and Blue Tilapia are the most common in China farming, however, we will just filter the artis taxa list for any tilapia species and include those. 
+  
+  chn_tilapia <- artis_taxa %>%
+    filter(str_detect(common_name, "tilapia")) %>%
+    dplyr::select(sciname, common_name) %>%
+  mutate(country = "China", iso3c = "CHN", wholefish = "no", trimmings = "yes", trim_prop = 1, data_source_feed = "Cao 2015; Seafood Watch", data_source_fao_area_country = NA, feed_report_spp_name = "Nile Tilapia", capture = "no") 
+  
+all_feed_species_chn <- rbind(trash_species_chn, feed_species_chn, chn_tilapia) 
+
+write.csv(all_feed_species_chn, here("int/material_origins_cao_chn.csv"), row.names = FALSE)
+
+```
+
+

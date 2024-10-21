@@ -28,7 +28,7 @@ source(here("R/directories.R"))
 
 Skretting reports forage fish and trimmings amounts percentages of fishmeal and oil, on pages 57 of their [global sustainability report](https://www.skretting.com/en-au/sustainability/sustainability-reporting/sustainability-report-2022/). Here we take this information and figure out weightings for each species (and country combination) of how much of their raw materials come from trimmings vs forage fish. 
 
-I cannot find information on the magnitude of tonnage of FMFO skretting uses, however, they report that 61% of their marine ingredients come from whole fish while 39% come from trimmings fish. We will apply these percentages to the percentages reported in the sustainability, to get an idea of the proportion of the total amount of marine ingredients from trimmings vs wholefish by species and country. 
+I cannot find information on the magnitude of tonnage of FMFO skretting uses, however, they report that 61% of their marine ingredients come from whole fish while 39% come from trimmings fish. We will apply these percentages to the percentages reported in the sustainability report, to get an idea of the proportion of the total amount of marine ingredients from trimmings vs wholefish by species and country. 
 
 For example:
 

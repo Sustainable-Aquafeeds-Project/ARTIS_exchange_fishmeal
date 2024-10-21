@@ -44,30 +44,6 @@ artis_trimmings <- qs::qread(here("int/artis_trimmings_fillet_prices.qs")) %>%
 
 1. EDA
 
-Correlation chart 
-
-```{r}
-# Subset the relevant predictor columns
-# predictors <- artis_trimmings[, c("price_gf", "filleted", "year")]
-# 
-# # Convert categorical variables to factors if they are not already
-# #  predictors$filleted <- as.factor(predictors$filleted)
-# 
-# # Create the correlation plot (pair plot with correlation values)
-# ggpairs(predictors, 
-#         lower = list(continuous = "smooth", combo = "box_no_facet", discrete = "facetbar"),
-#         upper = list(continuous = wrap("cor", size = 3)),
-#         diag = list(continuous = "densityDiag", discrete = "barDiag"))
-# 
-# # ggsave(here("prep/imgs/cor_chart_2.png"))
-# 
-# chart.Correlation(artis_trimmings[,c("price_gf", "year", "filleted")]) # only takes numeric; at least price, year, and filleted don't seem super correlated
-# ggsave(here("prep/imgs/cor_chart.png"))
-
-
-```
-
-
 ```{r}
 # Plot `trim_prop_gf` against potential predictors
 ggplot(artis_trimmings %>% filter(year == 2020), aes(x = price_gf, y = trim_prop_gf)) + geom_point() + geom_smooth(method = "loess")
@@ -80,7 +56,7 @@ ggplot(artis_trimmings %>% filter(year == 2020), aes(x = source_country_iso3c, y
 
 ```
 
-Model Fitting GAMs with beta distribution
+2. Model Fitting GAMs with beta distribution
 
 ```{r}
 
@@ -104,7 +80,7 @@ artis_trimmings_beta_2 <- artis_trimmings_beta %>%
 #   dplyr::select(-year) %>%
 #   distinct()
 
-## ok so it runs really quick without year 
+## ok so it runs really "quick" without year 
 # with year start 12:37pm... finish 12:47pm
 
 gam_model_beta <- gam(trim_prop_beta ~ s(price_gf) + filleted  +
@@ -352,6 +328,11 @@ yearly_table <- all_data_gf %>%
 print(yearly_table)
 
 ```
+
+
+
+### TESTING
+
 Model fitting Beta regression, using brms package: 
 
 Try some models using brms package. This will fit generalized non-linear multivariate multilevel models. We can fit a beta distribution using this. Jessica also suggested Dirichlet regression, however, I don't think that is appropriate for this, as we don't need all rows to add up to 1. This fit also allows smoothing

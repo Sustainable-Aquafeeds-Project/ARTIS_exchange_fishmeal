@@ -110,13 +110,22 @@ skretting_int <- read.csv(here("int/material_origins_skretting_global.csv")) %>%
   dplyr::select(1:13)
 
 
+cao_int <- read.csv(here("int/material_origins_cao_chn.csv")) %>%
+    mutate(trimmings_tonnes = NA, wholefish_tonnes = NA) %>%
+  left_join(artis_genus_df, by = "common_name") %>%
+  mutate(sciname.y = ifelse(is.na(sciname.y), sciname.x, sciname.y)) %>%
+  mutate(sciname.x = ifelse(sciname.x != sciname.y , sciname.y, sciname.x)) %>%
+  dplyr::select(-sciname.y) %>%
+  rename(sciname = sciname.x) %>%
+  dplyr::select(1:13)
+
   
-all_int_dfs <- rbind(biomar_int, cargill_int, skretting_int) %>%
+all_int_dfs <- rbind(biomar_int, cargill_int, skretting_int, cao_int) %>%
   mutate(sciname = tolower(sciname),
          common_name = tolower(common_name)) %>%
   mutate(capture = ifelse(iso3c == "MEX" & common_name == "yellowfin tuna", "no", capture)) # make sure mexico is listed as aquaculture. Oman also lists wholefish reduction, however, oman doesnt have any tuna aquaculture
 
-write.csv(all_int_dfs, here("int/material_origins_biomar_cargill_skretting.csv"), row.names = FALSE)
+write.csv(all_int_dfs, here("int/material_origins_biomar_cargill_skretting_cao.csv"), row.names = FALSE)
 
 test <- all_int_dfs %>%
   filter(iso3c == "MEX")

@@ -116,7 +116,7 @@ artis_trimmings_gf <- artis_trimmings_missing %>%
            ),
         method_gf = 
            case_when(
-             method == "aquaculture" ~ "aquaculture", # assume aquaculture is all trimmings
+           method == "aquaculture" ~ "aquaculture", # assume aquaculture is all trimmings
              family == "salmonidae" ~ "salmon", # assume salmon is all trimmings
              sciname == "salmoninae" ~ "salmon", # assume salmon is all trimmings
              str_detect(family, "scombridae") ~ "tuna", # assume tuna is all trimmings
@@ -164,7 +164,7 @@ test <- artis_trimmings_all_gf %>% filter(is.na(common_name)) ## 0 ok this is go
 
 ## lets save this to RDSI
 
-write.csv(artis_trimmings_all_gf, file.path(artis_dir, "artis_exchange/artis_fishmeal_trimmings_not_gf_2024-10-17.csv"), row.names = TRUE)
+write.csv(artis_trimmings_all_gf, file.path(artis_dir, "artis_exchange/artis_fishmeal_trimmings_not_gf_2024-10-21.csv"), row.names = TRUE)
 
 ```
 
@@ -175,7 +175,7 @@ Let's look at just finfish species and see how much is missing. We believe that 
 
 ```{r}
 
-artis_trimmings_all_gf <- read.csv(file.path(artis_dir, "artis_exchange/artis_fishmeal_trimmings_not_gf_2024-10-17.csv"))
+artis_trimmings_all_gf <- read.csv(file.path(artis_dir, "artis_exchange/artis_fishmeal_trimmings_not_gf_2024-10-21.csv"))
 
 colnames(artis_trimmings_all_gf)
 
@@ -206,6 +206,10 @@ test <- artis_all_2020 %>%
   summarise(sum_t = sum(product_weight_t, na.rm = TRUE)) # interesting... claims about the same comes from domestic as foreign.. not sure that makes sense. 
 
 
+test <- artis_all_2020 %>%
+  filter(trim_product > 0) # yeah ok, the assumption that all aquaculture is trimmings is screwing things up big time. Because there is SO MUCH shrimps and prawns fish meal reported... look into this. 
+
+
 ## Let's make a bar plot and have x axis be the type of fish meal, y axis the proportion it represents, and fill by continent
 
 no_info_df <- artis_all_2020 %>%
@@ -219,6 +223,7 @@ bar_plot_df <- artis_all_2020 %>%
   filter(!is.na(trimmings_gf)) %>%
   pivot_longer(names_to = "fishmeal_type",
                cols = c("wholefish_product", "trim_product")) %>%
+ # mutate(fishmeal_type = ifelse(isscaap == "Shrimps, prawns", "wholefish_product", fishmeal_type)) %>%
   mutate(fishmeal_type = ifelse(fishmeal_type == "trim_product", "Trimmings", "Whole fish")) %>%
   group_by(fishmeal_type, owid_region) %>%
   summarise(total = sum(value, na.rm = TRUE)) %>%
