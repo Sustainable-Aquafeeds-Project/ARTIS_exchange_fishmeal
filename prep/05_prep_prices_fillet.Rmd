@@ -20,6 +20,7 @@ library(devtools)
 library(janitor)
 library(countrycode)
 library(qs)
+library(zoo)
 
 source(here("R/directories.R"))
 
@@ -45,8 +46,8 @@ entity <- read.csv("/mnt/rdsi/raw_data/sea-around-us/ex-vessel-prices/fishing_en
   dplyr::select(-X) %>%
   mutate(iso3c = countrycode(sourcevar = name, origin = "country.name", destination = "iso3c"))
 
-## get artis data matched with sustainability reports (not yet gapfilled)
-artis_trimmings_all <- read.csv(file.path(artis_dir, "artis_exchange/artis_fishmeal_trimmings_not_gf.csv"))
+## get artis data matched with sustainability reports (not yet fully gapfilled)
+artis_trimmings_all <- qs::qread(file.path(artis_dir, "artis_exchange/artis_fishmeal_trimmings_not_gf_traded.qs"))
 
 
 ```
@@ -235,7 +236,7 @@ artis_prices_gf <- artis_trimmings_fillet_prices %>%
                      is.na(price) & is.na(genus_mean_price_gf) & is.na(family_mean_price_gf) & is.na(order_mean_price_gf) & !is.na(class_mean_price_gf) ~ "class",
                      TRUE ~ "none"
                      )) %>%
-  dplyr::select(hs_version, year, source_country_iso3c, exporter_iso3c, importer_iso3c, dom_source, sciname, habitat, method, product_weight_t, live_weight_t, common_name, trim_prop_gf_flag = method_gf, trimmings_gf, wholefish_gf, trim_prop_gf, filleted, price_gf, gapfill_flag_price)
+  dplyr::select(year, source_country_iso3c, exporter_iso3c, consumer_iso3c, dom_source, sciname, habitat, method, product_weight_t, live_weight_t, common_name, trim_prop_gf_flag = method_gf, trimmings_gf, wholefish_gf, trim_prop_gf, filleted, price_gf, gapfill_flag_price)
 
 test <- artis_prices_gf %>%
   filter(is.na(price_gf))
@@ -249,7 +250,66 @@ test <- artis_prices_gf %>%
 
 
 qs::qsave(artis_prices_gf, here("int/artis_trimmings_fillet_prices.qs")) 
+```
 
+Test completely gapfilling the rest with prices 
+
+```{r}
+
+artis_finfish <- artis_prices_gf %>% 
+  mutate(trim_prop_gf = ifelse(price_gf <= 1329 & is.na(trim_prop_gf), 0, trim_prop_gf)) %>%
+  mutate(trim_liveweight = trim_prop_gf*live_weight_t,
+    trim_product = trim_prop_gf*product_weight_t, 
+    wholefish_liveweight = (1-trim_prop_gf)*live_weight_t,
+    wholefish_product = (1-trim_prop_gf)*product_weight_t) %>%
+  filter(year == 2020) %>% 
+  left_join(artis_taxa) %>%
+  filter(phylum %in% c("chordata", NA)) %>% # ok only finfish (or NA)
+  filter(!(common_name %in% c("sea urchins", "saltwater mussels", "sea lamprey", "lampreys nei")))
+
+test <- artis_finfish %>% 
+  filter(is.na(trim_prop_gf))
+
+
+test <- artis_finfish %>% 
+  filter(trim_prop_gf == 0)
+
+
+no_info_df <- artis_finfish %>%
+  filter(is.na(trimmings_gf)) %>%
+  mutate(fishmeal_type = "not sure") %>%
+  group_by(fishmeal_type) %>%
+  summarise(total = sum(product_weight_t)) %>%
+  ungroup()
+
+circle_plot_df <- artis_finfish %>% 
+  filter(!is.na(trimmings_gf)) %>%
+  pivot_longer(names_to = "fishmeal_type",
+               cols = c("wholefish_product", "trim_product")) %>%
+  mutate(fishmeal_type = ifelse(fishmeal_type == "trim_product", "trimmings", "wholefish")) %>%
+  group_by(fishmeal_type) %>%
+  summarise(total = sum(value, na.rm = TRUE)) %>%
+  ungroup() %>%
+  rbind(., no_info_df) %>%
+  mutate(total_product_t = total_product_weight) %>%
+  mutate(prop = total/total_product_t) %>%
+  mutate(perc = prop * 100) %>% # Convert to percentage
+  mutate(label = paste0(round(perc, 1), "%")) %>%
+  arrange(desc(fishmeal_type)) %>%
+  mutate(ypos = cumsum(prop) - 0.5 * prop)
+
+
+ggplot(circle_plot_df, aes(x = fishmeal_type, y = prop, fill = fishmeal_type)) +
+  geom_bar(stat = "identity", color = "white") +
+  geom_text(aes(y = prop-0.015, label = label), color = "black") +
+ scale_fill_manual(values = c("#FF9999", "#FFCC99", "#99CCFF")) +
+  theme_bw() +
+  labs(x = "Fishmeal type", y = "Proportion of global trade") +
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 15, face = "bold"),
+    plot.subtitle = element_text(hjust = 0.5, size = 12),
+    legend.position="none"
+  )
 
 ```
 

@@ -47,7 +47,8 @@ biomar_int <- read.csv(here("int/material_origins_biomar_raw.csv")) %>%
       mutate(common_name = ifelse(common_name %in% c("herrings, sardines nei"), "herrings", common_name)) %>% # fix this one
   dplyr::select(-sciname) %>%
   left_join(artis_genus_df, by = "common_name") %>% # keep artis scinames
-  dplyr::select(1:13)
+  dplyr::select(1:13) %>%
+  mutate(trash_fish = "no")
 
  
 cargill_int <- read.csv(here("int/material_origins_cargill.csv")) %>%
@@ -72,7 +73,9 @@ cargill_int <- read.csv(here("int/material_origins_cargill.csv")) %>%
       left_join(artis_genus_df, by = "common_name") %>%
     dplyr::select(-sciname.x) %>%
   rename(sciname = sciname.y) %>%
-  dplyr::select(1:13)
+  dplyr::select(1:13) %>%
+    mutate(trash_fish = "no")
+
 
 
 
@@ -107,7 +110,9 @@ skretting_int <- read.csv(here("int/material_origins_skretting_global.csv")) %>%
   left_join(artis_genus_df, by = "common_name") %>%
   dplyr::select(-sciname.x) %>%
   rename(sciname = sciname.y) %>%
-  dplyr::select(1:13)
+  dplyr::select(1:13) %>%
+    mutate(trash_fish = "no")
+
 
 
 cao_int <- read.csv(here("int/material_origins_cao_chn.csv")) %>%
@@ -117,7 +122,7 @@ cao_int <- read.csv(here("int/material_origins_cao_chn.csv")) %>%
   mutate(sciname.x = ifelse(sciname.x != sciname.y , sciname.y, sciname.x)) %>%
   dplyr::select(-sciname.y) %>%
   rename(sciname = sciname.x) %>%
-  dplyr::select(1:13)
+  dplyr::select(1:14)
 
   
 all_int_dfs <- rbind(biomar_int, cargill_int, skretting_int, cao_int) %>%
@@ -151,13 +156,13 @@ Now lets summarise so that we don't have any duplicate countries and species.
 ```{r}
 
 int_dfs_summary <- all_int_dfs %>%
-  group_by(sciname, common_name, iso3c, capture) %>%
+  group_by(sciname, common_name, iso3c, capture, trash_fish) %>%
   summarise(trim_prop_w_mean = weighted.mean(trim_prop, trimmings_tonnes, na.rm = TRUE),
             trim_prop_mean = mean(trim_prop, na.rm = TRUE)) %>%
   ungroup() %>%
   mutate(trim_prop_w_mean = ifelse(trim_prop_w_mean == "NaN", 0, trim_prop_w_mean)) %>% # fix those with 0 trimmings tonnes
   mutate(trim_prop_w_mean = ifelse(is.na(trim_prop_w_mean), trim_prop_mean, trim_prop_w_mean)) %>%
-  dplyr::select(sciname, common_name, iso3c, capture, trim_prop = trim_prop_w_mean) %>%
+  dplyr::select(sciname, common_name, iso3c, capture, trash_fish, trim_prop = trim_prop_w_mean) %>%
   mutate(trimmings = case_when(
     trim_prop == 1 ~ "yes",
     trim_prop > 0 & trim_prop < 1 ~ "yes",

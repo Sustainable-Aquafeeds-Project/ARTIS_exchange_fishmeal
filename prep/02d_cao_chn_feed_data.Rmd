@@ -55,7 +55,8 @@ feed_species_chn <- read.csv(here("data/cao_2015_feed_fish_species.csv")) %>%
          feed_report_spp_name = sciname,
          capture = "yes") %>%
     mutate(sciname = tolower(sciname),
-         common_name = tolower(common_name))
+         common_name = tolower(common_name)) %>%
+  mutate(trash_fish = "no")
 
 trash_species_chn <- read.csv(here("data/cao_2015_trash_fish_species.csv")) %>%
   clean_names() %>%
@@ -71,7 +72,8 @@ trash_species_chn <- read.csv(here("data/cao_2015_trash_fish_species.csv")) %>%
          feed_report_spp_name = sciname,
          capture = "yes") %>%
   mutate(sciname = tolower(sciname),
-         common_name = tolower(common_name))
+         common_name = tolower(common_name)) %>%
+  mutate(trash_fish = "yes")
 
 
  ## add rows for tilapia in China; Cao suggests any fish meal from tilapia is trimmings; SFW says that Nile and Blue Tilapia are the most common in China farming, however, we will just filter the artis taxa list for any tilapia species and include those. 
@@ -79,7 +81,8 @@ trash_species_chn <- read.csv(here("data/cao_2015_trash_fish_species.csv")) %>%
   chn_tilapia <- artis_taxa %>%
     filter(str_detect(common_name, "tilapia")) %>%
     dplyr::select(sciname, common_name) %>%
-  mutate(country = "China", iso3c = "CHN", wholefish = "no", trimmings = "yes", trim_prop = 1, data_source_feed = "Cao 2015; Seafood Watch", data_source_fao_area_country = NA, feed_report_spp_name = "Nile Tilapia", capture = "no") 
+  mutate(country = "China", iso3c = "CHN", wholefish = "no", trimmings = "yes", trim_prop = 1, data_source_feed = "Cao 2015; Seafood Watch", data_source_fao_area_country = NA, feed_report_spp_name = "Nile Tilapia", capture = "no") %>%
+    mutate(trash_fish = "no")
   
 all_feed_species_chn <- rbind(trash_species_chn, feed_species_chn, chn_tilapia) 
 

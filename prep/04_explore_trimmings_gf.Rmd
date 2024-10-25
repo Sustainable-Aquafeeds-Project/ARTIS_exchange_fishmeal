@@ -27,19 +27,29 @@ source(here("R/directories.R"))
 
 full_artis <- qs::qread(file.path(artis_dir, "full_artis_fm_fillet.qs"))
 
-# fm_artis <- full_artis %>% 
-#   filter(hs6 == 230120)
+artis_version <- "old" # set version you want to run (old or new data from Jessica - this is temporary until we get more details on the new data from Jessica)
+
 
 fillet_artis <- full_artis %>%
   filter(hs6 != 230120) %>%
-  dplyr::select(-hs_version) %>%
-  rename(consumer_iso3c = importer_iso3c)
+  dplyr::select(-hs_version) %>% # don't need this
+  rename(consumer_iso3c = importer_iso3c) # just to make things consistent
+
+if(artis_version == "old"){
+fm_artis <- full_artis %>%
+  filter(hs6 == 230120) %>%
+    rename(consumer_iso3c = importer_iso3c) %>%
+  dplyr::select(-hs_version)
+
+  
+}else{
 
 fm_artis <- qs::qread(file.path(artis_dir, "full_artis_fm_2024_09_19.qs")) %>%
   mutate(hs6 = 230120,
          dom_source = ifelse(dom_source == "", consumption_type, dom_source)) %>%
   dplyr::select(year, source_country_iso3c, exporter_iso3c, consumer_iso3c, dom_source, hs6, sciname, habitat, method, product_weight_t, live_weight_t = consumption_t_capped) %>%
   mutate(exporter_iso3c = ifelse(source_country_iso3c == consumer_iso3c, source_country_iso3c, exporter_iso3c))
+}
 
 setdiff(colnames(fillet_artis), colnames(fm_artis))
 setdiff(colnames(fm_artis), colnames(fillet_artis)) # 0 good
@@ -48,7 +58,9 @@ setdiff(colnames(fm_artis), colnames(fillet_artis)) # 0 good
 artis_taxa <- read.csv(file.path(artis_dir, "artis_full_data/data/attribute tables/sciname.csv")) ## read in attribute table with common names
 countries <- read.csv(here("data/countries.csv")) ## artis countries with info
 
-
+asia_iso3c <- countries %>% 
+  filter(owid_region == "Asia") %>%
+  pull(iso3c)
 ```
 
 Join ARTIS data to biomar and skretting information. Provide summary stats for how much info is missing. 
@@ -76,50 +88,72 @@ artis_trimmings_info <- artis_trimmings_all %>%
          trim_prop_gf = trim_prop) %>%
   mutate(trimmings_gf = ifelse(source_country_iso3c == "MEX" & common_name == "yellowfin tuna", "yes", trimmings_gf),
          wholefish_gf = ifelse(source_country_iso3c == "MEX" & common_name == "yellowfin tuna", "no", wholefish_gf),
-        trim_prop_gf = ifelse(source_country_iso3c == "MEX" & common_name == "yellowfin tuna", 1, trim_prop_gf)) # fix the mexico yellowfin tuna instance
+        trim_prop_gf = ifelse(source_country_iso3c == "MEX" & common_name == "yellowfin tuna", 1, trim_prop_gf))  # fix the mexico yellowfin tuna instance
 
-# test <- artis_trimmings_info %>% filter(is.na(wholefish)) # ok perfect, both empty
-# test <- artis_trimmings_info %>% filter(is.na(trim_prop))
+## For China/South East Asia I need to look into these papers; so if these prove true, then any NEI spceies in SE Asia will be "trash fish" and therefore whole fish reduction:
+
+# https://www.science.org/doi/10.1126/sciadv.adn5650 say much trash fish fish meal is classified as “mixed fish” or “nei” in FAO
+#         - sources: D. Leadbitter, “Driving change in South East Asian trawl fisheries, fishmeal supply, and aquafeed” [Report to IFFO, The Marine Ingredients Organisation and the Global Aquaculture Alliance (GAA), Fish Matter, 2019].
+#         - U. R. Sumaila, W. W. L. Cheung, L. S. L. Teh, A. H. Y. Bang, T. Cashion, Z. Zeng, J. J. Alava, S. Le Clue, Y. Sadovy de Mitcheson, “Sink or swim: The future of fisheries in the East and South China Seas” (ADM Capital Foundation, 2021).
+#         - Y. Sadovy de Mitcheson, D. Leadbitter, C. Law, “History, profiles and implications of feed fish and fishmeal supply from domestic trawlers in the East and South China Seas - Final Report to ADMCF” (2018).
+
+
+# Majluf et al suggests trimmings are really only possible in large scale in  China, Norway, Chile, US, and Peru. This is not true. THA and VNM both have massive FM industries and produces a lot of trimmings MF. Does Morocco have large scale FM processing plants? Is there a list with large scale FM plant operations? Seems a reasonable assumption to make that if there is large scale industry present, then trimmings is more likely than not. 
+
+# Leadbitter says that Pangasius is used for trimmings in VNM. Probably the same everywhere else. 
+
+## do some testing around the China data
+# test <- artis_trimmings_all %>%
+#   filter(trash_fish == "yes", method == "aquaculture") # so there are no trash fish and aquaculture.. cool. all trash fish are capture. makes sense
+# test <- artis_trimmings_all %>%
+#   filter(method == "aquaculture", source_country_iso3c == "CHN") # this is all tilapia and all trimmings. Makes sense.
 
 artis_trimmings_missing <- artis_trimmings_all %>% 
   filter(is.na(trimmings))
 
 # nrow(artis_trimmings_missing) + nrow(artis_trimmings_missing) == nrow(artis_trimmings_all) # TRUE
 
-# test <- artis_trimmings_missing %>% filter(!is.na(wholefish))
-# test <- artis_trimmings_missing %>% filter(!is.na(trim_prop)) # perfect empty
+## arthropoda and mollusc fish meal - what to do about this? It makes sense that their by-products would be used for FM, but it really makes results seem suspicious compared to IFFO reports, because IFFO only includes finfish.
 
 artis_trimmings_gf <- artis_trimmings_missing %>% 
   mutate(trimmings_gf = 
            case_when(
-             method == "aquaculture" ~ "yes",
+             method != "aquaculture" & str_detect(common_name, "nei|ray-finned fishes") & phylum == "chordata" & source_country_iso3c %in% c(asia_iso3c) ~ "no", # start with china for this - will probably expand to all SE asian countries
+                method != "aquaculture" & sciname == "animalia" ~ "no", # any unknown capture fisheries will be whole fish
+             method == "aquaculture" & phylum == "chordata" ~ "yes", # if it is finfish aquaculture, then assume it is trimmings.
              family == "salmonidae" ~ "yes",
              sciname == "salmoninae" ~ "yes",
-             str_detect(family, "scombridae") ~ "yes",
+             str_detect(common_name, "tuna|Tuna|albacore|Albacore") ~ "yes", # any tuna species are trimmings
              TRUE ~ trimmings
            ),
          wholefish_gf = 
            case_when(
-             method == "aquaculture" ~ "no",
+      method != "aquaculture" & str_detect(common_name, "nei|ray-finned fishes") & phylum == "chordata" & source_country_iso3c %in% c(asia_iso3c) ~ "yes",   
+       method != "aquaculture" & sciname == "animalia" ~ "yes",
+            method == "aquaculture" & phylum == "chordata" ~ "no",
              family == "salmonidae" ~ "no",
              sciname == "salmoninae" ~ "no",
-             str_detect(family, "scombridae") ~ "no",
+             str_detect(common_name, "tuna|Tuna|albacore|Albacore") ~ "no", # any tuna species are trimmings
              TRUE ~ wholefish
            ),
         trim_prop_gf = 
            case_when(
-             method == "aquaculture" ~ 1, # assume aquaculture is all trimmings, unless feed reports suggest otherwise
+                   method != "aquaculture" & str_detect(common_name, "nei|ray-finned fishes") & phylum == "chordata" & source_country_iso3c %in% c(asia_iso3c) ~ 0,   
+                    method != "aquaculture" & sciname == "animalia" ~ 0,
+             method == "aquaculture" & phylum == "chordata" ~ 1, # assume finfish aquaculture is all trimmings, unless feed reports suggest otherwise
              family == "salmonidae" ~ 1, # assume salmon is all trimmings
              sciname == "salmoninae" ~ 1, # assume salmon is all trimmings
-             str_detect(family, "scombridae") ~ 1, # assume tuna is all trimmings
+             str_detect(common_name, "tuna|Tuna|albacore|Albacore") ~ 1, # assume tuna is all trimmings
              TRUE ~ trim_prop
            ),
         method_gf = 
            case_when(
-           method == "aquaculture" ~ "aquaculture", # assume aquaculture is all trimmings
+                   method != "aquaculture" & str_detect(common_name, "nei|ray-finned fishes") & phylum == "chordata" & source_country_iso3c %in% c(asia_iso3c) ~ "trash fish",   
+                    method != "aquaculture" & sciname == "animalia" ~ "unknown species, assume wholefish",
+            method == "aquaculture" & phylum == "chordata" ~ "aquaculture", # assume finfish aquaculture is all trimmings
              family == "salmonidae" ~ "salmon", # assume salmon is all trimmings
              sciname == "salmoninae" ~ "salmon", # assume salmon is all trimmings
-             str_detect(family, "scombridae") ~ "tuna", # assume tuna is all trimmings
+             str_detect(common_name, "tuna|Tuna|albacore|Albacore") ~ "tuna", # assume tuna is all trimmings
              TRUE ~ NA
            )
          ) %>%
@@ -133,6 +167,12 @@ artis_trimmings_gf <- artis_trimmings_missing %>%
 
 
 
+test <- artis_trimmings_gf %>%
+  filter(source_country_iso3c == "CHN", phylum == "chordata", method != "aquaculture", is.na(trim_prop_gf))
+
+test <- artis_trimmings_gf %>%
+  filter(sciname == "animalia")
+
 ## rbind back together after prelimnary gapfilling
 
 artis_trimmings_all_gf <- artis_trimmings_info %>%
@@ -144,7 +184,7 @@ mutate(trim_liveweight = trim_prop_gf*live_weight_t,
     wholefish_liveweight = (1-trim_prop_gf)*live_weight_t,
     wholefish_product = (1-trim_prop_gf)*product_weight_t) ## allocate with what info we have first for testing
 
-# test <- artis_trimmings_all_gf %>% 
+# test <- artis_trimmings_all_gf %>%
 #   filter(!is.na(trimmings_gf) & is.na(wholefish_gf))
 # 
 # test <- artis_trimmings_all_gf %>% 
@@ -154,17 +194,20 @@ mutate(trim_liveweight = trim_prop_gf*live_weight_t,
 #   filter(family == "scombridae")
 # 
 # 
-# test <- artis_trimmings_all_gf %>% 
+# test <- artis_trimmings_all_gf %>%
 #   filter(method == "aquaculture") %>%
 #   filter(genus == "thunnus")
 
 ## ok looks like all gapfilling went good
 
-test <- artis_trimmings_all_gf %>% filter(is.na(common_name)) ## 0 ok this is good! 
 
 ## lets save this to RDSI
+if(artis_version == "old"){
+qs::qsave(artis_trimmings_all_gf, file.path(artis_dir, "artis_exchange/artis_fishmeal_trimmings_not_gf_traded.qs"))
+}else{
+  qs::qsave(artis_trimmings_all_gf, file.path(artis_dir, "artis_exchange/artis_fishmeal_trimmings_not_gf_traded_consumption.qs"))
 
-write.csv(artis_trimmings_all_gf, file.path(artis_dir, "artis_exchange/artis_fishmeal_trimmings_not_gf_2024-10-21.csv"), row.names = TRUE)
+}
 
 ```
 
@@ -175,7 +218,7 @@ Let's look at just finfish species and see how much is missing. We believe that 
 
 ```{r}
 
-artis_trimmings_all_gf <- read.csv(file.path(artis_dir, "artis_exchange/artis_fishmeal_trimmings_not_gf_2024-10-21.csv"))
+artis_trimmings_all_gf <- qs::qread(file.path(artis_dir, "artis_exchange/artis_fishmeal_trimmings_not_gf_traded.qs"))
 
 colnames(artis_trimmings_all_gf)
 
@@ -209,6 +252,8 @@ test <- artis_all_2020 %>%
 test <- artis_all_2020 %>%
   filter(trim_product > 0) # yeah ok, the assumption that all aquaculture is trimmings is screwing things up big time. Because there is SO MUCH shrimps and prawns fish meal reported... look into this. 
 
+test <- artis_all_2020 %>% 
+  filter(is.na(trimmings_gf)) # let's look at whats missing. A lot of shrimp and bivalve. A lot of the finfish that are missing are larger groups like "nei", so I think if we assume the same rules as China for all of south east asia (VNM, THA, etc), this will help a lot for whole fish. 
 
 ## Let's make a bar plot and have x axis be the type of fish meal, y axis the proportion it represents, and fill by continent
 
@@ -361,9 +406,27 @@ artis_finfish <- artis_trimmings_all_gf %>%
   filter(phylum %in% c("chordata", NA)) %>% # ok only finfish (or NA)
   filter(!(common_name %in% c("sea urchins", "saltwater mussels", "sea lamprey", "lampreys nei")))
 
+test <- artis_finfish %>%
+  filter(is.na(trimmings_gf))
+
+sum(test$product_weight_t) # 331945.7 missing total
+
+## look at countries with trimmings:
+
+test <- artis_finfish %>%
+  filter(trimmings_gf == "yes") %>%
+  group_by(source_country_iso3c) %>%
+  summarise(total_trim_iso3c = sum(trim_product)) %>%
+  ungroup() %>%
+  mutate(total_trim_prop = total_trim_iso3c/sum(artis_finfish$trim_product, na.rm = TRUE)) %>%
+  ungroup()
+  
+# Morocco is 1, unknown 2, Then PER, NOR, CHL; Majluf et al suggests trimmings are really only possible in large scale in  China, Norway, Chile, US, and Peru. Does Morocco have large scale FM processing plants? Is there a list with large scale FM plant operations? Seems a reasonable assumption to make that if there is large scale industry present, then trimmings is more likely than not. 
+unique(test$source_country_iso3c) # lots of countries here 
+
 total_product_weight <- artis_finfish %>% 
   pull(product_weight_t) %>%
-  sum() # 2996610
+  sum() # 2996927
 
 no_info_df <- artis_finfish %>%
   filter(is.na(trimmings_gf)) %>%
