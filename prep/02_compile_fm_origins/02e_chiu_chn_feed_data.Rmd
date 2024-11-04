@@ -1,0 +1,89 @@
+---
+title: "Establish trimmings origins for Chiu et al."
+output: html_document
+date: "2024-07-24"
+---
+
+
+```{r setup}
+
+knitr::opts_chunk$set(echo = TRUE)
+
+library(here)
+library(tidyverse)
+library(glue)
+library(sf)
+library(devtools)
+library(janitor)
+library(countrycode)
+library(taxize)
+library(qs)
+
+source(here("R/directories.R"))
+
+artis_taxa <- read.csv(file.path(artis_dir, "artis_full_data/data/attribute tables/sciname.csv")) ## read in attribute table with common names
+
+artis_data <- qs::qread(file.path(artis_dir, "full_artis_fm_fillet.qs"))
+
+```
+
+## Summary
+
+Take data from Chiu et al. 2015 regarding species used for fish meal in China. They report in text species which are often used as whole fish fish meal or trimmings fish fish meal in China. 
+
+
+### Data Sources
+
+**Reference**: Chiu, et al. Feed and fishmeal use in the production of carp and tilapia in China https://doi.org/10.1016/j.aquaculture.2013.07.049
+
+
+
+Notes from the paper: 
+
+ - Cod trimmings FM is used for turtle culture in China and comes from US, Russia, and New Zealand. We're going to ignore this as it is not specific enough to include.  
+ - Shandong produces ~50% of China’s FM. Predominantly from anchovies caught in the Yellow Sea using purse seines. Yield about 20% FM and 3% FO.  
+  - Anchovies – whole fish 
+ - Zheijiang produces ~25% of China’s FM. Relies on fish from East China Sea. Substantial bycatch.  
+  - Skinnycheek lanternfish (Benthosema pterotum) – whole fish  
+  - Fish and shrimp processing byproducts - Not specific enough to include
+  - Trash fish - not specific enough to include
+  - Anchovies – whole fish 
+
+```{r}
+
+## First, lets query the artis data from cod species in Russia, New Zealand, and USA that are imported to China, and assume these are trimmings
+
+chn_anchovy <- artis_data %>% 
+  left_join(artis_taxa) %>%
+  filter(source_country_iso3c %in% c("CHN"),
+         str_detect(common_name, "anchovy|Anchovy")) %>% # assume any anchovy caught in China that ends up at FM is whoel fish rendered. 
+  distinct(iso3c = source_country_iso3c, sciname, common_name) %>%
+      mutate(
+         wholefish = "yes",
+         trimmings = "no",
+         trim_prop = 1,
+         data_source_feed = "Chiu 2013",
+         data_source_fao_area_country = NA,
+         feed_report_spp_name = sciname,
+         capture = "yes") %>%
+    mutate(sciname = tolower(sciname),
+         common_name = tolower(common_name)) %>%
+  mutate(trash_fish = "no")
+
+
+write.csv(chn_anchovy, here("int/material_origins_chiu_chn.csv"), row.names = FALSE)
+
+```
+
+
+```{r}
+test <- artis_data %>%
+  left_join(artis_taxa) %>%
+  filter(source_country_iso3c == "EGY")
+
+
+```
+
+
+
+

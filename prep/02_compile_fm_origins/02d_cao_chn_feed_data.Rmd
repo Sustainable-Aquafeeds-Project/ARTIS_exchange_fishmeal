@@ -1,5 +1,5 @@
 ---
-title: "Establish trimmings origins for BioMar"
+title: "Establish trimmings origins for Cao et al"
 output: html_document
 date: "2024-07-24"
 ---
@@ -84,7 +84,14 @@ trash_species_chn <- read.csv(here("data/cao_2015_trash_fish_species.csv")) %>%
   mutate(country = "China", iso3c = "CHN", wholefish = "no", trimmings = "yes", trim_prop = 1, data_source_feed = "Cao 2015; Seafood Watch", data_source_fao_area_country = NA, feed_report_spp_name = "Nile Tilapia", capture = "no") %>%
     mutate(trash_fish = "no")
   
-all_feed_species_chn <- rbind(trash_species_chn, feed_species_chn, chn_tilapia) 
+all_feed_species_chn <- rbind(trash_species_chn, feed_species_chn, chn_tilapia) %>%
+  left_join(artis_taxa, by = "sciname") %>%
+  mutate(common_name = ifelse(is.na(common_name.y), common_name.x, common_name.y)) %>%
+  dplyr::select(-common_name.y, -common_name.x)
+
+test <- all_feed_species_chn %>% filter(common_name.x != common_name.y) #these are all fine
+
+test <- all_feed_species_chn %>% filter(is.na(sciname.y)) ## missing 53 when joining by sciname; missing 60 when joining by sciname. Will use sciname and save like that. It just happens some of the species listed here are not included in the ARTIS data, which is fine! 
 
 write.csv(all_feed_species_chn, here("int/material_origins_cao_chn.csv"), row.names = FALSE)
 

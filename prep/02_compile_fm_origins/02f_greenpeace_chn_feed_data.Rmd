@@ -1,0 +1,80 @@
+---
+title: "Establish trimmings origins for Cao et al"
+output: html_document
+date: "2024-07-24"
+---
+
+
+```{r setup}
+
+knitr::opts_chunk$set(echo = TRUE)
+
+library(here)
+library(tidyverse)
+library(glue)
+library(sf)
+library(devtools)
+library(janitor)
+library(countrycode)
+library(taxize)
+library(qs)
+
+source(here("R/directories.R"))
+
+artis_taxa <- read.csv(file.path(artis_dir, "artis_full_data/data/attribute tables/sciname.csv")) ## read in attribute table with common names
+
+```
+
+### Data Sources
+
+An investigation report into China’s marine trash fish fisheries 
+
+Greenpeace East Asia 2017 
+
+Media report: https://www.greenpeace.org/static/planet4-eastasia-stateless/2019/11/a8ce072f-a8ce072f-investigation-into-chinas-marine-trash-fish-fisheries_gpea-media-briefing.pdf 
+
+Actual report (in Chinese): https://www.greenpeace.org.cn/wp-content/uploads/2017/07/%E6%B5%B7%E6%B4%8B%E6%8A%A5%E5%91%8A_0730%EF%BC%88300ppi%EF%BC%89.pdf  
+
+## Summary
+
+Greenpeace produced a report where they sampled ports in China and trash fish species within. They found >200 species. They report tables which have the trash fish species names, and I have made a csv file of these.  
+
+
+```{r}
+
+## Read in the whole fish species (NOT TRASH FISH) file
+
+trash_species_chn <- read.csv(here("data/greenpeace_trashfish_spp.csv")) %>%
+  clean_names() %>%
+  rename(common_name = chinese_name, 
+         sciname = latin_name) %>% 
+  mutate(country = "China",
+         iso3c = "CHN", 
+         wholefish = "yes",
+         trimmings = "no",
+         trim_prop = 0,
+         data_source_feed = "Greenpeace East Asia 2017",
+         data_source_fao_area_country = NA,
+         feed_report_spp_name = sciname,
+         capture = "yes") %>%
+    mutate(sciname = tolower(sciname),
+         common_name = tolower(common_name)) %>%
+  mutate(trash_fish = "yes") %>%
+  dplyr::select(-mature_length_cm, -iucn_status, -edible_type) %>%
+    distinct() %>%
+  left_join(artis_taxa, by = "sciname") %>%
+  mutate(common_name = ifelse(is.na(common_name.y), common_name.x, common_name.y)) %>%
+  dplyr::select(-common_name.x, -common_name.y)
+
+missing_spp <- trash_species_chn %>%
+  filter(is.na(common_name.y)) # missing 182 spp when joining by sciname; missing 224 when joining by common_name. We will join by sciname. These will just be missing. They just aren't reported in the ARTIS data, which is OK. 
+
+non_missing_spp <- trash_species_chn %>%
+  filter(!is.na(common_name.y))
+
+
+write.csv(trash_species_chn, here("int/material_origins_greenpeace_chn.csv"), row.names = FALSE)
+
+```
+
+

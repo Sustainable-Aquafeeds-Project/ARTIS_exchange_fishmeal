@@ -1,0 +1,173 @@
+---
+title: "Establish trimmings origins for Peron et al."
+output: html_document
+date: "2024-07-24"
+---
+
+
+```{r setup}
+
+knitr::opts_chunk$set(echo = TRUE)
+
+library(here)
+library(tidyverse)
+library(glue)
+library(sf)
+library(devtools)
+library(janitor)
+library(countrycode)
+library(taxize)
+library(qs)
+
+source(here("R/directories.R"))
+
+artis_taxa <- read.csv(file.path(artis_dir, "artis_full_data/data/attribute tables/sciname.csv")) ## read in attribute table with common names
+
+```
+
+## Summary
+
+Table 2 reports national production by industrial fisheries of small pelagic fishes and fishmeal and fish oil products. We take the species and country origins within this table and assume that they are rendered whole fish to fishmeal. 
+
+### Data Sources
+
+**Reference**: Péron, G., François Mittaine, J. & Le Gallic, B. Where do fishmeal and fish oil products come from? An analysis of the conversion ratios in the global fishmeal industry. Marine Policy 34, 815–820 (2010).
+
+```{r}
+
+# Create the dataframe
+df <- data.frame(
+  Countries = c(
+    "Peru", "Peru", "Peru", 
+    "Chile", "Chile", "Chile", 
+    "China", "China", "China", "China", "China", "China", 
+    "Thailand", "Thailand", "Thailand", "Thailand", 
+    "Norway", "Norway", "Norway", "Norway", "Norway", 
+    "United States of America", "United States of America", "United States of America", "United States of America", "United States of America", 
+    "Iceland", "Iceland", "Iceland", 
+    "Japan", "Japan", "Japan", "Japan", "Japan", 
+    "Denmark", "Denmark", "Denmark", "Denmark", "Denmark", 
+    "South Africa", "South Africa", "South Africa", 
+    "Mexico", "Mexico", 
+    "Faeroe Islands", "Faeroe Islands", "Faeroe Islands", "Faeroe Islands", 
+    "Morocco", "Morocco", 
+    "Canada", "Canada", "Canada"
+  ),
+  Common_name = c(
+    "Peruvian anchovy", "Chilean jack mackerel", "Chub mackerel", 
+    "Peruvian anchovy", "Chilean jack mackerel", "Chub mackerel", 
+    "Chilean jack mackerel", "Chub mackerel", "Japanese anchovy", "Japanese jack mackerel", "Japanese sardine", "Pacific herring", 
+    "Sardinellas", "Indian mackerel", "Indian mackerel nei", "Anchovies nei", 
+    "Capelin", "Norway pout", "Blue whiting", "Sandeels", "European sprat", 
+    "Gulf menhaden", "Atlantic Menhaden", "Atlantic herring", "Pacific herring", "California sardine", 
+    "Capelin", "Blue whiting", "Atlantic herring", 
+    "Chub mackerel", "Japanese anchovy", "Japanese jack mackerel", "Japanese sardine", "Pacific herring", 
+    "Atlantic herring", "Norway pout", "Blue whiting", "Sandeels", "European sprat", 
+    "S. African anchovy", "Cape horse mackerel", "S. African sardine", 
+    "California sardine", "Chub mackerel", 
+    "Capelin", "Norway pout", "Blue whiting", "Sandeels", 
+    "European anchovy", "European sardine", 
+    "Atlantic herring", "Pacific herring", "Capelin"
+  ),
+  Scientific_name = c(
+    "Engraulis ringens", "Trachurus murphyi", "Scomber japonicus", 
+    "Engraulis ringens", "Trachurus murphyi", "Scomber japonicus", 
+    "Trachurus murphyi", "Scomber japonicus", "Engraulis japonicus", "Trachurus japonicus", "Sardinops melanostictus", "Clupea pallasii", 
+    "Sardinella spp.", "Rastrelliger kanagurta", "Rastrelliger spp.", "Engraulidae", 
+    "Mallotus villosus", "Trisopterus esmarkii", "Micromesistius poutassou", "Ammodytes spp", "Sprattus sprattus", 
+    "Brevoortia patronus", "Brevoortia tyrannus", "Clupea harengus", "Clupea pallasii", "Sardinops sagax caerulea", 
+    "Mallotus villosus", "Micromesistius poutassou", "Clupea harengus", 
+    "Scomber japonicus", "Engraulis japonicus", "Trachurus japonicus", "Sardinops melanostictus", "Clupea pallasii", 
+    "Clupea harengus", "Trisopterus esmarkii", "Micromesistius poutassou", "Ammodytes spp", "Sprattus sprattus", 
+    "Engraulis encrasicolus", "Trachurus capensis", "Sardinops sagax", 
+    "Sardinops sagax caerulea", "Scomber Japonicus", 
+    "Mallotus villosus", "Trisopterus esmarkii", "Micromesistius poutassou", "Ammodytes spp", 
+    "Engraulis encrasicolus", "Sardina pilchardus", 
+    "Clupea harengus", "Clupea pallasii", "Mallotus villosus"
+  ),
+  Landings = c(
+    7200000, 274000, 87000, 
+    1268000, 1475000, 418000, 
+    121000, 442000, 1142000, 109000, 182000, 46000, 
+    128000, 155000, 37000, 155500, 
+    229000, 15000, 720000, 92000, 5000, 
+    479000, 212000, 96000, 37000, 85000, 
+    665000, 359000, 238000, 
+    432500, 425000, 211000, 68500, 4000, 
+    135500, 36000, 65000, 387500, 257500, 
+    228000, 26000, 263000, 
+    471000, 24000, 
+    36500, 1500, 254500, 7000, 
+    18500, 639000, 
+    187000, 24000, 28000
+  ),
+  Fishmeal = c(
+    1700000, NA, NA, 
+    773000, NA, NA, 
+    769000, NA, NA, NA, NA, NA, 
+    499000, NA, NA, NA, 
+    203000, NA, NA, NA, NA, 
+    258000, NA, NA, NA, NA, 
+    221000, NA, NA, 
+    226000, NA, NA, NA, NA, 
+    327000, NA, NA, NA, NA, 
+    109000, NA, 2500, 
+    68000, NA, 
+    43500, NA, NA, NA, 
+    31000, NA, 
+    28000, NA, 28000
+  ),
+  Fish_oil = c(
+    270000, NA, NA, 
+    157000, NA, NA, 
+    0, NA, NA, NA, NA, NA, 
+    0, NA, NA, NA, 
+    47500, NA, NA, NA, NA, 
+    88000, NA, NA, NA, NA, 
+    74000, NA, NA, 
+    66000, NA, NA, NA, NA, 
+    106000, NA, NA, NA, NA, 
+    2500, NA, NA, 
+    14000, NA, 
+    11000, NA, NA, NA, 
+    15000, NA, 
+    6000, NA, NA
+  ),
+  stringsAsFactors = FALSE # Ensure that character vectors are not converted to factors
+)
+
+write.csv(df, here("data/peron_2010_fmfo_spp.csv"), row.names = FALSE)
+
+```
+
+
+```{r}
+# prep the data and make sure that all sciname and common_names match the artis taxa
+
+fmfo_df <- read.csv(here("data/peron_2010_fmfo_spp.csv")) %>%
+  dplyr::select(country = Countries, common_name = Common_name, sciname = Scientific_name) %>%
+  mutate(iso3c = countrycode(sourcevar = country, origin = "country.name", destination = "iso3c"),
+         wholefish = "yes",
+         trimmings = "no",
+         trim_prop = 0, 
+         data_source_feed = "Peron 2010", 
+         data_source_fao_area_country = NA, 
+         feed_report_spp_name = sciname, 
+         capture = "yes", 
+         sciname = tolower(sciname),
+         common_name = tolower(common_name),
+         trash_fish = "no") %>%
+  mutate(sciname = str_replace_all(sciname, " spp.| spp", "")) %>%
+  mutate(sciname = ifelse(common_name == "japanese sardine", "sardinella zunasi", sciname)) %>%
+  mutate(sciname = ifelse(sciname == "sardinops sagax caerulea", "sardinops sagax", sciname)) %>%
+  left_join(artis_taxa, by = "sciname") %>%
+  dplyr::select(sciname, common_name = common_name.y, iso3c, wholefish, trimmings, trim_prop, data_source_feed, data_source_fao_area_country, feed_report_spp_name, capture, trash_fish)
+
+
+write.csv(fmfo_df, here("int/material_origins_peron_global.csv"), row.names = FALSE)
+
+```
+
+
+
+

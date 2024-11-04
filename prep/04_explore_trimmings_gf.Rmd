@@ -118,7 +118,7 @@ artis_trimmings_missing <- artis_trimmings_all %>%
 artis_trimmings_gf <- artis_trimmings_missing %>% 
   mutate(trimmings_gf = 
            case_when(
-             method != "aquaculture" & str_detect(common_name, "nei|ray-finned fishes") & phylum == "chordata" & source_country_iso3c %in% c(asia_iso3c) ~ "no", # start with china for this - will probably expand to all SE asian countries
+             method != "aquaculture" & str_detect(common_name, "nei|ray-finned fishes") & phylum == "chordata" & source_country_iso3c == "CHN" ~ "no", # These are likely trash fish - according to majluf et al - start with china for this - will probably expand to all SE asian countries
                 method != "aquaculture" & sciname == "animalia" ~ "no", # any unknown capture fisheries will be whole fish
              method == "aquaculture" & phylum == "chordata" ~ "yes", # if it is finfish aquaculture, then assume it is trimmings.
              family == "salmonidae" ~ "yes",
@@ -128,8 +128,8 @@ artis_trimmings_gf <- artis_trimmings_missing %>%
            ),
          wholefish_gf = 
            case_when(
-      method != "aquaculture" & str_detect(common_name, "nei|ray-finned fishes") & phylum == "chordata" & source_country_iso3c %in% c(asia_iso3c) ~ "yes",   
-       method != "aquaculture" & sciname == "animalia" ~ "yes",
+      method != "aquaculture" & str_detect(common_name, "nei|ray-finned fishes") & phylum == "chordata" & source_country_iso3c %in% "CHN" ~ "yes",   
+      # method != "aquaculture" & sciname == "animalia" ~ "yes",
             method == "aquaculture" & phylum == "chordata" ~ "no",
              family == "salmonidae" ~ "no",
              sciname == "salmoninae" ~ "no",
@@ -138,7 +138,7 @@ artis_trimmings_gf <- artis_trimmings_missing %>%
            ),
         trim_prop_gf = 
            case_when(
-                   method != "aquaculture" & str_detect(common_name, "nei|ray-finned fishes") & phylum == "chordata" & source_country_iso3c %in% c(asia_iso3c) ~ 0,   
+                   method != "aquaculture" & str_detect(common_name, "nei|ray-finned fishes") & phylum == "chordata" & source_country_iso3c %in% c("CHN") ~ 0,   
                     method != "aquaculture" & sciname == "animalia" ~ 0,
              method == "aquaculture" & phylum == "chordata" ~ 1, # assume finfish aquaculture is all trimmings, unless feed reports suggest otherwise
              family == "salmonidae" ~ 1, # assume salmon is all trimmings
@@ -234,6 +234,9 @@ artis_all_2020 <- artis_trimmings_all_gf %>%
   left_join(countries, by = c("source_country_iso3c" = "iso3c")) %>%
   mutate(owid_region = ifelse(is.na(owid_region), "unknown", owid_region))
 
+test <- artis_all_2020 %>%
+  filter(phylum == "mollusca", is.na(trimmings_gf))
+
 total_product_weight <- sum(artis_all_2020$product_weight_t, na.rm = TRUE) 
 # 3494636
 # 6158133 using new data with domestic consumption!? Not sure if that is right... FAO SOFIA says there is ~5 million tonnes
@@ -260,7 +263,7 @@ test <- artis_all_2020 %>%
 no_info_df <- artis_all_2020 %>%
   filter(is.na(trimmings_gf)) %>%
   mutate(fishmeal_type = "Not sure") %>%
-  group_by(fishmeal_type, owid_region) %>%
+  group_by(fishmeal_type, continent) %>%
   summarise(total = sum(product_weight_t)) %>%
   ungroup()
 
@@ -268,9 +271,10 @@ bar_plot_df <- artis_all_2020 %>%
   filter(!is.na(trimmings_gf)) %>%
   pivot_longer(names_to = "fishmeal_type",
                cols = c("wholefish_product", "trim_product")) %>%
- # mutate(fishmeal_type = ifelse(isscaap == "Shrimps, prawns", "wholefish_product", fishmeal_type)) %>%
   mutate(fishmeal_type = ifelse(fishmeal_type == "trim_product", "Trimmings", "Whole fish")) %>%
-  group_by(fishmeal_type, owid_region) %>%
+  # mutate(fishmeal_type = ifelse(trash_fish == "yes", "Biomass fishery (trash fish)", 
+   #                              ifelse(is.na(trash_fish)|trash_fish == "no", fishmeal_type, fishmeal_type))) %>%
+  group_by(fishmeal_type, continent) %>%
   summarise(total = sum(value, na.rm = TRUE)) %>%
   ungroup() %>%
   rbind(., no_info_df) %>%
@@ -290,110 +294,14 @@ bar_plot_df <- artis_all_2020 %>%
 ## Europe: #5E74A1
 ## unknown: #808080
   
-ggplot(bar_plot_df, aes(x = reorder(fishmeal_type, -prop), y = prop, fill = owid_region)) +
+ggplot(bar_plot_df, aes(x = reorder(fishmeal_type, -prop), y = prop, fill = continent)) +
   geom_bar(stat = "identity", color = "white") + 
- scale_fill_manual(values = c("#A660A1", "#3F8D87", "#5E74A1", "#E47669", "#9F6144", "#8F464E", "#808080")) +
+# scale_fill_manual(values = c("#A660A1", "#3F8D87", "#5E74A1", "#E47669", "#9F6144", "#8F464E", "#808080")) +
   theme_classic() +
-  labs(fill = "Region", y = "Proportion of global trade", x = "Fishmeal type") + 
+  labs(fill = "", y = "Proportion of global trade", x = "Fishmeal type", title = "Global fishmeal 2020") + 
     scale_x_discrete(expand = c(0,0)) +
   scale_y_continuous(expand = c(0,0)) # oh gosh... with the new data now ~50% from trimmings WITHOUT gapfilling...
 
-
-
-
-## Lets look at imports and exports
-
-no_info_df <- artis_all_2020 %>%
-  filter(is.na(trimmings_gf)) %>%
-  mutate(fishmeal_type = "not sure") %>%
-  group_by(fishmeal_type, source_country_iso3c) %>%
-  summarise(total = sum(product_weight_t)) %>%
-  ungroup()
-
-bar_plot_df <- artis_all_2020 %>% 
-  filter(!is.na(trimmings_gf)) %>%
-  pivot_longer(names_to = "fishmeal_type",
-               cols = c("wholefish_product", "trim_product")) %>%
-  mutate(fishmeal_type = ifelse(fishmeal_type == "trim_product", "trimmings", "wholefish")) %>%
-  group_by(fishmeal_type, source_country_iso3c) %>%
-  summarise(total = sum(value, na.rm = TRUE)) %>%
-  ungroup() %>%
-  rbind(., no_info_df) %>%
-  mutate(total_product_t = total_product_weight) %>%
-  mutate(prop = total/total_product_t) %>%
-  mutate(perc = prop * 100) %>% # Convert to percentage
-  mutate(label = paste0(round(perc, 1), "%")) %>%
-  arrange(desc(fishmeal_type))  %>%
-  filter(prop > 0) %>%
-  arrange(-prop) %>%
-  group_by(source_country_iso3c) %>%
-  mutate(total_product_w_iso3c = sum(total, na.rm = TRUE)) %>%
-  arrange(-total_product_w_iso3c) %>%
-  ungroup()
-
-test <- bar_plot_df %>%
-  distinct(source_country_iso3c, total_product_w_iso3c) %>%
-  arrange(-total_product_w_iso3c) 
-
-test2 <- test[1:30,]
-
-bar_plot_fin <- bar_plot_df %>%
-  filter(source_country_iso3c %in% c(unique(test2$source_country_iso3c)))
-  
-  
-ggplot(bar_plot_fin, aes(x = reorder(source_country_iso3c, -prop), y = prop, fill = fishmeal_type)) +
-  geom_bar(stat = "identity", color = "white") + 
- scale_fill_manual(values = c("#FF9999", "#FFCC99", "#99CCFF")) +
-  theme_bw() +
-  labs(fill = "Fishmeal type", y = "Proportion of global trade", x = "Country", title = "Top 30 fishmeal producers") +
-theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5)) ## ok breaking down by country we see that its asia that is really contributing to trimmings... which tbh might not be THAT unreasonable...
-
-
-
-no_info_df <- artis_all_2020 %>%
-  filter(is.na(trimmings_gf)) %>%
-  mutate(fishmeal_type = "not sure") %>%
-  group_by(fishmeal_type, exporter_iso3c) %>%
-  summarise(total = sum(product_weight_t)) %>%
-  ungroup()
-
-bar_plot_df <- artis_all_2020 %>% 
-  filter(!is.na(trimmings_gf)) %>%
-  pivot_longer(names_to = "fishmeal_type",
-               cols = c("wholefish_product", "trim_product")) %>%
-  mutate(fishmeal_type = ifelse(fishmeal_type == "trim_product", "trimmings", "wholefish")) %>%
-  group_by(fishmeal_type, exporter_iso3c) %>%
-  summarise(total = sum(value, na.rm = TRUE)) %>%
-  ungroup() %>%
-  rbind(., no_info_df) %>%
-  mutate(total_product_t = total_product_weight) %>%
-  mutate(prop = total/total_product_t) %>%
-  mutate(perc = prop * 100) %>% # Convert to percentage
-  mutate(label = paste0(round(perc, 1), "%")) %>%
-  arrange(desc(fishmeal_type))  %>%
-  filter(prop > 0) %>%
-  arrange(-prop) %>%
-  group_by(exporter_iso3c) %>%
-  mutate(total_product_w_iso3c = sum(total, na.rm = TRUE)) %>%
-  arrange(-total_product_w_iso3c) %>%
-  ungroup()
-
-test <- bar_plot_df %>%
-  distinct(exporter_iso3c, total_product_w_iso3c) %>%
-  arrange(-total_product_w_iso3c) 
-
-test2 <- test[1:30,]
-
-bar_plot_fin <- bar_plot_df %>%
-  filter(exporter_iso3c %in% c(unique(test2$exporter_iso3c)))
-  
-  
-ggplot(bar_plot_fin, aes(x = reorder(exporter_iso3c, -prop), y = prop, fill = fishmeal_type)) +
-  geom_bar(stat = "identity", color = "white") + 
- scale_fill_manual(values = c("#FF9999", "#FFCC99", "#99CCFF")) +
-  theme_bw() +
-  labs(fill = "Fishmeal type", y = "Proportion of global trade", x = "Country", title = "Top 30 fishmeal exporters") +
-  theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5))
 
 ```
 
@@ -404,7 +312,9 @@ Look at finfish only
 artis_finfish <- artis_trimmings_all_gf %>%
   filter(year == 2020) %>% 
   filter(phylum %in% c("chordata", NA)) %>% # ok only finfish (or NA)
-  filter(!(common_name %in% c("sea urchins", "saltwater mussels", "sea lamprey", "lampreys nei")))
+  filter(!(common_name %in% c("sea urchins", "saltwater mussels", "sea lamprey", "lampreys nei"))) %>%
+    left_join(countries, by = c("source_country_iso3c" = "iso3c"))
+
 
 test <- artis_finfish %>%
   filter(is.na(trimmings_gf))
@@ -421,7 +331,14 @@ test <- artis_finfish %>%
   mutate(total_trim_prop = total_trim_iso3c/sum(artis_finfish$trim_product, na.rm = TRUE)) %>%
   ungroup()
   
-# Morocco is 1, unknown 2, Then PER, NOR, CHL; Majluf et al suggests trimmings are really only possible in large scale in  China, Norway, Chile, US, and Peru. Does Morocco have large scale FM processing plants? Is there a list with large scale FM plant operations? Seems a reasonable assumption to make that if there is large scale industry present, then trimmings is more likely than not. 
+## look at countries with most missing
+
+test <- artis_finfish %>%
+  filter(is.na(trim_prop_gf)) %>%
+  group_by(source_country_iso3c) %>%
+  summarise(total_product = sum(product_weight_t)) %>%
+  ungroup() 
+
 unique(test$source_country_iso3c) # lots of countries here 
 
 total_product_weight <- artis_finfish %>% 
@@ -431,16 +348,16 @@ total_product_weight <- artis_finfish %>%
 no_info_df <- artis_finfish %>%
   filter(is.na(trimmings_gf)) %>%
   mutate(fishmeal_type = "not sure") %>%
-  group_by(fishmeal_type) %>%
+  group_by(fishmeal_type, continent) %>%
   summarise(total = sum(product_weight_t)) %>%
   ungroup()
 
-circle_plot_df <- artis_finfish %>% 
+bar_plot_df <- artis_finfish %>% 
   filter(!is.na(trimmings_gf)) %>%
   pivot_longer(names_to = "fishmeal_type",
                cols = c("wholefish_product", "trim_product")) %>%
-  mutate(fishmeal_type = ifelse(fishmeal_type == "trim_product", "trimmings", "wholefish")) %>%
-  group_by(fishmeal_type) %>%
+  mutate(fishmeal_type = ifelse(fishmeal_type == "trim_product", "Trimmings", "Whole fish")) %>%
+  group_by(fishmeal_type, continent) %>%
   summarise(total = sum(value, na.rm = TRUE)) %>%
   ungroup() %>%
   rbind(., no_info_df) %>%
@@ -448,36 +365,26 @@ circle_plot_df <- artis_finfish %>%
   mutate(prop = total/total_product_t) %>%
   mutate(perc = prop * 100) %>% # Convert to percentage
   mutate(label = paste0(round(perc, 1), "%")) %>%
-  arrange(desc(fishmeal_type)) %>%
-  mutate(ypos = cumsum(prop) - 0.5 * prop)
+  arrange(desc(fishmeal_type))  %>%
+  filter(prop > 0) %>%
+  arrange(-prop) 
 
+## oceania: #9F6144
+## Africa: #A660A1
+## Asia: #3F8D87
+## South America: #8F464E
+## North America: #E47669
+## Europe: #5E74A1
+## unknown: #808080
+  
+ggplot(bar_plot_df, aes(x = reorder(fishmeal_type, -prop), y = prop, fill = continent)) +
+  geom_bar(stat = "identity", color = "white") + 
+ scale_fill_manual(values = c("#A660A1", "#3F8D87", "#5E74A1", "#E47669", "#9F6144", "#8F464E", "#808080")) +
+  theme_classic() +
+  labs(fill = "", y = "Proportion of global trade", x = "Fishmeal type", title = "Global fishmeal 2020") + 
+    scale_x_discrete(expand = c(0,0)) +
+  scale_y_continuous(expand = c(0,0)) # oh gosh... with the new data now ~50% from trimmings WITHOUT gapfilling...
 
-# Plot the donut chart
-ggplot(circle_plot_df, aes(x = 2, y = prop, fill = fishmeal_type)) +
-  geom_bar(stat = "identity", width = 1, color = "white") +
-  coord_polar(theta = "y", start = 0) +
-  geom_text(aes(y = ypos, label = label), color = "black") +
- scale_fill_manual(values = c("#FF9999", "#FFCC99", "#99CCFF")) +
-  theme_void() +
-  xlim(0.5, 2.5) +
-  labs(fill = "Fishmeal Type") +
-  theme(
-    plot.title = element_text(hjust = 0.5, size = 15, face = "bold"),
-    plot.subtitle = element_text(hjust = 0.5, size = 12)
-  )
-
-ggplot(circle_plot_df, aes(x = fishmeal_type, y = prop, fill = fishmeal_type)) +
-  geom_bar(stat = "identity", color = "white") +
-  # coord_polar(theta = "y", start = 0) +
-  geom_text(aes(y = prop-0.015, label = label), color = "black") +
- scale_fill_manual(values = c("#FF9999", "#FFCC99", "#99CCFF")) +
-  theme_bw() +
-  labs(x = "Fishmeal type", y = "Proportion of global trade") +
-  theme(
-    plot.title = element_text(hjust = 0.5, size = 15, face = "bold"),
-    plot.subtitle = element_text(hjust = 0.5, size = 12),
-    legend.position="none"
-  )
 
 ## seems a bit more reasonable/matching to IFFO looking only at finfish...
 ```

@@ -1,0 +1,54 @@
+"Countries","Common_name","Scientific_name","Landings","Fishmeal","Fish_oil"
+"Peru","Peruvian anchovy","Engraulis ringens",7200000,1700000,270000
+"Peru","Chilean jack mackerel","Trachurus murphyi",274000,NA,NA
+"Peru","Chub mackerel","Scomber japonicus",87000,NA,NA
+"Chile","Peruvian anchovy","Engraulis ringens",1268000,773000,157000
+"Chile","Chilean jack mackerel","Trachurus murphyi",1475000,NA,NA
+"Chile","Chub mackerel","Scomber japonicus",418000,NA,NA
+"China","Chilean jack mackerel","Trachurus murphyi",121000,769000,0
+"China","Chub mackerel","Scomber japonicus",442000,NA,NA
+"China","Japanese anchovy","Engraulis japonicus",1142000,NA,NA
+"China","Japanese jack mackerel","Trachurus japonicus",109000,NA,NA
+"China","Japanese sardine","Sardinops melanostictus",182000,NA,NA
+"China","Pacific herring","Clupea pallasii",46000,NA,NA
+"Thailand","Sardinellas","Sardinella spp.",128000,499000,0
+"Thailand","Indian mackerel","Rastrelliger kanagurta",155000,NA,NA
+"Thailand","Indian mackerel nei","Rastrelliger spp.",37000,NA,NA
+"Thailand","Anchovies nei","Engraulidae",155500,NA,NA
+"Norway","Capelin","Mallotus villosus",229000,203000,47500
+"Norway","Norway pout","Trisopterus esmarkii",15000,NA,NA
+"Norway","Blue whiting","Micromesistius poutassou",720000,NA,NA
+"Norway","Sandeels","Ammodytes spp",92000,NA,NA
+"Norway","European sprat","Sprattus sprattus",5000,NA,NA
+"United States of America","Gulf menhaden","Brevoortia patronus",479000,258000,88000
+"United States of America","Atlantic Menhaden","Brevoortia tyrannus",212000,NA,NA
+"United States of America","Atlantic herring","Clupea harengus",96000,NA,NA
+"United States of America","Pacific herring","Clupea pallasii",37000,NA,NA
+"United States of America","California sardine","Sardinops sagax caerulea",85000,NA,NA
+"Iceland","Capelin","Mallotus villosus",665000,221000,74000
+"Iceland","Blue whiting","Micromesistius poutassou",359000,NA,NA
+"Iceland","Atlantic herring","Clupea harengus",238000,NA,NA
+"Japan","Chub mackerel","Scomber japonicus",432500,226000,66000
+"Japan","Japanese anchovy","Engraulis japonicus",425000,NA,NA
+"Japan","Japanese jack mackerel","Trachurus japonicus",211000,NA,NA
+"Japan","Japanese sardine","Sardinops melanostictus",68500,NA,NA
+"Japan","Pacific herring","Clupea pallasii",4000,NA,NA
+"Denmark","Atlantic herring","Clupea harengus",135500,327000,106000
+"Denmark","Norway pout","Trisopterus esmarkii",36000,NA,NA
+"Denmark","Blue whiting","Micromesistius poutassou",65000,NA,NA
+"Denmark","Sandeels","Ammodytes spp",387500,NA,NA
+"Denmark","European sprat","Sprattus sprattus",257500,NA,NA
+"South Africa","S. African anchovy","Engraulis encrasicolus",228000,109000,2500
+"South Africa","Cape horse mackerel","Trachurus capensis",26000,NA,NA
+"South Africa","S. African sardine","Sardinops sagax",263000,2500,NA
+"Mexico","California sardine","Sardinops sagax caerulea",471000,68000,14000
+"Mexico","Chub mackerel","Scomber Japonicus",24000,NA,NA
+"Faeroe Islands","Capelin","Mallotus villosus",36500,43500,11000
+"Faeroe Islands","Norway pout","Trisopterus esmarkii",1500,NA,NA
+"Faeroe Islands","Blue whiting","Micromesistius poutassou",254500,NA,NA
+"Faeroe Islands","Sandeels","Ammodytes spp",7000,NA,NA
+"Morocco","European anchovy","Engraulis encrasicolus",18500,31000,15000
+"Morocco","European sardine","Sardina pilchardus",639000,NA,NA
+"Canada","Atlantic herring","Clupea harengus",187000,28000,6000
+"Canada","Pacific herring","Clupea pallasii",24000,NA,NA
+"Canada","Capelin","Mallotus villosus",28000,28000,NA

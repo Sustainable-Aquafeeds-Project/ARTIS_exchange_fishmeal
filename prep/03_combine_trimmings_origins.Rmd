@@ -6,10 +6,10 @@ date: "2024-07-24"
 
 ## Summary
 
-Combine origins information from Cargill, Skretting, and BioMar, aggregated in previous 3 scripts (02a-c).
+Combine origins information from Cargill, Skretting, BioMar, and other literature, aggregated in scripts in 02_compile_fm_origins folder.
 
     
-When there are countries and species which are in multiple reports (e.g., Atlantic herring exists for Denmaark for both Cargill and BioMar, but they report different trimmings proportions, we will weight by the total trimmings weight the company reports).
+When there are countries and species which are in multiple reports (e.g., Atlantic herring exists for Denmark for both Cargill and BioMar, but they report different trimmings proportions), we take the average proportion.
 
 
 ## Setup
@@ -113,56 +113,48 @@ skretting_int <- read.csv(here("int/material_origins_skretting_global.csv")) %>%
   dplyr::select(1:13) %>%
     mutate(trash_fish = "no")
 
-
-
 cao_int <- read.csv(here("int/material_origins_cao_chn.csv")) %>%
-    mutate(trimmings_tonnes = NA, wholefish_tonnes = NA) %>%
-  left_join(artis_genus_df, by = "common_name") %>%
-  mutate(sciname.y = ifelse(is.na(sciname.y), sciname.x, sciname.y)) %>%
-  mutate(sciname.x = ifelse(sciname.x != sciname.y , sciname.y, sciname.x)) %>%
-  dplyr::select(-sciname.y) %>%
-  rename(sciname = sciname.x) %>%
-  dplyr::select(1:14)
+  dplyr::select(1:11, common_name) %>%
+      mutate(trimmings_tonnes = NA, wholefish_tonnes = NA)
+
+chiu_int <- read.csv(here("int/material_origins_chiu_chn.csv")) %>%
+  mutate(trimmings_tonnes = NA, wholefish_tonnes = NA) %>%
+  mutate(country = "China")
+
+greenpeace_int <- read.csv(here("int/material_origins_greenpeace_chn.csv")) %>%
+  dplyr::select(1:11, common_name) %>%
+      mutate(trimmings_tonnes = NA, wholefish_tonnes = NA) 
+
+peron_int <- read.csv(here("int/material_origins_peron_global.csv")) %>%
+        mutate(trimmings_tonnes = NA, wholefish_tonnes = NA,
+               country = countrycode(sourcevar = iso3c, origin = "iso3c", destination = "country.name")) 
 
   
-all_int_dfs <- rbind(biomar_int, cargill_int, skretting_int, cao_int) %>%
+all_int_dfs <- rbind(biomar_int, cargill_int, skretting_int, cao_int, chiu_int, greenpeace_int, peron_int) %>%
   mutate(sciname = tolower(sciname),
          common_name = tolower(common_name)) %>%
   mutate(capture = ifelse(iso3c == "MEX" & common_name == "yellowfin tuna", "no", capture)) # make sure mexico is listed as aquaculture. Oman also lists wholefish reduction, however, oman doesnt have any tuna aquaculture
 
-write.csv(all_int_dfs, here("int/material_origins_biomar_cargill_skretting_cao.csv"), row.names = FALSE)
-
-test <- all_int_dfs %>%
-  filter(iso3c == "MEX")
-
-## check if there is any tuna aquaculture in mexico? 
-
-fao_aqua <- read.csv("/mnt/rdsi/raw_data/fao/FAO_fishstat_2020/global_aquaculture_production_1950_2020.csv") %>%
-  clean_names()
-
-test2 <- fao_aqua %>% 
-  filter(country_name == "Mexico") ## ok they do report yellowfin tuna aquaculture in mexico, so maybe we should assume that is not capture production
-
+write.csv(all_int_dfs, here("int/material_origins_ALL.csv"), row.names = FALSE)
 
 ```
 
 Now lets summarise so that we don't have any duplicate countries and species. 
 
- - I will try weighted mean of trim_prop based on trimmings_tonnes (this will exclude skretting though...)
- - I will also do regular mean
- - For the ones where skretting was excluded, grab their value from the regular mean column
+ - just take the regular mean
  
  
 ```{r}
 
 int_dfs_summary <- all_int_dfs %>%
   group_by(sciname, common_name, iso3c, capture, trash_fish) %>%
-  summarise(trim_prop_w_mean = weighted.mean(trim_prop, trimmings_tonnes, na.rm = TRUE),
+  summarise(
+    # trim_prop_w_mean = weighted.mean(trim_prop, trimmings_tonnes, na.rm = TRUE),
             trim_prop_mean = mean(trim_prop, na.rm = TRUE)) %>%
   ungroup() %>%
-  mutate(trim_prop_w_mean = ifelse(trim_prop_w_mean == "NaN", 0, trim_prop_w_mean)) %>% # fix those with 0 trimmings tonnes
-  mutate(trim_prop_w_mean = ifelse(is.na(trim_prop_w_mean), trim_prop_mean, trim_prop_w_mean)) %>%
-  dplyr::select(sciname, common_name, iso3c, capture, trash_fish, trim_prop = trim_prop_w_mean) %>%
+ # mutate(trim_prop_w_mean = ifelse(trim_prop_w_mean == "NaN", 0, trim_prop_w_mean)) %>% # fix those with 0 trimmings tonnes
+#  mutate(trim_prop_w_mean = ifelse(is.na(trim_prop_w_mean), trim_prop_mean, trim_prop_w_mean)) %>%
+  dplyr::select(sciname, common_name, iso3c, capture, trash_fish, trim_prop = trim_prop_mean) %>%
   mutate(trimmings = case_when(
     trim_prop == 1 ~ "yes",
     trim_prop > 0 & trim_prop < 1 ~ "yes",

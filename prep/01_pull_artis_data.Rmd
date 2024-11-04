@@ -164,21 +164,22 @@ I've received an updated version of the database directly from Jessica Gephart, 
 
 
 ```{r}
-full_artis_new <- read.csv(file.path(artis_dir, "2024_09_19_consumption_midpoint_all_hs_all_years.csv")) # really big file, nearly 10 gb, takes awhile to load. We'll load it in full and filter for what we need below (fish meal and fillet hs codes)
-
-## save as a qs for easier loading and data space
-
-qs::qsave(full_artis_new, file.path(artis_dir, "2024_09_19_consumption_midpoint_all_hs_all_years.qs")) # cuts the file size by 9x
+full_artis_new <- qs::qread(file.path(artis_dir, "2024_09_19_consumption_midpoint_all_hs_all_years.qs")) # really big file, nearly 10 gb, takes awhile to load. We'll load it in full and filter for what we need below (fish meal and fillet hs codes)
 
 
 # lets explore the new data a bit
-test <- full_artis_new %>% filter(year == 2020, end_use == "fishmeal", source_country_iso3c != consumer_iso3c, hs_version == 17) %>%
+test <- full_artis_new %>% filter(year == 2020, end_use %in% c("fishmeal", "other"), source_country_iso3c != consumer_iso3c, hs_version == 12) %>%
   mutate(product_weight = consumption_t_capped/2.975207)
-sum(test$consumption_t_capped) # 9162738 - is this 9 million tonnes of fish meal or live weight? Let's check against what we pulled before
-sum(test$product_weight) # 3079698 - ok this seems pretty close to what we had before.. off by ~500k tonnes 
+sum(test$consumption_t_capped) # 9303891 -  9 million tonnes of live weight? Let's check against what we pulled before
+sum(test$consumption_t) # 9425558
+sum(test$product_weight) # 3127141 - ok this seems pretty close to what we had before.. off by ~500k tonnes 
 
 old_fm <- qs::qread(file.path(artis_dir, "full_artis_fm_fillet.qs")) %>%
-  filter(year == 2020, hs6 == 230120)
+  filter(year == 2020, hs6 == 230120, hs_version == "HS12")
+
+
+test2 <- old_fm %>% filter(source_country_iso3c == importer_iso3c)
+sum(test2$live_weight_t) # 155710.8
 
 sum(old_fm$live_weight_t) # 10397265
 sum(old_fm$product_weight_t) # 3494636
@@ -238,6 +239,30 @@ full_data_fm <- full_data_new %>%
 #   filter(hs6 == 230120) # compare; new data has ~4.1 million rows, old data has 3.8 million rows.. makes sense there would be more rows in the new data, given there is domestic production and consumption included here 
 
 qs::qsave(full_data_fm, file.path(artis_dir, "full_artis_fm_2024_09_19.qs"))
+
+```
+
+
+```{r}
+old_fm <- qs::qread(file.path(artis_dir, "full_artis_fm_fillet.qs")) %>%
+  filter(year == 2020, hs6 == 230120, hs_version == "HS12")
+
+artis_taxa <- read.csv(file.path(artis_dir, "artis_full_data/data/attribute tables/sciname.csv")) ## read in attribute table with common names
+
+
+test <- old_fm %>% 
+  left_join(artis_taxa) %>%
+  filter(source_country_iso3c %in% c("USA", "NZL", "RUS"),
+         str_detect(common_name, "cod|Cod"))
+
+test <- old_fm %>% 
+  left_join(artis_taxa) %>%
+  filter(source_country_iso3c %in% c("USA", "RUS"),
+         genus == "gadus",
+         str_detect(common_name, "cod|Cod")) %>%
+  distinct(source_country_iso3c, sciname, common_name)
+
+
 
 ```
 
