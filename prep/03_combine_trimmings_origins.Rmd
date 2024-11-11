@@ -6,7 +6,7 @@ date: "2024-07-24"
 
 ## Summary
 
-Combine origins information from Cargill, Skretting, BioMar, and other literature, aggregated in scripts in 02_compile_fm_origins folder.
+Combine origins information from Cargill, Skretting, BioMar, and other literature (grey and published), aggregated in scripts in 02_compile_fm_origins folder.
 
     
 When there are countries and species which are in multiple reports (e.g., Atlantic herring exists for Denmark for both Cargill and BioMar, but they report different trimmings proportions), we take the average proportion.
@@ -129,6 +129,10 @@ peron_int <- read.csv(here("int/material_origins_peron_global.csv")) %>%
         mutate(trimmings_tonnes = NA, wholefish_tonnes = NA,
                country = countrycode(sourcevar = iso3c, origin = "iso3c", destination = "country.name")) 
 
+edwards_int <- read.csv(here("int/material_origins_edwards_vnm.csv")) %>%
+      mutate(trimmings_tonnes = NA, wholefish_tonnes = NA) %>%
+  dplyr::select(-trash_fish)
+
   
 all_int_dfs <- rbind(biomar_int, cargill_int, skretting_int, cao_int, chiu_int, greenpeace_int, peron_int) %>%
   mutate(sciname = tolower(sciname),
@@ -168,6 +172,8 @@ int_dfs_summary <- all_int_dfs %>%
 
 
 write.csv(int_dfs_summary, here("outputs/all_fmfo_material_origins_reports.csv"), row.names = FALSE)
+
+test_3 <- read.csv(here("outputs/all_fmfo_material_origins_reports.csv"))
 
 ```
  

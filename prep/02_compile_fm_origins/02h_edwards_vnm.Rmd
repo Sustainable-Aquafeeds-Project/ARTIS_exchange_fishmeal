@@ -1,0 +1,128 @@
+---
+title: "Establish trimmings origins for Cao et al"
+output: html_document
+date: "2024-07-24"
+---
+
+
+```{r setup}
+
+knitr::opts_chunk$set(echo = TRUE)
+
+library(here)
+library(tidyverse)
+library(glue)
+library(sf)
+library(devtools)
+library(janitor)
+library(countrycode)
+library(taxize)
+library(qs)
+
+source(here("R/directories.R"))
+
+artis_taxa <- read.csv(file.path(artis_dir, "artis_full_data/data/attribute tables/sciname.csv")) ## read in attribute table with common names
+
+```
+
+### Data Sources
+
+A survey of marine trash fish and fish meal as aquaculture feed ingredients in Vietnam - Peter Edwards (ACIAR working paper)
+
+https://www.aciar.gov.au/sites/default/files/legacy/node/554/wp57.pdf
+
+## Summary
+
+The report provides a list of trash fish (feed fish, biomass, etc. other names). I have pulled those into a csv from the tables provided in the report. Table 2, page 10 in the report has the table with the species listed. 
+
+
+```{r}
+
+## Read in the whole fish species (NOT TRASH FISH) file
+
+species_vnm_edwards <- read.csv(here("data/edwards_trash_vietnam.csv")) %>%
+  clean_names() %>%
+  rename(common_name = english_name, 
+         sciname = scientific_name) %>% 
+  mutate(country = "Vietnam",
+         iso3c = "VNM", 
+         wholefish = "yes",
+         trimmings = "no",
+         trim_prop = 0,
+         data_source_feed = "Edwards 2004",
+         data_source_fao_area_country = NA,
+         feed_report_spp_name = sciname,
+         capture = "yes") %>%
+    mutate(sciname = tolower(sciname),
+         common_name = tolower(common_name)) %>%
+  mutate(trash_fish = "yes") %>%
+  dplyr::select(-vietnamese_name) %>%
+    distinct() 
+
+## there are a lot of species with "spp" or "sp" in the scientific names. Let's try to fix these to match the ARTIS taxa. Also there are some colloquial names used that I fix here. 
+
+fix_large_spp <- species_vnm_edwards %>%
+  filter(str_detect(sciname, " sp| spp")) %>%
+  mutate(sciname = str_replace_all(sciname, " sp\\b| spp\\b", "")) %>%
+  add_row(sciname = "calappa granulata", common_name = "crab (small)", type = "trashfish", country = "Vietnam", iso3c = "VNM", wholefish = "yes", trimmings = "no", trim_prop = 0, data_source_feed = "Edwards 2004", data_source_fao_area_country = NA, feed_report_spp_name = "Calappa sp", capture = "yes", trash_fish = "yes") %>% 
+   add_row(sciname = "calappa hepatica", common_name = "crab (small)", type = "trashfish", country = "Vietnam", iso3c = "VNM", wholefish = "yes", trimmings = "no", trim_prop = 0, data_source_feed = "Edwards 2004", data_source_fao_area_country = NA, feed_report_spp_name = "Calappa sp", capture = "yes", trash_fish = "yes") %>% # add the only calappa species in ARTIS
+  filter(sciname != "calappa") %>%
+  mutate(sciname = case_when(
+    sciname == "holodeima" ~ "holothuria atra", # this is the lollyfish in ARTIS
+    sciname == "clupanodon" ~ "clupanodon thrissa", # bc only clupanodon genus in ARTIS
+    sciname == "cyselurus" ~ "cypselurus poecilopterus", # bc only cyselurus genus in ARTIS
+    sciname == "tilapia" ~ "oreochromis", # assume they just mean tilapia nei
+    TRUE ~ sciname
+  )) %>%
+   left_join(artis_taxa, by = "sciname") %>%
+  mutate(common_name = ifelse(is.na(common_name.y), common_name.x, common_name.y)) %>%
+  dplyr::select(-common_name.x, -common_name.y) %>%
+  dplyr::select(colnames(species_vnm_edwards))
+
+
+# now join back together with larger data 
+
+species_vnm_int <- species_vnm_edwards %>%
+  filter(!str_detect(sciname, " sp| spp")) %>%
+  rbind(., fix_large_spp) %>%
+   left_join(artis_taxa, by = "sciname") 
+
+## alright lets see if we can fix anyone of the ones still not matching to ARTIS
+
+
+missing_spp <- species_vnm_int %>%
+  filter(is.na(common_name.y)) %>% # missing 19 still 
+  mutate(sciname = case_when(
+    sciname == "sanguinolaris diphos" ~ "soletellina diphos", # report had wrong sciname for diphos sanguin
+    sciname == "penaeidea" ~ "penaeidae", # misspelling
+    sciname == "shyraena jello" ~ "sphyraena jello", # misspelling
+    sciname == "otholithes argentius" ~ "otolithes ruber", # synonym
+    sciname == "johnius goma" ~ "protonibea diacanthus", # synonym
+    sciname == "rastrelliger brachisoma" ~ "rastrelliger brachysoma", # synonym
+    sciname == "fomio niger" ~ "parastromateus niger", # synonym
+    sciname == "psenes indicus" ~ "ariomma indica", # synonym 
+    sciname == "paralychthys olivaceus" ~ "paralichthys olivaceus", # misspelling
+    sciname == "holothuria vagabunda" ~ "holothuria atra", # synonym
+    sciname == "diadema setosum" ~ "arbacia lixula", # synonym
+    TRUE ~ sciname
+  )) %>%
+  rename(common_name = common_name.x) %>% 
+  dplyr::select(colnames(fix_large_spp)) %>%
+   add_row(sciname = "penaeus", common_name = "penaeid shrimp (small)", type = "trashfish", country = "Vietnam", iso3c = "VNM", wholefish = "yes", trimmings = "no", trim_prop = 0, data_source_feed = "Edwards 2004", data_source_fao_area_country = NA, feed_report_spp_name = "penaeid shrimp (small)", capture = "yes", trash_fish = "yes") %>% ## adding row for penaeus shrimp nei
+  left_join(artis_taxa, by = "sciname") %>%  # still missing 8, but they just aren't in ARTIS!
+  mutate(common_name = ifelse(is.na(common_name.y), common_name.x, common_name.y))
+
+
+final <- species_vnm_int %>%
+  filter(!is.na(common_name.y)) %>%
+    mutate(common_name = ifelse(is.na(common_name.y), common_name.x, common_name.y)) %>%
+  rbind(missing_spp) %>%
+  dplyr::select(colnames(fix_large_spp))
+
+
+
+write.csv(final, here("int/material_origins_edwards_vnm.csv"), row.names = FALSE)
+
+```
+
+

@@ -742,6 +742,8 @@ fm_origins_df_fin <- fm_origins_df %>%
 
 write.csv(fm_origins_df_fin, here("int/material_origins_biomar_raw.csv"), row.names = FALSE)
 
+test <- read.csv(here("int/material_origins_biomar_raw.csv"))
+
 
 ```
  

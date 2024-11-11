@@ -83,5 +83,7 @@ skretting_df <- skretting_raw %>%
 
 write.csv(skretting_df, here("int/material_origins_skretting_global.csv"), row.names = FALSE)
   
+
+test2 <- read.csv(here("int/material_origins_skretting_global.csv"))
 ```
 
