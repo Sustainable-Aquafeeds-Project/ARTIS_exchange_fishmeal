@@ -31,7 +31,7 @@ Table 2 reports national production by industrial fisheries of small pelagic fis
 
 ### Data Sources
 
-**Reference**: Péron, G., François Mittaine, J. & Le Gallic, B. Where do fishmeal and fish oil products come from? An analysis of the conversion ratios in the global fishmeal industry. Marine Policy 34, 815–820 (2010).
+**Reference**: Péron, G., François Mittaine, J. & Le Gallic, B. Where do fishmeal and fish oil products come from? An analysis of the conversion ratios in the global fishmeal industry. Marine Policy 34, 815–820 (2010).; https://doi.org/10.1016/j.marpol.2010.01.027
 
 ```{r}
 

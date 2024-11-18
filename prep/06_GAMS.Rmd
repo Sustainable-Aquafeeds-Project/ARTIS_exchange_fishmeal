@@ -27,6 +27,7 @@ library(brms)
 library(gridExtra)
 library(grid)
 library(scales)
+library(tictoc)
 
 source(here("R/directories.R"))
 
@@ -35,7 +36,7 @@ artis_taxa <- read.csv(file.path(artis_dir, "artis_full_data/data/attribute tabl
 
 countries <- read.csv(here("data/countries.csv")) ## artis countries with info
 
-artis_trimmings <- qs::qread(here("int/artis_trimmings_fillet_prices.qs")) %>%
+artis_trimmings <- qs::qread(here("int/artis_trimmings_fillet_prices_consumption.qs")) %>%
   mutate(filleted = ifelse(filleted == "yes", 1, 0)) %>%
   left_join(artis_taxa)
 
@@ -45,13 +46,13 @@ artis_trimmings <- qs::qread(here("int/artis_trimmings_fillet_prices.qs")) %>%
 1. EDA
 
 ```{r}
-# Plot `trim_prop_gf` against potential predictors
-ggplot(artis_trimmings %>% filter(year == 2020), aes(x = price_gf, y = trim_prop_gf)) + geom_point() + geom_smooth(method = "loess")
-ggplot(artis_trimmings %>% filter(year == 2020), aes(x = filleted, y = trim_prop_gf)) + geom_boxplot()
-# ggplot(artis_trimmings, aes(x = year, y = trim_prop_gf)) + geom_point() # + geom_smooth(method = "loess")
-ggplot(artis_trimmings %>% filter(year == 2020), aes(x = class, y = trim_prop_gf)) + geom_boxplot()
-
-ggplot(artis_trimmings %>% filter(year == 2020), aes(x = source_country_iso3c, y = trim_prop_gf)) + geom_boxplot()
+# # Plot `trim_prop_gf` against potential predictors
+# ggplot(artis_trimmings %>% filter(year == 2020), aes(x = price_gf, y = trim_prop_gf)) + geom_point() + geom_smooth(method = "loess")
+# ggplot(artis_trimmings %>% filter(year == 2020), aes(x = filleted, y = trim_prop_gf)) + geom_boxplot()
+# # ggplot(artis_trimmings, aes(x = year, y = trim_prop_gf)) + geom_point() # + geom_smooth(method = "loess")
+# ggplot(artis_trimmings %>% filter(year == 2020), aes(x = class, y = trim_prop_gf)) + geom_boxplot()
+# 
+# ggplot(artis_trimmings %>% filter(year == 2020), aes(x = source_country_iso3c, y = trim_prop_gf)) + geom_boxplot()
 
 
 ```
@@ -83,33 +84,37 @@ artis_trimmings_beta_2 <- artis_trimmings_beta %>%
 ## ok so it runs really "quick" without year 
 # with year start 12:37pm... finish 12:47pm
 
+tic()
 gam_model_beta <- gam(trim_prop_beta ~ s(price_gf) + filleted  +
                  source_country_iso3c + family + year, 
-                 data = artis_trimmings_beta_2, family = betar())
+                 data = artis_trimmings_beta_2, family = betar()) # production level? Relative contribution of that species production for that country/year
 
 qs::qsave(gam_model_beta, here("int/gam_model1_beta.qs"))
+toc() # 12 hours? yikes...
 
-
+tic()
 gam_model_beta2 <- gam(trim_prop_beta ~ s(price_gf) + year + filleted +
                   source_country_iso3c, 
                   data = artis_trimmings_beta_2, family = betar(), na.action = na.exclude)
 
 
 qs::qsave(gam_model_beta2, here("int/gam_model2_beta.qs"))
+toc() # 1 hour
 
-
+tic()
 gam_model_beta3 <- gam(trim_prop_beta ~ s(price_gf) + year + filleted + `family`, 
                   data = artis_trimmings_beta_2, family = betar(), na.action = na.exclude)
 
 
 qs::qsave(gam_model_beta3, here("int/gam_model3_beta.qs"))
+toc() # 5 hours 
 
-
+tic()
 gam_model_beta4 <- gam(trim_prop_beta ~ s(price_gf) + year + filleted, 
                   data = artis_trimmings_beta_2, family = betar(), na.action = na.exclude)
 
 qs::qsave(gam_model_beta4, here("int/gam_model4_beta.qs"))
-
+toc()
 
 AIC(gam_model_beta, gam_model_beta2, gam_model_beta3, gam_model_beta4)
 

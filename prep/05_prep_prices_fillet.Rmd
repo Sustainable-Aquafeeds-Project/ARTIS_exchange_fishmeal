@@ -47,7 +47,7 @@ entity <- read.csv("/mnt/rdsi/raw_data/sea-around-us/ex-vessel-prices/fishing_en
   mutate(iso3c = countrycode(sourcevar = name, origin = "country.name", destination = "iso3c"))
 
 ## get artis data matched with sustainability reports (not yet fully gapfilled)
-artis_trimmings_all <- qs::qread(file.path(artis_dir, "artis_exchange/artis_fishmeal_trimmings_not_gf_traded.qs"))
+artis_trimmings_all <- qs::qread(file.path(artis_dir, "artis_exchange/artis_fishmeal_trimmings_simple_gf_traded_consumption.qs"))
 
 
 ```
@@ -59,24 +59,19 @@ fillet_data <- fillet_artis %>%
   filter(live_weight_t > 0) %>% # just to be sure
   distinct(year, source_country_iso3c, sciname) %>%
   mutate(filleted = "yes") 
-# %>%
-#   group_by(year, source_country_iso3c, sciname) %>%
-#   summarise(n())
 
 
 artis_trimmings_fillet <- artis_trimmings_all %>% # for now we'll join on year and species
   left_join(fillet_data) %>%
   mutate(filleted = ifelse(is.na(filleted), "no", filleted))
 
-test <- artis_trimmings_fillet %>%
-  filter(filleted == "no", year == 2020)
 
-sum(test$product_weight_t)/3494636 # ~21% product weight is NOT filleted.. that's not much! This means the majority of fishmeal comes from filleted species, which is counter to what I would imagine...
+
 
 test <- artis_trimmings_fillet %>% 
   group_by(year, filleted) %>%
   summarise(product_weight_t = sum(product_weight_t, na.rm = TRUE)) %>%
-  ungroup() # ok damn! 
+  ungroup() 
 
 test <- artis_trimmings_fillet %>%
   filter(!is.na(trimmings_gf)) %>%
@@ -85,8 +80,8 @@ test <- artis_trimmings_fillet %>%
   summarise(trim = sum(trim_product,na.rm = TRUE), 
             whole = sum(wholefish_product, na.rm = TRUE)) 
 
-## wow a pretty significant portion (~90%) of whole fish rendered fish meal is from species used for fillets, so maybe our assumption isn't right!! 
-# ~70% of trimmings fish meal are also used as fillets, so that makes sense
+## wow a pretty significant portion (~60%) of whole fish rendered fish meal is from species used for fillets
+# ~78% of trimmings fish meal are also used as fillets, so that makes sense
 
 ```
 
@@ -94,14 +89,14 @@ test <- artis_trimmings_fillet %>%
 Prep ex-vessel price data so that we can easily match to ARTIS data 
 
 ```{r}
-prices_taxa <- prices %>% 
-  left_join(., taxa, by = "TaxonKey") %>%
-    clean_names() %>%
-  left_join(., entity, by = "fishing_entity_id") %>%
-  mutate(sciname = tolower(taxon_name),
-         common_name = tolower(common_name)) %>%
-  dplyr::select(year, source_country_iso3c = iso3c, sciname, year, price2010usd_mean, price2010usd_ci) %>%
-  filter(!is.na(source_country_iso3c)) 
+# prices_taxa <- prices %>% 
+#   left_join(., taxa, by = "TaxonKey") %>%
+#     clean_names() %>%
+#   left_join(., entity, by = "fishing_entity_id") %>%
+#   mutate(sciname = tolower(taxon_name),
+#          common_name = tolower(common_name)) %>%
+#   dplyr::select(year, source_country_iso3c = iso3c, sciname, year, price2010usd_mean, price2010usd_ci) %>%
+#   filter(!is.na(source_country_iso3c)) 
 
 
 ## lets look at the data we got from emlab
@@ -145,15 +140,15 @@ ex_vessel_filled <- ex_vessel_fill_1 %>%
 
 ```
 
-There are still 392 species in the ARTIS data that don't have prices. We will gapfill the one word species that don't match (i.e., their genus) to the average of all species in that genus that are in the price data.
+There are still 648 species in the ARTIS data that don't have prices. We will gapfill the one word species that don't match (i.e., their genus) to the average of all species in that genus that are in the price data.
 
 
 ```{r}
 ex_vessel_taxa <- ex_vessel_filled %>%
   distinct(sciname)
 
-missing_taxa <- data.frame(sciname= setdiff(unique(ex_vessel_taxa$sciname), unique(artis_trimmings_fillet$sciname))) # 453 spp
-missing_taxa_artis <- data.frame(sciname=setdiff(unique(artis_trimmings_fillet$sciname), unique(ex_vessel_taxa$sciname))) # 392 spp
+missing_taxa <- data.frame(sciname= setdiff(unique(ex_vessel_taxa$sciname), unique(artis_trimmings_fillet$sciname))) # 382 spp in ex vessel dasta and not in ARTIS
+missing_taxa_artis <- data.frame(sciname=setdiff(unique(artis_trimmings_fillet$sciname), unique(ex_vessel_taxa$sciname))) # 648 spp in artis not in price
 
 ## ok lets get the one word taxa from artis and vessel prices and compare
 
@@ -162,10 +157,6 @@ missing_taxa_artis <- data.frame(sciname=setdiff(unique(artis_trimmings_fillet$s
 one_word_artis <- data.frame(sciname = missing_taxa_artis$sciname[!str_detect(missing_taxa_artis$sciname, "\\s")])
 
 one_word_prices <- data.frame(sciname = missing_taxa$sciname[!str_detect(missing_taxa$sciname, "\\s")])
-
-# unique(one_word_artis$sciname)
-# 
-# unique(one_word_prices$sciname)
 
 ## ok so I need to filter for any species in the ex vessel data which contain the one word artis species, extract those as their sciname, group by sciname and year, and take an average price
 
@@ -187,8 +178,8 @@ ex_vessel_filled_2 <- rbind(ex_vessel_filled, ex_vessel_oneword_fill)
 ex_vessel_taxa <- ex_vessel_filled_2 %>%
   distinct(sciname)
 
-missing_taxa <- data.frame(sciname= setdiff(unique(ex_vessel_taxa$sciname), unique(artis_trimmings_fillet$sciname))) # 453 spp
-missing_taxa_artis <- data.frame(sciname=setdiff(unique(artis_trimmings_fillet$sciname), unique(ex_vessel_taxa$sciname))) # 360 spp
+missing_taxa <- data.frame(sciname= setdiff(unique(ex_vessel_taxa$sciname), unique(artis_trimmings_fillet$sciname))) # 382 spp
+missing_taxa_artis <- data.frame(sciname=setdiff(unique(artis_trimmings_fillet$sciname), unique(ex_vessel_taxa$sciname))) # 601 spp
 
 ## i think i'll need to gapfill these with congeneric species? So I will need to get their high order taxanomic info and make averages from those. ARTIS has that info
 
@@ -249,15 +240,21 @@ test <- artis_prices_gf %>%
 ## Perfect its all filled now
 
 
-qs::qsave(artis_prices_gf, here("int/artis_trimmings_fillet_prices.qs")) 
+qs::qsave(artis_prices_gf, here("int/artis_trimmings_fillet_prices_consumption.qs")) 
 ```
 
 Test completely gapfilling the rest with prices 
 
 ```{r}
 
+trim_mean_price <- artis_prices_gf %>%
+  filter(trim_prop_gf > 0.5) %>%
+  pull(price_gf) %>%
+  mean(., na.r = TRUE)
+
 artis_finfish <- artis_prices_gf %>% 
-  mutate(trim_prop_gf = ifelse(price_gf <= 1329 & is.na(trim_prop_gf), 0, trim_prop_gf)) %>%
+  mutate(trim_prop_gf = ifelse(price_gf <= trim_mean_price & is.na(trim_prop_gf), 0, trim_prop_gf)) %>%
+   mutate(trim_prop_gf = ifelse(price_gf > trim_mean_price & is.na(trim_prop_gf), 1, trim_prop_gf)) %>%
   mutate(trim_liveweight = trim_prop_gf*live_weight_t,
     trim_product = trim_prop_gf*product_weight_t, 
     wholefish_liveweight = (1-trim_prop_gf)*live_weight_t,
@@ -276,14 +273,14 @@ test <- artis_finfish %>%
 
 
 no_info_df <- artis_finfish %>%
-  filter(is.na(trimmings_gf)) %>%
+  filter(is.na(trim_prop_gf)) %>%
   mutate(fishmeal_type = "not sure") %>%
   group_by(fishmeal_type) %>%
   summarise(total = sum(product_weight_t)) %>%
   ungroup()
 
 circle_plot_df <- artis_finfish %>% 
-  filter(!is.na(trimmings_gf)) %>%
+  filter(!is.na(trim_prop_gf)) %>%
   pivot_longer(names_to = "fishmeal_type",
                cols = c("wholefish_product", "trim_product")) %>%
   mutate(fishmeal_type = ifelse(fishmeal_type == "trim_product", "trimmings", "wholefish")) %>%
@@ -291,7 +288,7 @@ circle_plot_df <- artis_finfish %>%
   summarise(total = sum(value, na.rm = TRUE)) %>%
   ungroup() %>%
   rbind(., no_info_df) %>%
-  mutate(total_product_t = total_product_weight) %>%
+  mutate(total_product_t = sum(total)) %>%
   mutate(prop = total/total_product_t) %>%
   mutate(perc = prop * 100) %>% # Convert to percentage
   mutate(label = paste0(round(perc, 1), "%")) %>%

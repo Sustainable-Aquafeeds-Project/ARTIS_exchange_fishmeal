@@ -29,7 +29,7 @@ artis_data <- qs::qread(file.path(artis_dir, "full_artis_fm_fillet.qs"))
 
 ## Summary
 
-Take data from Chiu et al. 2015 regarding species used for fish meal in China. They report in text species which are often used as whole fish fish meal or trimmings fish fish meal in China. 
+Take data from Chiu et al. 2013 regarding species used for fish meal in China. They report in text species which are often used as whole fish fish meal or trimmings fish fish meal in China. 
 
 
 ### Data Sources
