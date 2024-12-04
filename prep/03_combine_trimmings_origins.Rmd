@@ -131,10 +131,16 @@ peron_int <- read.csv(here("int/material_origins_peron_global.csv")) %>%
 
 edwards_int <- read.csv(here("int/material_origins_edwards_vnm.csv")) %>%
       mutate(trimmings_tonnes = NA, wholefish_tonnes = NA) %>%
-  dplyr::select(-trash_fish)
+  dplyr::select(-type)
+
+havfisk_int <- read.csv(here("int/material_origins_havfisk_nor.csv")) %>%
+      mutate(trimmings_tonnes = NA, wholefish_tonnes = NA) 
+
+setdiff(colnames(havfisk_int), colnames(chiu_int))
+setdiff(colnames(chiu_int), colnames(havfisk_int))
 
   
-all_int_dfs <- rbind(biomar_int, cargill_int, skretting_int, cao_int, chiu_int, greenpeace_int, peron_int) %>%
+all_int_dfs <- rbind(biomar_int, cargill_int, skretting_int, cao_int, chiu_int, greenpeace_int, peron_int, edwards_int, havfisk_int) %>%
   mutate(sciname = tolower(sciname),
          common_name = tolower(common_name)) %>%
   mutate(capture = ifelse(iso3c == "MEX" & common_name == "yellowfin tuna", "no", capture)) # make sure mexico is listed as aquaculture. Oman also lists wholefish reduction, however, oman doesnt have any tuna aquaculture

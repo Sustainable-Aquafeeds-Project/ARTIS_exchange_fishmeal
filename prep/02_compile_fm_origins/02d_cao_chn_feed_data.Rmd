@@ -95,6 +95,9 @@ test <- all_feed_species_chn %>% filter(is.na(sciname.y)) ## missing 53 when joi
 
 write.csv(all_feed_species_chn, here("int/material_origins_cao_chn.csv"), row.names = FALSE)
 
+test <- read.csv(here("int/material_origins_cao_chn.csv"))
+
+
 ```
 
 

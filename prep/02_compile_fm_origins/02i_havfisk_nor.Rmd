@@ -1,0 +1,70 @@
+---
+title: "Establish trimmings origins for Havfisk"
+output: html_document
+date: "2024-07-24"
+---
+
+
+```{r setup}
+
+knitr::opts_chunk$set(echo = TRUE)
+
+library(here)
+library(tidyverse)
+library(glue)
+library(sf)
+library(devtools)
+library(janitor)
+library(countrycode)
+library(taxize)
+library(qs)
+
+source(here("R/directories.R"))
+
+artis_taxa <- read.csv(file.path(artis_dir, "artis_full_data/data/attribute tables/sciname.csv")) ## read in attribute table with common names
+
+```
+
+### Data Sources
+
+Havfisk fishing fleet in Norway: https://www.havfisk.no/en/products
+
+
+## Summary
+
+Marine residual raw materials: 
+"Fishmeal and fish oil are produced on board the vessels Gadus Poseidon, Gadus Njord and Gadus Neptun. The raw materials used in this production mainly consist of residual raw materials from cod, haddock and saithe. The fishmeal and fish oil are suitable for human or animal consumption. This contributes to sustainable and optimum utilisation of resources. These three vessels are MSC CoC certified. Fish silage is produced on board our newest vessels Nordtind and Kongsfjord.
+
+There is growing demand for residual raw materials, and we are continuously working on projects to enable us to utilise other residual raw materials."
+
+We will assume that FM from saithe, cod, or haddock in Norway are trimmings. 
+
+
+```{r}
+
+## Read in the whole fish species (NOT TRASH FISH) file
+
+species_nor_havfisk <- 
+  data.frame(common_name = c("atlantic cod", "haddock", "saithe(=pollock)"), 
+         sciname = c("gadus morhua", "melanogrammus aeglefinus", "pollachius virens")) %>% 
+  mutate(country = "Norway",
+         iso3c = "NOR", 
+         wholefish = "no",
+         trimmings = "yes",
+         trim_prop = 1,
+         data_source_feed = "Havfisk 2024",
+         data_source_fao_area_country = NA,
+         feed_report_spp_name = sciname,
+         capture = "yes") %>%
+    mutate(sciname = tolower(sciname),
+         common_name = tolower(common_name)) %>%
+  mutate(trash_fish = "no") %>%
+    distinct() 
+
+
+
+write.csv(species_nor_havfisk, here("int/material_origins_havfisk_nor.csv"), row.names = FALSE)
+
+```
+
+

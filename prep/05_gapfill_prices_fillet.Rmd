@@ -1,5 +1,5 @@
 ---
-title: "Gapfill with simple assumptions"
+title: "Gapfill with price and fillet"
 output: html_document
 date: "2024-08-01"
 editor_options: 
@@ -52,13 +52,11 @@ colnames(artis_trimmings_all_gf)
 
 ```
 
-Join price data with this trimmings info, and get an average price for trimmings species per year and iso3c, and just iso3c, and globally (any species in data with info and used >50% of the time as trimmings). Any species below that price will be considered all whole fish fish meal. We apply these average prices 3 times, first if it falls below the iso3c and yearly average, then if it is still missing, the iso3c average across all years, then if it is still missing, the average across all iso3cs and years. 
+Join price data with this trimmings info, and get an 3-year rolling average price for whole fish rendered species per year (with a 10% buffer) (any species in data with info and used <50% of the time as trimmings). Any species below that price will be considered all whole fish fish meal. 
 
-Following this, we gapfill based on any species that is filleted and share the same source country AND exporter country (we assume source and exporter, so that we know that the fish would be processed in the same place, and in theory, this could be the same fish) and year, assume these are all species which are "trimmings only" (for species that don't already have info). Then if there are still gaps, because some species do not have price data at all and are not reported as fillets, we will assume that it is whole fish derived, as a last resort.
+Following this, we gapfill based on any species that is filleted and share the same source country AND exporter country (we assume source and exporter, so that we know that the fish would be processed in the same place, and in theory, this could be the same fish) and year, assume these are all species which are "trimmings only" (for species that don't already have info). Then if there are still gaps, because some species do not have price data at all and are not reported as fillets, we will assume that it is whole fish derived, as a last resort because historically more often than not, fishmeal is derived from whole fish rendering. 
 
 ```{r}
-
-artis_trimmings_all_gf <- 
 
 fillet_data <- fillet_artis %>% 
   distinct(year, source_country_iso3c, exporter_iso3c, sciname) %>%
@@ -92,12 +90,20 @@ filled_price_data <- expanded_data %>%
   distinct() %>%
   group_by(year, sciname) %>%
   summarise(price2010usd_mean = mean(price2010usd_mean, na.rm = TRUE)) %>% # there were species with multiple prices for some reason..
-  ungroup()
+  ungroup() %>%
+  mutate(sciname = ifelse(sciname == "salmonoidei", "salmonidae", sciname))
+
+salmoninae <- filled_price_data %>%
+  filter(sciname == "salmonidae") %>%
+  mutate(sciname = "salmoninae")
+
+filled_price_data <- filled_price_data %>%
+  rbind(., salmoninae)
 
 prices_aggregated <- artis_trimmings_all_gf  %>%
   right_join(filled_price_data) %>%
     filter(!is.na(trim_prop_gf)) %>%
-   filter(trim_prop_gf > 0.5) %>% # so we have trimmings species in each country with a price
+   filter(trim_prop_gf < 0.5) %>% # so we have whole fish species in each country with a price
   dplyr::select(colnames(filled_price_data), source_country_iso3c) %>%
   distinct() %>%
   arrange(year) %>%
@@ -109,18 +115,31 @@ prices_aggregated <- artis_trimmings_all_gf  %>%
 prices_aggregated <- prices_aggregated %>%
 #  group_by(year) %>%
   arrange(year) %>%
-  mutate(price_3yr_rolling_mean = zoo::rollapply(avg_price2010usd_mean, width = 3, FUN = mean, align = "right", fill = NA)) %>%
+  mutate(price_3yr_rolling_mean = zoo::rollapply(avg_price2010usd_mean, 
+                                                 width = 3, 
+                                                 FUN = mean, 
+                                                 align = "right", 
+                                                 fill = NA),
+         # Add ±5% buffer
+         price_3yr_rolling_mean_lower = price_3yr_rolling_mean * 0.90,
+         price_3yr_rolling_mean_upper = price_3yr_rolling_mean * 1.1) %>%
   ungroup() %>%
-    fill(price_3yr_rolling_mean, .direction = "downup")  # fill missing first 2 years
+  fill(price_3yr_rolling_mean, price_3yr_rolling_mean_lower, price_3yr_rolling_mean_upper, .direction = "downup") # fill missing first 2 years
 
 price_empty_gf <- artis_trimmings_all_gf %>%
   filter(is.na(trim_prop_gf)) %>%
   left_join(prices_aggregated) %>%
   left_join(filled_price_data) %>%
+   # left_join(fillet_data) %>%
     distinct() %>%
-  mutate(trim_prop_gf = ifelse(price2010usd_mean < price_3yr_rolling_mean, 0, trim_prop_gf), 
-         method_gf = ifelse(price2010usd_mean < price_3yr_rolling_mean, "gapfilled based on 3 year average price per iso3c average of trimmings species", method_gf)) %>%
-  dplyr::select(colnames(artis_trimmings_all_gf)) 
+    # mutate(trim_prop_gf = case_when(
+    #    filleted == "yes" ~ 1, 
+    #    price2010usd_mean <= price_3yr_rolling_mean_lower & is.na(filleted) ~ 0,
+    #    price2010usd_mean > price_3yr_rolling_mean_lower & is.na(filleted) ~ 1,
+    #   TRUE ~ 0)) %>%
+  mutate(trim_prop_gf = ifelse(price2010usd_mean <= price_3yr_rolling_mean_upper, 0, trim_prop_gf),
+         method_gf = ifelse(price2010usd_mean <= price_3yr_rolling_mean_upper, "gapfilled whole fish because average price is lower than 3-year average whole fish price", method_gf)) %>%
+   dplyr::select(colnames(artis_trimmings_all_gf)) 
 
 summary(price_empty_gf) 
 
@@ -134,26 +153,26 @@ summary(price_empty_gf)
 
 ## gapfill with fillets last  
 fillet_price_all_gf <- price_all_gf %>%
-  left_join(fillet_data) %>%
-  mutate(
-  trimmings_gf = case_when(
-    filleted == "yes" & is.na(trimmings_gf) ~ "yes",
-    TRUE ~ trimmings_gf
-  ), 
-  wholefish_gf = case_when(
-    filleted == "yes" & is.na(wholefish_gf) ~ "no",
-    TRUE ~ wholefish_gf
-  )
-  ) %>%
-  mutate(trim_prop_gf_fin = case_when(
-    wholefish_gf == "no" & trimmings_gf == "yes" & is.na(trim_prop_gf) ~ 1,
-    is.na(filleted) & is.na(trim_prop_gf) ~ 0,
-    TRUE ~ trim_prop_gf),
-    method_gf_fin = case_when(
-    filleted == "yes" & is.na(trim_prop_gf) ~ "assuming trimmings because filleted",
-    is.na(filleted) & is.na(trim_prop_gf) ~ "assuming whole fish because not filleted",
-    TRUE ~ method_gf
-  ))  %>% # fill any that aren't filleted as whole fish reduction; cursory look and it appears most of these are echinoderms (not sure this makes sense given cucumbers are a delicacy) or things like sardines and pacific herring (pacific herring have history been used a reduction fisheries)
+ left_join(fillet_data) %>%
+ mutate(
+ trimmings_gf = case_when(
+   filleted == "yes" & is.na(trimmings_gf) ~ "yes",
+   TRUE ~ trimmings_gf
+ ),
+ wholefish_gf = case_when(
+   filleted == "yes" & is.na(wholefish_gf) ~ "no",
+   TRUE ~ wholefish_gf
+ )
+ ) %>%
+ mutate(trim_prop_gf_fin = case_when(
+   wholefish_gf == "no" & trimmings_gf == "yes" & is.na(trim_prop_gf) ~ 1,
+   is.na(filleted) & is.na(trim_prop_gf) ~ 0,
+   TRUE ~ trim_prop_gf),
+   method_gf_fin = case_when(
+   filleted == "yes" & is.na(trim_prop_gf) ~ "assuming trimmings because filleted",
+   is.na(filleted) & is.na(trim_prop_gf) ~ "assuming whole fish because not filleted and no price information",
+   TRUE ~ method_gf
+ ))  %>% # fill any that aren't filleted as whole fish reduction; cursory look and it appears most of these are echinoderms (not sure this makes sense given cucumbers are a delicacy) or things like sardines and pacific herring (pacific herring have history been used a reduction fisheries)
   mutate(trim_liveweight = trim_prop_gf_fin*live_weight_t,
     trim_product = trim_prop_gf_fin*product_weight_t,
     wholefish_liveweight = (1-trim_prop_gf_fin)*live_weight_t,
@@ -161,15 +180,59 @@ fillet_price_all_gf <- price_all_gf %>%
   dplyr::select(year, source_country_iso3c, exporter_iso3c, consumer_iso3c, dom_source, hs6, sciname, common_name, habitat, method, trim_prop_gf_fin, trim_liveweight, trim_product, wholefish_liveweight, wholefish_product, method_trim_gf = method_gf_fin, trash_fish) %>%
   pivot_longer(., cols = c(trim_product, wholefish_product), names_to = "fishmeal_type", values_to = "product_weight_t") %>%
   mutate(live_weight_t = product_weight_t*2.975207,
-         fishmeal_type = ifelse(fishmeal_type == "trim_product", "trimmings", "whole fish")) 
+         fishmeal_type = ifelse(fishmeal_type == "trim_product", "trimmings", "whole fish")) %>%
+    dplyr::select(-trim_liveweight, -wholefish_liveweight)
+
+```
+
+Read in forage fisheries data and join; Forage fish species list taken from Clawson et al. 2024 in review: Continued transitions from fish meal and oil in aquafeeds require close attention to biodiversity trade-offs
+
+```{r}
+# forage fish spp list
+forage_spp_list <- read.csv(here("data/forage_fish_list_final.csv")) %>%
+  mutate(sciname = tolower(sci_name),
+         common_name = tolower(common_name)) %>%
+  dplyr::select(sciname) %>%
+  filter(!is.na(sciname)) %>%
+  mutate(forage_fish = 1) %>%
+  distinct()
+
+
+fm_data <- fillet_price_all_gf %>%
+  left_join(forage_spp_list, by = "sciname")
+
+
+test <- fm_data %>%
+  left_join(artis_taxa) %>%
+  filter(year == 2020, 
+         phylum == "chordata") %>% 
+  group_by(forage_fish, fishmeal_type) %>% 
+  summarise(tonnes = sum(product_weight_t, na.rm = TRUE)) %>%
+  ungroup() %>%
+  mutate(total = sum(tonnes)) %>%
+  mutate(prop = tonnes/total) # cool. Looks like ~30$% of trimmings fish meal is from forage fish. I wonder if this makes sense? Probably mostly from canned anchovies, sardines, etc
+
+fm_data_2020 <- fm_data %>%
+  group_by(year, source_country_iso3c, consumer_iso3c, sciname, fishmeal_type, method, forage_fish) %>%
+  summarise(product_weight_t = sum(product_weight_t, na.rm = TRUE)) %>%
+  ungroup() %>%
+  filter(year == 2020, forage_fish == 1, fishmeal_type == "whole fish", method != "aquaculture") # yep, the forage fish trimmings is mostly from anchovies and sardines. I wonder if this matches the market for canned fish? There are definitely trimmings from anchovy canning (heads, tails). From google it seems like 40-60% of a peruvian anchoveta are discarded when canning (if they aren't canned whole)... so it's not implausible to think that the trimmings from canning could be used for FM and this could be the result? 
+# most whole fish production is peruvian anchoveta or blue whiting
+
+```
+
+
+Save the data 
+
+```{r}
 
 if(dataset == "old"){
-  qs::qsave(fillet_price_all_gf, file.path(artis_dir, "artis_exchange/artis_fishmeal_trimmings_traded_gf_final.qs"))
+  qs::qsave(fm_data, file.path(artis_dir, "artis_exchange/artis_fishmeal_trimmings_traded_gf_final.qs"))
 
   
 }else{
   
-  qs::qsave(fillet_price_all_gf, file.path(artis_dir, "artis_exchange/artis_fishmeal_trimmings_traded_consumption_gf_final.qs"))
+  qs::qsave(fm_data, file.path(artis_dir, "artis_exchange/artis_fishmeal_trimmings_traded_consumption_gf_final.qs"))
 
 }
 
@@ -182,20 +245,10 @@ Testing and plots
 fillet_price_all_gf <- qs::qread(file.path(artis_dir, "artis_exchange/artis_fishmeal_trimmings_traded_consumption_gf_final.qs")) %>%
   left_join(artis_taxa)
 
-
-test <- fillet_price_all_gf %>%
-  group_by(method_trim_gf) %>%
-  summarise(tonnes = sum(product_weight_t))
-
-summary(fillet_price_all_gf) 
-
-
-nrow(fillet_price_all_gf)/2 == nrow(artis_trimmings_all_gf) # perfect
-
-## make cirlce chart showing this 
-
+## make bar chart showing this 
 
 no_info_df <- fillet_price_all_gf %>%
+    left_join(artis_taxa) %>%
   filter(year == 2020, phylum == "chordata") %>%
   filter(is.na(trim_prop_gf_fin)) %>%
   mutate(fishmeal_type = "not sure") %>%
@@ -204,6 +257,7 @@ no_info_df <- fillet_price_all_gf %>%
   ungroup()
 
 bar_plot_df <- fillet_price_all_gf %>%
+    left_join(artis_taxa) %>%
   filter(year == 2020, phylum == "chordata") %>% 
   filter(!is.na(trim_prop_gf_fin)) %>%
   group_by(fishmeal_type, trash_fish) %>%
@@ -377,6 +431,26 @@ over_time <- fillet_price_all_gf %>%
 ```
 
 
+Mussel meal notes: 
+ - https://www.feedstrategy.com/animal-nutrition/article/15442527/trial-to-consider-if-mussels-might-replace-fish-meal
+ - https://www.feedipedia.org/node/670
+ - https://www.tandfonline.com/doi/full/10.1080/09064700902730158#abstract
+
+```{r}
+mussel_meal <- fillet_price_all_gf %>%
+  filter(year == 2020, isscaap == "Mussels")
+## China and Chile to China/Japan
+
+oyster_meal <- fillet_price_all_gf %>%
+  filter(year == 2020, isscaap == "Oysters")
+## Now USA, used to be a lot more from China before the algal blooms in 2012/2013
+
+# both the oyster and mussel meal are pretty much all aquaculture derived 
+
+
+
+```
+
 
 
 https://www.marketsandmarkets.com/Market-Reports/aquafeeds-market-1151.html 
@@ -386,97 +460,4 @@ https://www.marketsandmarkets.com/Market-Reports/aquafeeds-market-1151.html
   - biomar revenue 2.6 billion, net income??
   - Skretting had 2.68 billion USD revenue
 
-
-
-ARCHIVE:
-
-
-```{r}
-# prices <- read.csv(file.path(rdsi_raw_data_dir, "sea-around-us/ex-vessel-prices/outputFMFO2021-03-12.csv")) %>%
-#   dplyr::select(-X) 
-
-
-# taxa <- read.csv(file.path(rdsi_raw_data_dir, "sea-around-us/ex-vessel-prices/taxa.csv"))
-# 
-# entity <- read.csv(file.path(rdsi_raw_data_dir, "sea-around-us/ex-vessel-prices/fishing_entity.csv")) %>%
-#   dplyr::select(-X) %>%
-#   mutate(iso3c = countrycode(sourcevar = name, origin = "country.name", destination = "iso3c"))
-# 
-# prices_taxa <- prices %>% 
-#   left_join(., taxa, by = "TaxonKey") %>%
-#     clean_names() %>%
-#   left_join(., entity, by = "fishing_entity_id") %>%
-#   mutate(sciname = tolower(taxon_name),
-#          common_name = tolower(common_name)) %>%
-#   dplyr::select(year, source_country_iso3c = iso3c, sciname, common_name, iso3c, year, price2010usd_mean, price2010usd_ci) %>%
-#   filter(!is.na(source_country_iso3c))  # filter out territories for now
-
-
-
-# filled_price_data <- expanded_data %>%
-#   # Left join to bring in existing data
-#   left_join(prices_taxa, by = c("year", "source_country_iso3c", "sciname")) %>%
-#   # Step 3: Arrange data by country, species, and year
-#   arrange(source_country_iso3c, sciname, year) %>%
-#   # Step 4: Fill `price2010usd_mean` up and down by each country and species combination
-#   group_by(source_country_iso3c, sciname) %>%
-#   fill(price2010usd_mean, .direction = "downup") %>%  # Fill forward then backward
-#   # If needed, fill `price2010usd_ci` in the same way
-#   fill(price2010usd_ci, .direction = "downup") %>%
-#   ungroup() %>%
-#   filter(!is.na(price2010usd_mean)) %>%
-#   distinct()
-
-```
-
-```{r}
-# ## get average prices of species which are used for trimmings >50%
-# avg_trim_prices <- artis_trimmings_all_gf %>%
-#   filter(!is.na(trim_prop_gf)) %>%
-#   filter(trim_prop_gf > 0.5) %>%
-#   left_join(filled_price_data) %>%
-#   group_by(sciname) %>%
-#   mutate(avg_usd_sciname = mean(price2010usd_mean, na.rm = TRUE)) %>%
-#   ungroup() %>% ## missing ~15% of prices
-#   group_by(genus) %>%
-#     mutate(avg_usd_genus = mean(price2010usd_mean, na.rm = TRUE)) %>%
-#   ungroup() %>% # missing ~6%
-#   group_by(family) %>%
-#   mutate(avg_usd_family = mean(price2010usd_mean, na.rm = TRUE)) %>%
-#   ungroup() %>%
-#     group_by(order) %>%
-#   mutate(avg_usd_order = mean(price2010usd_mean, na.rm = TRUE)) %>%
-#   ungroup() %>%
-#       group_by(class) %>%
-#   mutate(avg_usd_class = mean(price2010usd_mean, na.rm = TRUE)) %>%
-#   ungroup() %>%
-#   group_by(phylum) %>%
-#   mutate(avg_usd_phylum = mean(price2010usd_mean, na.rm = TRUE)) %>%
-#   ungroup() %>%
-#   group_by(kingdom) %>%
-#     mutate(avg_usd_kingdom = mean(price2010usd_mean, na.rm = TRUE)) %>%
-#   ungroup() %>%
-#   mutate(avg_usd_gf = ifelse(is.na(price2010usd_mean), avg_usd_sciname, price2010usd_mean)) %>%
-#   mutate(avg_usd_gf = ifelse(is.na(avg_usd_gf), avg_usd_genus, avg_usd_gf)) %>%
-#   mutate(avg_usd_gf = ifelse(is.na(avg_usd_gf), avg_usd_family, avg_usd_gf)) %>%
-#   mutate(avg_usd_gf = ifelse(is.na(avg_usd_gf), avg_usd_order, avg_usd_gf)) %>%
-#   mutate(avg_usd_gf = ifelse(is.na(avg_usd_gf), avg_usd_class, avg_usd_gf)) %>%
-#     mutate(avg_usd_gf = ifelse(is.na(avg_usd_gf), avg_usd_phylum, avg_usd_gf)) %>%
-#     mutate(avg_usd_gf = ifelse(is.na(avg_usd_gf), avg_usd_kingdom, avg_usd_gf)) %>%
-#   filter(trim_prop_gf == 1) %>%
-#   group_by(year, source_country_iso3c) %>%
-#   summarise(avg_year_iso3c_prices = mean(avg_usd_gf, na.rm = TRUE)) %>%
-#   ungroup() %>%
-#   group_by(source_country_iso3c) %>%
-#   mutate(avg_iso3c_price = mean(avg_year_iso3c_prices, na.rm = TRUE)) %>%
-#   ungroup()
-# 
-# 
-# global_avg_price <- artis_trimmings_all_gf %>%
-#   filter(!is.na(trim_prop_gf)) %>%
-#   filter(trim_prop_gf > 0.5) %>%
-#   left_join(filled_price_data)  %>%
-#   pull(price2010usd_mean) %>%
-#   mean(., na.rm = TRUE) # 415.546; anything above this is trimmings?
-```
 

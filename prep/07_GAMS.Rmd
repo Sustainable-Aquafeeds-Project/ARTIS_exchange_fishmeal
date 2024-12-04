@@ -1,0 +1,877 @@
+---
+title: "Model and predict trimmings proportions"
+output: html_document
+date: "2024-08-22"
+---
+
+## Summary
+
+Use GAMs to predict trimmings proportions
+
+## Setup
+
+```{r setup}
+
+library(here)
+library(tidyverse)
+library(glue)
+library(sf)
+library(devtools)
+library(janitor)
+library(countrycode)
+library(qs)
+library(GGally)
+library(PerformanceAnalytics) ## great correlation plots and other analysis tools
+library(mgcv)
+library(brms)
+library(gridExtra)
+library(grid)
+library(scales)
+library(tictoc)
+library(parallel)
+
+source(here("R/directories.R"))
+
+
+artis_taxa <- read.csv(file.path(artis_dir, "artis_full_data/data/attribute tables/sciname.csv")) ## read in attribute table with common names
+
+countries <- read.csv(here("data/countries.csv")) ## artis countries with info
+
+artis_trimmings <- qs::qread(here("int/artis_trimmings_fillet_prices_consumption.qs")) %>%
+  mutate(filleted = ifelse(filleted == "yes", 1, 0)) %>%
+  left_join(artis_taxa)
+
+```
+
+
+1. EDA
+
+```{r}
+# # Plot `trim_prop_gf` against potential predictors
+# ggplot(artis_trimmings %>% filter(year == 2020), aes(x = price_gf, y = trim_prop_gf)) + geom_point() + geom_smooth(method = "loess")
+# ggplot(artis_trimmings %>% filter(year == 2020), aes(x = filleted, y = trim_prop_gf)) + geom_boxplot()
+# # ggplot(artis_trimmings, aes(x = year, y = trim_prop_gf)) + geom_point() # + geom_smooth(method = "loess")
+# ggplot(artis_trimmings %>% filter(year == 2020), aes(x = class, y = trim_prop_gf)) + geom_boxplot()
+# 
+# ggplot(artis_trimmings %>% filter(year == 2020), aes(x = source_country_iso3c, y = trim_prop_gf)) + geom_boxplot()
+
+
+```
+
+2. Model Fitting GAMs with beta distribution
+
+```{r}
+
+
+artis_trimmings_beta <- artis_trimmings %>% 
+  mutate(trim_prop_beta = case_when(
+    trim_prop_gf == 0 ~ trim_prop_gf + 0.000000001,
+        trim_prop_gf == 1 ~ trim_prop_gf - 0.000000001, # regular beta regression can't take 0 or 1
+    TRUE ~ trim_prop_gf
+  )) %>%
+  mutate(filleted = as.factor(filleted),
+         source_country_iso3c = as.factor(source_country_iso3c),
+         year = as.factor(year),
+         family = as.factor(family)) %>%
+  distinct(trim_prop_gf, trim_prop_beta, price_gf, filleted, source_country_iso3c, family, year)
+
+
+artis_trimmings_beta_2 <- artis_trimmings_beta %>%
+  mutate(year = as.numeric(as.character(year))) 
+# %>%
+#   dplyr::select(-year) %>%
+#   distinct()
+
+ctrl <- list(nthreads=8) # try with 8 cores?
+
+tic()
+gam_model_beta <- gam(trim_prop_beta ~ s(price_gf) + filleted  +
+                 source_country_iso3c + family + year, 
+                 data = artis_trimmings_beta_2, family = betar(), control = ctrl) # production level? Relative contribution of that species production for that country/year
+
+qs::qsave(gam_model_beta, here("int/gam_model1_beta.qs"))
+toc() # 12 hours with 1 core. ~6 hours with 6 cores
+
+tic()
+gam_model_beta2 <- gam(trim_prop_beta ~ s(price_gf) + year + filleted +
+                  source_country_iso3c, 
+                  data = artis_trimmings_beta_2, family = betar(), na.action = na.exclude, control = ctrl)
+
+
+qs::qsave(gam_model_beta2, here("int/gam_model2_beta.qs"))
+toc() # 20 mins with 4 cores! It takes 1 hour with 1 core. 
+
+tic()
+gam_model_beta3 <- gam(trim_prop_beta ~ s(price_gf) + year + filleted + `family`, 
+                  data = artis_trimmings_beta_2, family = betar(), na.action = na.exclude, 
+                  control = ctrl)
+
+
+qs::qsave(gam_model_beta3, here("int/gam_model3_beta.qs"))
+toc() # 5 hours on one core, 1.5 hours on 8
+
+tic()
+gam_model_beta4 <- gam(trim_prop_beta ~ s(price_gf) + year + filleted, 
+                  data = artis_trimmings_beta_2, family = betar(), na.action = na.exclude, 
+                  control = ctrl)
+
+qs::qsave(gam_model_beta4, here("int/gam_model4_beta.qs"))
+toc() # 5 hours
+
+gam_model_beta <- qread(here("int/gam_model1_beta.qs"))
+
+
+AIC(gam_model_beta, gam_model_beta2, gam_model_beta3, gam_model_beta4)
+
+	
+#                 df <dbl>   AIC <dbl>
+# gam_model_beta	389.85897	-1530793		
+# gam_model_beta2	194.99425	-1769291		
+# gam_model_beta3	217.77126	-1529392		
+# gam_model_beta4	12.99493	-1765623	
+
+logLik(gam_model_beta) # 'log Lik.' 765786.4 (df=389.859)
+
+logLik(gam_model_beta2) # 'log Lik.' 884840.6 (df=194.9943)
+
+logLik(gam_model_beta3) # 'log Lik.' 764913.8 (df=217.7713)
+ 
+logLik(gam_model_beta4) # 'log Lik.' 882824.5 (df=12.99493)
+
+```
+
+
+3. Gap Filling
+
+Fill using a hierarchical model approach: 
+ - First fill with full model (gam_model)
+ - Then fill with model excluding iso3c (gam_model3)
+ - Then fill with model excluding family (gam_model2)
+ - Then fill with model excluding both (gam_model4)
+
+```{r}
+gam_model <- qread(here("int/gam_model1_beta.qs"))
+
+## first we need to exclude any observations that don't have levels in the data for source_country_iso3c AND for family, since we can't predict for missing factor levels
+
+# Assuming your model is stored in the variable `gam_model`
+coefficients <- coef(gam_model)
+
+# Extract the names of the coefficients
+coef_names <- names(coefficients)  
+
+# Filter for source_country_iso3c coefficients
+source_country_coefs <- grep("^source_country_iso3c", coef_names, value = TRUE)
+
+# Extract the country codes
+source_country_iso3c_codes <- gsub("source_country_iso3c", "", source_country_coefs)
+
+# Filter for source_country_iso3c coefficients
+family_coefs <- grep("^family", coef_names, value = TRUE)
+
+# Extract the country codes
+family_codes <- gsub("family", "", family_coefs)
+  
+predict_data_1 <- artis_trimmings %>% 
+  filter(source_country_iso3c %in% c(source_country_iso3c_codes)) %>%
+  filter(family %in% c(family_codes)) %>% # ok so we're mostly missing family names
+  mutate(gam_preds_1 = predict(gam_model, newdata = ., type = "response"))
+
+## next exclude any observations that don't have levels in the data for iso3c
+
+gam_model2 <- qread(here("int/gam_model2_beta.qs"))
+
+predict_data_2 <- artis_trimmings %>% 
+  filter(source_country_iso3c %in% c(source_country_iso3c_codes)) %>%
+  mutate(gam_preds_2 = predict(gam_model2, newdata = ., type = "response"))
+
+## next exclude any observations that don't have levels in the data for family
+
+gam_model3 <- qread(here("int/gam_model3_beta.qs"))
+
+predict_data_3 <- artis_trimmings %>% 
+  filter(family %in% c(family_codes)) %>% # ok so we're mostly missing family names
+  mutate(gam_preds_3 = predict(gam_model3, newdata = ., type = "response"))
+
+
+## Now make predictions for all data
+
+gam_model4 <- qread(here("int/gam_model4_beta.qs"))
+
+predict_data_4 <- artis_trimmings %>% 
+  mutate(gam_preds_4 = predict(gam_model4, newdata = ., type = "response"))
+
+## now join all of these predictions to the full dataset
+
+predict_data_all <- predict_data_4 %>%
+  left_join(predict_data_1) %>%
+  left_join(predict_data_2) %>%
+  left_join(predict_data_3) %>%
+ mutate(
+    # Start by assuming that trim_prop_gf_fin is the same as trim_prop_gf
+    trim_prop_gf_fin = ifelse(!is.na(trim_prop_gf), trim_prop_gf, NA),
+    
+    # Add the initial gapfill flag
+    trim_prop_gf_flag = ifelse(!is.na(trim_prop_gf), trim_prop_gf_flag, NA),
+    
+    # Fill missing values with gams_preds_1
+    trim_prop_gf_fin = ifelse(is.na(trim_prop_gf_fin), gam_preds_1, trim_prop_gf_fin),
+    trim_prop_gf_flag = ifelse(is.na(trim_prop_gf_fin) & is.na(trim_prop_gf_flag), "GAM1_all", trim_prop_gf_flag),
+    
+    # Fill missing values with gams_preds_3
+    trim_prop_gf_fin = ifelse(is.na(trim_prop_gf_fin), gam_preds_2, trim_prop_gf_fin),
+    trim_prop_gf_flag = ifelse(is.na(trim_prop_gf_fin) & is.na(trim_prop_gf_flag), "GAM2_iso3c", trim_prop_gf_flag),
+    
+    # Fill missing values with gams_preds_2
+    trim_prop_gf_fin = ifelse(is.na(trim_prop_gf_fin), gam_preds_3, trim_prop_gf_fin),
+    trim_prop_gf_flag = ifelse(is.na(trim_prop_gf_fin) & is.na(trim_prop_gf_flag), "GAM3_family", trim_prop_gf_flag),
+    
+    # Fill missing values with gams_preds_4
+    trim_prop_gf_fin = ifelse(is.na(trim_prop_gf_fin), gam_preds_4, trim_prop_gf_fin),
+    trim_prop_gf_flag = ifelse(is.na(trim_prop_gf_fin) & is.na(trim_prop_gf_flag), "GAM4", trim_prop_gf_flag)
+  ) %>% 
+  dplyr::select(-isscaap, -kingdom, -phylum, -superclass, -class, -order, -subfamily, -genus)
+
+
+predict_data_all_gf_fin <- predict_data_all %>% 
+  dplyr::select(-gam_preds_1, -gam_preds_2, -gam_preds_3, -gam_preds_4, -trim_prop_gf) %>% 
+  distinct()
+qsave(predict_data_all_gf_fin, here("int/predicted_trimmings_values_beta.qs"))
+
+```
+
+
+4. Validation
+
+```{r}
+
+# Plot predicted vs actual values (for non-missing data) for first game
+p1 <- ggplot(predict_data_all, aes(x = gam_preds_1, y = trim_prop_gf)) + geom_point() + geom_abline()
+p2 <- ggplot(predict_data_all, aes(x = gam_preds_2, y = trim_prop_gf)) + geom_point() + geom_abline()
+p3 <- ggplot(predict_data_all, aes(x = gam_preds_3, y = trim_prop_gf)) + geom_point() + geom_abline()
+p4 <- ggplot(predict_data_all, aes(x = gam_preds_4, y = trim_prop_gf)) + geom_point() + geom_abline()
+grid.arrange(p1, p2, p3, p4, ncol=2)
+
+# Calculate residuals for first gam
+residuals <- predict_data_all$trim_prop_gf - predict_data_all$gam_preds_1
+ggplot(predict_data_all, aes(x = residuals)) + geom_histogram(binwidth = 0.01)
+
+```
+
+5. Allocation to product weight 
+
+```{r}
+
+predict_data_all_gf_fin <- qread(here("int/predicted_trimmings_values_beta.qs"))
+
+
+all_data_gf <- predict_data_all_gf_fin %>%
+  mutate(trim_liveweight = trim_prop_gf_fin*live_weight_t,
+    trim_product = trim_prop_gf_fin*product_weight_t, 
+    wholefish_liveweight = (1-trim_prop_gf_fin)*live_weight_t,
+    wholefish_product = (1-trim_prop_gf_fin)*product_weight_t) %>%
+  left_join(artis_taxa) %>%
+    dplyr::select(year, source_country_iso3c, exporter_iso3c, consumer_iso3c, dom_source, sciname, common_name, habitat, method, trim_prop_gf_fin, trim_liveweight, trim_product, wholefish_liveweight, wholefish_product, phylum, method_trim_gf = trim_prop_gf_flag) %>%
+  pivot_longer(., cols = c(trim_product, wholefish_product), names_to = "fishmeal_type", values_to = "product_weight_t") %>%
+  mutate(live_weight_t = product_weight_t*2.975207,
+         fishmeal_type = ifelse(fishmeal_type == "trim_product", "trimmings", "whole fish")) 
+
+for(year_loop in 1996:2020){
+
+#  year_loop = 2020
+artis_all_2020 <- all_data_gf %>%
+  filter(year == year_loop) %>%
+  left_join(countries, by = c("source_country_iso3c" = "iso3c")) %>%
+  mutate(owid_region = ifelse(is.na(owid_region), "unknown", owid_region)) %>%
+    mutate(owid_region = ifelse(owid_region == "Other nei", "unknown", owid_region))
+
+
+total_product_weight <- sum(artis_all_2020$product_weight_t, na.rm = TRUE) # 6187648
+
+
+## Let's make a bar plot and have x axis be the type of fish meal, y axis the proportion it represents, and fill by continent
+
+
+bar_plot_df <- artis_all_2020 %>% 
+  filter(!is.na(trim_prop_gf_fin)) %>% # shouldn't be any
+  group_by(fishmeal_type, owid_region) %>%
+  summarise(total = sum(product_weight_t, na.rm = TRUE)) %>%
+  ungroup() %>%
+  mutate(total_product_t = total_product_weight) %>%
+  mutate(prop = total/total_product_t) %>%
+  mutate(perc = prop * 100) %>% # Convert to percentage
+  mutate(label = paste0(round(perc, 1), "%")) %>%
+  arrange(desc(fishmeal_type))  %>%
+  filter(prop > 0) %>%
+  arrange(-prop) 
+
+## oceania: #9F6144
+## Africa: #A660A1
+## Asia: #3F8D87
+## South America: #8F464E
+## North America: #E47669
+## Europe: #5E74A1
+## unknown: #808080
+## Other_nei: #808080
+  
+wholefish_prop <- bar_plot_df %>% filter(fishmeal_type == "whole fish") %>% pull(prop) %>% sum()
+
+ggplot(bar_plot_df, aes(x = reorder(fishmeal_type, -prop), y = prop, fill = owid_region)) +
+  geom_bar(stat = "identity", color = "white") + 
+ scale_fill_manual(values = c("#A660A1", "#3F8D87", "#5E74A1", "#E47669", "#9F6144", "#8F464E", "#808080")) +
+  theme_classic() +
+  labs(fill = "Region", y = "Proportion of global trade", x = "Fishmeal type") + 
+    scale_x_discrete(expand = c(0,0)) +
+  scale_y_continuous(expand = c(0,0))
+
+ggsave(glue(here("outputs/figs/props_{wholefish_prop}_{year_loop}.png")))
+
+}
+
+
+library(scales)
+yearly_table <- all_data_gf %>%
+  group_by(year) %>%
+  summarise(wholefish = sum(wholefish_product),
+            trimmings = sum(trim_product)) %>%
+  ungroup() %>%
+  mutate(total = wholefish+trimmings) %>%
+  mutate(prop_whole = wholefish/total,
+         prop_trim = trimmings/total) %>%
+    mutate(perc_whole = percent(wholefish / total, accuracy = 0.1),
+         perc_trim = percent(trimmings / total, accuracy = 0.1)) %>%
+  dplyr::select(year, perc_whole, perc_trim)
+
+print(yearly_table)
+
+
+library(scales)
+yearly_table <- all_data_gf %>%
+  filter(phylum == "chordata") %>%
+  group_by(year) %>%
+  summarise(wholefish = sum(wholefish_product),
+            trimmings = sum(trim_product)) %>%
+  ungroup() %>%
+  mutate(total = wholefish+trimmings) %>%
+  mutate(prop_whole = wholefish/total,
+         prop_trim = trimmings/total) %>%
+    mutate(perc_whole = percent(wholefish / total, accuracy = 0.1),
+         perc_trim = percent(trimmings / total, accuracy = 0.1)) %>%
+  dplyr::select(year, perc_whole, perc_trim)
+
+print(yearly_table)
+
+```
+
+
+```{r}
+artis_all_2020 <- all_data_gf %>%
+  filter(year == 2020,
+         str_detect(method_trim_gf, "GAM")) %>%
+  distinct(source_country_iso3c, sciname, common_name, phylum, trim_prop_gf_fin)
+
+unique(all_data_gf$method_trim_gf)
+```
+
+
+Plots
+
+```{r}
+## look at proportions over time 
+
+over_time <- all_data_gf %>%
+  group_by(year, fishmeal_type) %>%
+  summarise(product_t = sum(product_weight_t, na.rm = TRUE)) %>%
+  ungroup() %>%
+  group_by(year) %>%
+  mutate(total_t = sum(product_t)) %>%
+  ungroup() %>%
+  mutate(prop = product_t/total_t)
+
+ggplot(over_time, aes(x = year, y = prop, color = fishmeal_type)) +
+  # geom_point() +
+  geom_line() +
+    geom_text(data = over_time, aes(label = round(prop,2)), 
+            # hjust = -0.2, 
+            vjust = -0.5,
+            size = 3) + 
+  theme_bw() +
+  labs(title = "Global fishmeal production over time (1996-2020)", x = "Year", y = "Proportion of fishmeal", caption = "All species")
+
+
+over_time <- all_data_gf %>%
+  filter(phylum %in% c("chordata", NA)) %>% # ok only finfish (or NA)
+  filter(!(common_name %in% c("sea urchins", "saltwater mussels", "sea lamprey", "lampreys nei"))) %>%
+  group_by(year, fishmeal_type) %>%
+  summarise(product_t = sum(product_weight_t, na.rm = TRUE)) %>%
+  ungroup() %>%
+  group_by(year) %>%
+  mutate(total_t = sum(product_t)) %>%
+  ungroup() %>%
+  mutate(prop = product_t/total_t)
+
+ggplot(over_time, aes(x = year, y = prop, color = fishmeal_type)) +
+ # geom_point() +
+  geom_line() +
+  geom_text(data = over_time, aes(label = round(prop,2)), 
+            # hjust = -0.2, 
+            vjust = -0.5,
+            size = 3) + 
+  theme_bw() +
+  labs(title = "Global fishmeal production over time (1996-2020)", x = "Year", y = "Proportion of fishmeal", caption = "Finfish only")
+
+
+over_time <- all_data_gf %>%
+  group_by(year, fishmeal_type, phylum) %>%
+  summarise(product_t = sum(product_weight_t, na.rm = TRUE)) %>%
+  ungroup() %>%
+  group_by(year) %>%
+  mutate(total_t = sum(product_t)) %>%
+  ungroup() %>%
+  mutate(prop = product_t/total_t)
+
+ggplot(over_time, aes(x = year, y = product_t, color = fishmeal_type)) +
+ #geom_point() +
+  geom_line() +
+  facet_wrap(~phylum) + 
+  theme_bw() +
+  labs(title = "Global fishmeal production over time (1996-2020)", x = "Year", y = "Product weight (tonnes)")
+
+
+over_time <- all_data_gf %>%
+  filter(phylum %in% c("chordata", NA)) %>% # ok only finfish (or NA)
+  filter(!(common_name %in% c("sea urchins", "saltwater mussels", "sea lamprey", "lampreys nei"))) %>%
+  filter(source_country_iso3c == "CHN") %>%
+  group_by(year, fishmeal_type) %>%
+  summarise(product_t = sum(product_weight_t, na.rm = TRUE)) %>%
+  ungroup() %>%
+  group_by(year) %>%
+  mutate(total_t = sum(product_t)) %>%
+  ungroup() %>%
+  mutate(prop = product_t/total_t)
+
+ggplot(over_time, aes(x = year, y = prop, color = fishmeal_type)) +
+ # geom_point() +
+  geom_line() +
+  geom_text(data = over_time, aes(label = round(prop,2)), 
+            # hjust = -0.2, 
+            vjust = -0.5,
+            size = 3) + 
+  theme_bw() +
+  labs(title = "Finfish fishmeal production over time (1996-2020) in China", x = "Year", y = "Proportion of fishmeal", caption = "Finfish only")
+
+
+over_time <- all_data_gf %>%
+  #filter(phylum %in% c("chordata", NA)) %>% # ok only finfish (or NA)
+  #filter(!(common_name %in% c("sea urchins", "saltwater mussels", "sea lamprey", "lampreys nei"))) %>%
+  filter(source_country_iso3c == "CHN") %>%
+  group_by(year, fishmeal_type, phylum) %>%
+  summarise(product_t = sum(product_weight_t, na.rm = TRUE)) %>%
+  ungroup() %>%
+  group_by(year) %>%
+  mutate(total_t = sum(product_t)) %>%
+  ungroup() %>%
+  mutate(prop = product_t/total_t)
+
+ggplot(over_time, aes(x = year, y = product_t, color = fishmeal_type)) +
+  geom_line() +
+  facet_wrap(~phylum) + 
+  theme_bw() +
+  labs(title = "Fishmeal production over time (1996-2020) in China", x = "Year", y = "Product weight (tonnes)")
+
+```
+
+
+
+
+### TESTING
+
+Model fitting Beta regression, using brms package: 
+
+Try some models using brms package. This will fit generalized non-linear multivariate multilevel models. We can fit a beta distribution using this. Jessica also suggested Dirichlet regression, however, I don't think that is appropriate for this, as we don't need all rows to add up to 1. This fit also allows smoothing
+
+https://www.andrewheiss.com/blog/2021/11/08/beta-regression-guide/
+
+```{r}
+
+artis_trimmings_beta <- artis_trimmings %>% 
+  mutate(trim_prop_beta = case_when(
+    trim_prop_gf == 0 ~ trim_prop_gf + 0.000000001,
+        trim_prop_gf == 1 ~ trim_prop_gf - 0.000000001, # regular beta regression can't take 0 or 1
+    TRUE ~ trim_prop_gf
+  )) %>%
+  mutate(filleted = as.factor(filleted),
+         source_country_iso3c = as.factor(source_country_iso3c),
+         year = as.factor(year),
+         family = as.factor(family)) %>%
+  distinct(trim_prop_gf, trim_prop_beta, price_gf, filleted, source_country_iso3c, family, year)
+
+# %>%
+#  filter(year == 1996)
+# ,
+#          source_country_iso3c %in% c("CHN", "USA"))
+
+
+form <- brms::brmsformula(trim_prop_beta ~ s(price_gf) + filleted + 
+                 (1 | source_country_iso3c) + (1 | family) + (1 | year),
+           decomp = "QR") # country and family are random effects to account for country and family specific variability, year would be as well. We also smooth price as it is non-linear
+
+## to speed up try:
+# decomp = "QR" in bf function
+# normalize = FALSE in brm function 
+# stan_model_args=list(stanc_options = list("O1")) to brm function
+# do i need year as part of the model? Technically trim_prop_gf doesn't change according to year, so it is unneccessary in the model. 
+
+get_prior(
+  form,
+  data = artis_trimmings_beta,
+  family = Beta()
+)
+
+
+## set prior for price based around the mean
+mean(artis_trimmings$price_gf) # 1910.909
+median(artis_trimmings$price_gf)
+
+# set rest of priors to help with speed
+price_prior <- c(
+  set_prior("normal(1910.909, 2000)", class = "b", coef = "sprice_gf_1"),  # specific prior for sprice_gf_1
+  set_prior("normal(0,1)", class = "b", coef = "filleted1"),                # specific prior for filleted1
+  set_prior("student_t(3, 0, 2.5)", class = "Intercept"),                   # prior for intercept
+  set_prior("normal(0,1)", class = "b", coef = "")                          # default prior for other b coefficients
+) # does this change any priors we haven't already changed for class = b? Ok nevermind, it doens't have any effect (based on warning from model)
+
+# Markov chain Monte Carlo = MCMC 
+                    
+nchains = 4 # ok so based testing there is no real time difference between 4 or 8 chains. I'm gonna stick with 4 chains out of caution for time with the full dataset 
+ncores = parallel::detectCores() - 1 
+
+
+fit1 <- brm(formula = form, data = artis_trimmings_beta, family = brms::Beta(), 
+            prior = price_prior,
+            control = list(adapt_delta = 0.92,
+                           max_treedepth = 11), # adding this based on prelim run suggestions from the output
+            chains = nchains, cores = ncores, iter = 1000, warmup = 500, seed = 1234, 
+            threads = threading(6), backend = "cmdstanr", normalize = FALSE, stan_model_args=list(stanc_options = list("O1")))
+
+qs::qsave(fit1, here("int/beta_model1_year.qs"))
+# ok without year it only takes ~9 mins! Good convergence 
+# with year it takes ~14 mins
+
+
+form2 <- brms::brmsformula(trim_prop_beta ~ s(price_gf) + filleted + 
+                 (1 | source_country_iso3c) + (1 | year),
+           decomp = "QR") # country and family are random effects to account for country and family specific variability, year would be as well. We also smooth price as it is non-linear
+
+nchains = 4 # ok so based testing there is no real time difference between 4 or 8 chains. I'm gonna stick with 4 chains out of caution for time with the full dataset 
+ncores = parallel::detectCores() - 1 
+
+
+fit2 <- brm(formula = form2, data = artis_trimmings_beta, family = brms::Beta(), 
+            prior = price_prior,
+            control = list(adapt_delta = 0.92,
+                           max_treedepth = 11), # adding this based on prelim run suggestions from the output
+            chains = nchains, cores = ncores, iter = 1000, warmup = 500, seed = 1234, 
+            threads = threading(6), backend = "cmdstanr", normalize = FALSE, stan_model_args=list(stanc_options = list("O1")))
+
+qs::qsave(fit2, here("int/beta_model2_year.qs"))
+
+
+form3 <- brms::brmsformula(trim_prop_beta ~ s(price_gf) + filleted + 
+                 (1 | family) + (1 | year),
+           decomp = "QR")
+
+nchains = 4 
+ncores = parallel::detectCores() - 1 
+
+
+fit3 <- brm(formula = form3, data = artis_trimmings_beta, family = brms::Beta(), 
+            prior = price_prior,
+            control = list(adapt_delta = 0.92,
+                           max_treedepth = 11), # adding this based on prelim run suggestions from the output
+            chains = nchains, cores = ncores, iter = 1000, warmup = 500, seed = 1234, 
+            threads = threading(6), backend = "cmdstanr", normalize = FALSE, stan_model_args=list(stanc_options = list("O1")))
+
+qs::qsave(fit3, here("int/beta_model3_year.qs"))
+
+form4 <- brms::brmsformula(trim_prop_beta ~ s(price_gf) + filleted  + (1 | year),
+           decomp = "QR")
+
+nchains = 4 
+ncores = parallel::detectCores() - 1 
+
+
+fit4 <- brm(formula = form4, data = artis_trimmings_beta, family = brms::Beta(), 
+            prior = price_prior,
+            control = list(adapt_delta = 0.92,
+                           max_treedepth = 11), # adding this based on prelim run suggestions from the output
+            chains = nchains, cores = ncores, iter = 1000, warmup = 500, seed = 1234, 
+            threads = threading(6), backend = "cmdstanr", normalize = FALSE, stan_model_args=list(stanc_options = list("O1")))
+
+qs::qsave(fit4, here("int/beta_model4_year.qs"))
+
+
+fit1 <- qread(here("int/beta_model1_year.qs"))
+
+# Assuming your model is stored in the variable `gam_model`
+# coefficients <- row.names(fixef(fit1))
+# 
+# # Extract the names of the coefficients that are included
+# 
+# family_coefs <- levels(fit1$data$family)
+# source_country_iso3c_codes <- levels(fit1$data$source_country_iso3c)
+  
+# predict_data_1 <- artis_trimmings_beta %>% 
+#   # filter(family %in% c(family_codes)) %>% # ok so we're mostly missing family names
+#   mutate(preds_1 = predict(fit1, newdata = ., allow_new_levels = TRUE)) %>%
+#     mutate(preds = preds_1[, "Estimate"], 
+#          preds_err = preds_1[, "Est.Error"],
+#          preds_q2.5 = preds_1[, "Q2.5"],
+#           preds_q975= preds_1[, "Q97.5"]) %>%
+#   dplyr::select(-preds_1 )
+# 
+# 
+# ggplot(predict_data_1, aes(x = preds, y = trim_prop_gf)) + geom_point() + geom_abline() 
+
+```
+
+```{r}
+beta_model <- qread(here("int/beta_model1_year.qs"))
+
+## first we need to exclude any observations that don't have levels in the data for source_country_iso3c AND for family
+
+# Extract the names of the coefficients that are included
+
+family_codes <- levels(beta_model$data$family)
+source_country_iso3c_codes <- levels(beta_model$data$source_country_iso3c)
+  
+predict_data_1 <- artis_trimmings_beta %>% 
+  filter(source_country_iso3c %in% c(source_country_iso3c_codes)) %>%
+  filter(family %in% c(family_codes)) %>% # ok so we're mostly missing family names
+  mutate(beta_preds_1 = predict(beta_model, newdata = ., allow_new_levels = TRUE)) %>%
+      mutate(preds = beta_preds_1[, "Estimate"]) %>%
+  dplyr::select(-beta_preds_1)
+
+
+## next exclude any observations that don't have levels in the data for iso3c
+
+beta_model2 <- qread(here("int/beta_model2_year.qs"))
+source_country_iso3c_codes <- levels(beta_model2$data$source_country_iso3c)
+
+predict_data_2 <- artis_trimmings_beta %>% 
+  filter(source_country_iso3c %in% c(source_country_iso3c_codes)) %>%
+  mutate(beta_preds_2 = predict(beta_model2, newdata = ., allow_new_levels = TRUE)) %>%
+      mutate(preds_2 = beta_preds_2[, "Estimate"]) %>%
+  dplyr::select(-beta_preds_2)
+
+## next exclude any observations that don't have levels in the data for family
+
+beta_model3 <- qread(here("int/beta_model3_year.qs"))
+family_codes <- levels(beta_model3$data$family)
+
+predict_data_3 <- artis_trimmings_beta %>% 
+  filter(family %in% c(family_codes)) %>% # ok so we're mostly missing family names
+  mutate(beta_preds_3 = predict(beta_model3, newdata = ., allow_new_levels = TRUE)) %>%
+      mutate(preds_3 = beta_preds_3[, "Estimate"]) %>%
+  dplyr::select(-beta_preds_3)
+
+
+## Now make predictions for all data
+
+beta_model4 <- qread(here("int/beta_model4_year.qs"))
+
+predict_data_4 <- artis_trimmings_beta %>% 
+  mutate(beta_preds_4 = predict(beta_model4, newdata = .)) %>%
+      mutate(preds_4 = beta_preds_4[, "Estimate"]) %>%
+  dplyr::select(-beta_preds_4)
+## now join all of these predictions to the full dataset
+
+predict_data_all <- predict_data_4 %>%
+  left_join(predict_data_1) %>%
+  left_join(predict_data_2) %>%
+  left_join(predict_data_3)
+
+predict_data_all_gf <- predict_data_all %>%
+ mutate(
+    # Start by assuming that trim_prop_gf_fin is the same as trim_prop_gf
+    trim_prop_gf_fin = ifelse(!is.na(trim_prop_gf), trim_prop_gf, NA),
+    
+    # Add the initial gapfill flag
+    gapfill_flag = ifelse(!is.na(trim_prop_gf), "Original", NA),
+    
+    # Fill missing values with betas_preds_1
+    trim_prop_gf_fin = ifelse(is.na(trim_prop_gf_fin), preds, trim_prop_gf_fin),
+    gapfill_flag = ifelse(is.na(trim_prop_gf_fin) & is.na(gapfill_flag), "beta1", gapfill_flag),
+    
+    # Fill missing values with betas_preds_3
+    trim_prop_gf_fin = ifelse(is.na(trim_prop_gf_fin), preds_3, trim_prop_gf_fin),
+    gapfill_flag = ifelse(is.na(trim_prop_gf_fin) & is.na(gapfill_flag), "beta3", gapfill_flag),
+    
+    # Fill missing values with betas_preds_2
+    trim_prop_gf_fin = ifelse(is.na(trim_prop_gf_fin), preds_2, trim_prop_gf_fin),
+    gapfill_flag = ifelse(is.na(trim_prop_gf_fin) & is.na(gapfill_flag), "beta2", gapfill_flag),
+    
+    # Fill missing values with betas_preds_4
+    trim_prop_gf_fin = ifelse(is.na(trim_prop_gf_fin), preds_4, trim_prop_gf_fin),
+    gapfill_flag = ifelse(is.na(trim_prop_gf_fin) & is.na(gapfill_flag), "beta4", gapfill_flag)
+  ) 
+
+predict_data_all_gf_fin <- predict_data_all_gf %>% 
+  dplyr::select(-preds, -preds_2, -preds_3, -preds_4,)
+qsave(predict_data_all_gf_fin, here("int/predicted_trimmings_values_beta.qs"))
+
+```
+
+Join predictions to full database
+
+```{r}
+artis_trimmings_predict <- artis_trimmings %>%
+  mutate(filleted = as.factor(filleted),
+         year = as.factor(year)) %>%
+  left_join(predict_data_all_gf_fin) %>%
+  distinct() 
+
+```
+
+Allocation to product weight with beta regressions
+
+```{r}
+
+all_data_gf <- artis_trimmings_predict %>%
+  mutate(trim_liveweight = trim_prop_gf_fin*live_weight_t,
+    trim_product = trim_prop_gf_fin*product_weight_t, 
+    wholefish_liveweight = (1-trim_prop_gf_fin)*live_weight_t,
+    wholefish_product = (1-trim_prop_gf_fin)*product_weight_t)
+
+for(year_loop in 1996:2020){
+
+artis_all_2020 <- all_data_gf %>%
+  filter(year == year_loop) %>%
+  left_join(countries, by = c("source_country_iso3c" = "iso3c")) %>%
+  mutate(owid_region = ifelse(is.na(owid_region), "unknown", owid_region)) %>%
+    mutate(owid_region = ifelse(owid_region == "Other nei", "unknown", owid_region))
+
+
+total_product_weight <- sum(artis_all_2020$product_weight_t, na.rm = TRUE) # 3494636
+
+
+## Let's make a bar plot and have x axis be the type of fish meal, y axis the proportion it represents, and fill by continent
+
+no_info_df <- artis_all_2020 %>%
+  filter(is.na(trim_prop_gf_fin)) %>%
+  mutate(fishmeal_type = "Not sure") %>%
+  group_by(fishmeal_type, owid_region) %>%
+  summarise(total = sum(product_weight_t)) %>%
+  ungroup()
+
+bar_plot_df <- artis_all_2020 %>% 
+  filter(!is.na(trim_prop_gf_fin)) %>% # shouldn't be any
+  pivot_longer(names_to = "fishmeal_type",
+               cols = c("wholefish_product", "trim_product")) %>%
+  mutate(fishmeal_type = ifelse(fishmeal_type == "trim_product", "Trimmings", "Whole fish")) %>%
+  group_by(fishmeal_type, owid_region) %>%
+  summarise(total = sum(value, na.rm = TRUE)) %>%
+  ungroup() %>%
+ # rbind(., no_info_df) %>%
+  mutate(total_product_t = total_product_weight) %>%
+  mutate(prop = total/total_product_t) %>%
+  mutate(perc = prop * 100) %>% # Convert to percentage
+  mutate(label = paste0(round(perc, 1), "%")) %>%
+  arrange(desc(fishmeal_type))  %>%
+  filter(prop > 0) %>%
+  arrange(-prop) 
+
+## oceania: #9F6144
+## Africa: #A660A1
+## Asia: #3F8D87
+## South America: #8F464E
+## North America: #E47669
+## Europe: #5E74A1
+## unknown: #808080
+## Other_nei: #808080
+  
+wholefish_prop <- bar_plot_df %>% filter(fishmeal_type == "Whole fish") %>% pull(prop) %>% sum()
+
+ggplot(bar_plot_df, aes(x = reorder(fishmeal_type, -prop), y = prop, fill = owid_region)) +
+  geom_bar(stat = "identity", color = "white") + 
+ scale_fill_manual(values = c("#A660A1", "#3F8D87", "#5E74A1", "#E47669", "#9F6144", "#8F464E", "#808080")) +
+  theme_classic() +
+  labs(fill = "Region", y = "Proportion of global trade", x = "Fishmeal type") + 
+    scale_x_discrete(expand = c(0,0)) +
+  scale_y_continuous(expand = c(0,0))
+
+ggsave(glue(here("outputs/figs/beta/props_{wholefish_prop}_{year_loop}.png")))
+
+}
+
+
+yearly_table <- all_data_gf %>%
+  group_by(year) %>%
+  summarise(wholefish = sum(wholefish_product),
+            trimmings = sum(trim_product)) %>%
+  ungroup() %>%
+  mutate(total = wholefish+trimmings) %>%
+  mutate(prop_whole = wholefish/total,
+         prop_trim = trimmings/total) %>%
+    mutate(perc_whole = percent(wholefish / total, accuracy = 0.1),
+         perc_trim = percent(trimmings / total, accuracy = 0.1)) %>%
+  dplyr::select(year, perc_whole, perc_trim)
+
+print(yearly_table)
+
+
+# ok using Beta regression with year, we are getting pretty high trimmings values..
+# year|perc_whole|perc_trim
+# 2016	39.9%	60.1%		
+# 2017	48.5%	51.5%		
+# 2018	48.5%	51.5%		
+# 2019	47.3%	52.7%		
+# 2020	44.9%	55.1%
+
+# when including year in the beta regession, trimmings values are still high
+
+# year|perc_whole|perc_trim
+# 2016	39.7%	60.3%		
+# 2017	48.5%	51.5%		
+# 2018	48.4%	51.6%		
+# 2019	47.2%	52.8%		
+# 2020	44.8%	55.2%
+
+## doing hierarchical modelling by making separate models for missing levels, we find basically the same: 
+
+
+# year
+# perc_whole
+# perc_trim
+# 2016	40.2%	59.8%		
+# 2017	48.8%	51.2%		
+# 2018	48.8%	51.2%		
+# 2019	47.6%	52.4%		
+# 2020	45.2%	54.8%
+```
+
+
+```{r}
+test <- read.csv(file.path("/mnt/rdsi/raw_data/fao/processed_products/CL_FI_COMMODITY_ISSCFC.csv"))
+
+# Fishmeal obtained from fish waste/offals
+# Code = 081.42.1.5.9.99
+# parent code = 081.42.1.5.9
+# ISSCAAP = 39
+# identifier = 1602
+
+
+countries <- read.csv("/mnt/rdsi/raw_data/fao/processed_products/CL_FI_COUNTRY_GROUPS.csv") %>%
+  clean_names()
+
+production <- read.csv(file.path("/mnt/rdsi/raw_data/fao/processed_products/TRADE_PP_QUANTITY.csv")) %>%
+  clean_names() %>%
+  filter(commodity_fao_code == "081.42.1.5.9.99") %>%
+  left_join(countries, by = c("country_un_code" = "un_code"))
+
+# only Chile and Peru are reporting.. so not much to go by from here. Could get trends from these countries and then apply it worldwide i suppose. 
+# big increase in Peru from 2017-2022
+# no increase in Chile from 1985-2017?
+
+```
+

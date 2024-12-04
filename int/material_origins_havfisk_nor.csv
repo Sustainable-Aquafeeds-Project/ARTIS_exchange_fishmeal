@@ -1,0 +1,4 @@
+"common_name","sciname","country","iso3c","wholefish","trimmings","trim_prop","data_source_feed","data_source_fao_area_country","feed_report_spp_name","capture","trash_fish"
+"atlantic cod","gadus morhua","Norway","NOR","no","yes",1,"Havfisk 2024",NA,"gadus morhua","yes","no"
+"haddock","melanogrammus aeglefinus","Norway","NOR","no","yes",1,"Havfisk 2024",NA,"melanogrammus aeglefinus","yes","no"
+"saithe(=pollock)","pollachius virens","Norway","NOR","no","yes",1,"Havfisk 2024",NA,"pollachius virens","yes","no"

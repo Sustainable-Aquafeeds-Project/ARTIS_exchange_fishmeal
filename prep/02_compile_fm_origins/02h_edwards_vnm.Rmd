@@ -122,6 +122,7 @@ final <- species_vnm_int %>%
 
 
 write.csv(final, here("int/material_origins_edwards_vnm.csv"), row.names = FALSE)
+test <- read.csv(here("int/material_origins_edwards_vnm.csv"))
 
 ```
 

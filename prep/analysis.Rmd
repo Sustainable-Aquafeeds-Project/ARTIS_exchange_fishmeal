@@ -1,0 +1,252 @@
+---
+title: "Explore scenario analysis"
+output: html_document
+date: "2024-11-25"
+editor_options: 
+  chunk_output_type: console
+---
+
+## Summary
+
+## Setup
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(here)
+library(tidyverse)
+library(glue)
+library(sf)
+library(devtools)
+library(janitor)
+library(countrycode)
+library(qs)
+library(scales)
+library(viridis)
+library(dplyr)
+
+source(here("R/directories.R"))
+
+full_artis <- qs::qread(file.path(artis_dir, "full_artis_fm_fillet.qs"))
+
+fillet_artis <- full_artis %>%
+  filter(hs6 != 230120) %>%
+  dplyr::select(-hs_version) %>% # don't need this
+  rename(consumer_iso3c = importer_iso3c) # just to make things consistent
+
+artis_taxa <- read.csv(file.path(artis_dir, "artis_full_data/data/attribute tables/sciname.csv")) ## read in attribute table with common names
+countries <- read.csv(here("data/countries.csv")) ## artis countries with info
+
+fm_data <-   qs::qread(file.path(artis_dir, "artis_exchange/artis_fishmeal_trimmings_traded_consumption_gf_final.qs"))
+
+```
+
+ 
+To figure out: 
+ - How much trimmings fishmeal could be created if BAU? I.e., we keep whole fish production going, but just utilise fillet trimmings to full extent. Could this extra trimmings FM make up for losses in whole fish reduction? 
+ - How much trimmings fishmeal could be created if we directed all whole fish production FM to human consumption instead? Could this extra trimmings make up for losses in whole fish reduction?
+ - How much extra human food would be created if we stopped whole fish production? Does this extra human food match the production amounts of fed aquaculture? 
+
+
+How much trimmings fishmeal could be created if BAU? I.e., we keep whole fish production going, but just utilise fillet trimmings to full extent. Could this extra trimmings FM make up for losses in whole fish reduction? 
+
+```{r}
+
+# If a species is filleted and used as trimmings, then we will ultimately need to subtract that from the total we calculate. 
+
+# Look at fillet data, determine how much of each filleted species is waste, assume all of that waste is used for fishmeal. 
+
+## what sort of liveweight conversions is she using for filleted species?
+test <- fillet_artis %>%
+  filter(year == 2020) %>%
+  mutate(conversion = live_weight_t/product_weight_t) # seems like there are some species and region specific conversions here
+## I think that we can just subtract the liveweight and product weight for each fillet, and that will give us the processing waste weight. Then we take the processing waste weight and apply the 2.97 conversion that ARTIS uses to convert to FM. Easy. Obviously this is just a first pass and very simple.
+
+extra_trimmings <- fillet_artis %>%
+  mutate(processing_waste_t = live_weight_t - product_weight_t) %>%
+  dplyr::select(-product_weight_t, -live_weight_t, -consumer_iso3c, -hs6) %>% 
+  group_by(year, source_country_iso3c, exporter_iso3c, sciname, habitat, method) %>%
+  summarise(processing_waste_t = sum(processing_waste_t, na.rm = TRUE)) %>%
+  ungroup() %>%
+  mutate(trimmings_fm_t = processing_waste_t/2.975207, 
+         fishmeal_type = "trimmings")
+
+test <- extra_trimmings %>%
+  filter(year %in% c(2009:2013)) %>%
+  group_by(source_country_iso3c, exporter_iso3c, sciname, habitat, method) %>%
+  summarise(processing_waste_t = mean(processing_waste_t, na.rm = TRUE)) %>%
+  ungroup() %>%
+  mutate(trimmings_fm_t = processing_waste_t/2.975207)
+
+sum(test$trimmings_fm_t) # 2611612 - 2.61 million tonnes; This is just additional fishmeal (probably, we will need to match to ARTIS fishmeal data and subtract any trimmings from that out). Newton and Jackson say There is ~2.365 million unused by-product tonnes of fishmeal on average from 2009-2013. So we are exceeding them by ~300k tonnes (without accounting for trimmings we already see in data...). If we account for what we already have in the ARTIS data, this number will come down. 
+
+# from newton and jackson for TOTAL AMOUNT OF FISHMEAL:  "If all fish were processed and all the by-product collected it is estimated that globally there would be around 36 million tonnes of raw material available producing about 9.5 million tonnes of fishmeal and 1.5 million tonnes of fish oil."
+  
+fm_trim_df <- fm_data %>%
+  filter(fishmeal_type == "trimmings") %>%
+  group_by(year, source_country_iso3c, exporter_iso3c, sciname, habitat, method) %>%
+  summarise(product_weight_t = sum(product_weight_t, na.rm = TRUE)) %>%
+  ungroup()
+
+
+extra_trimmings_final <- extra_trimmings %>%
+  left_join(., fm_trim_df) %>%
+  mutate(product_weight_t = ifelse(is.na(product_weight_t), 0, product_weight_t)) %>%
+  mutate(unused_trimmings_t = trimmings_fm_t - product_weight_t) %>%
+mutate(unused_trimmings_t = ifelse(unused_trimmings_t < 0, 0, unused_trimmings_t)) ## there are some negatives here... so we'll make these 0s; these are negatives because we might be overestimating the amount of trimmings from forage fisheries
+  
+
+test <- extra_trimmings_final %>%
+  filter(year %in% c(2009:2013)) %>%
+  group_by(source_country_iso3c, exporter_iso3c, sciname, habitat, method) %>%
+  summarise(unused_trimmings_t = mean(unused_trimmings_t, na.rm = TRUE)) %>%
+  ungroup()
+
+sum(test$unused_trimmings_t, na.rm = TRUE) # 2353571; ALMOST EXACTLY LOL; after accounting for what we already use
+
+
+## IFFO reports that ~33% FM for the 2009-2013 average period is from trimmings
+test2 <- fm_data %>%
+  left_join(artis_taxa) %>%
+ # filter(phylum == "chordata"|phylum == "arthropoda"& method == "aquaculture" |str_detect(common_name, "squid|octop")|sciname == "actinopterygii"|sciname == "animalia") %>%
+  filter(year %in% c(2009:2013)) %>%
+  group_by(year, fishmeal_type) %>%
+  summarise(product_weight_t = sum(product_weight_t, na.rm = TRUE)) %>%
+  ungroup() %>%
+  group_by(fishmeal_type) %>%
+  summarise(product_weight_t = mean(product_weight_t, na.rm = TRUE)) %>%
+  ungroup() # we get 0.3590324 ~36%, so pretty close. 
+
+```
+
+```{r}
+
+# Read the data
+fm_data <- fillet_price_all_gf
+
+# Function to summarize current state of fishmeal trade
+analyze_current_state <- function(data) {
+  # Overall summary by fishmeal type
+  type_summary <- data %>%
+    group_by(fishmeal_type) %>%
+    summarise(
+      total_product_weight = sum(product_weight_t, na.rm = TRUE),
+      total_live_weight = sum(live_weight_t, na.rm = TRUE)
+    )
+  
+  # Species summary
+  species_summary <- data %>%
+    group_by(sciname, common_name, fishmeal_type) %>%
+    summarise(
+      total_product_weight = sum(product_weight_t, na.rm = TRUE)
+    ) %>%
+    arrange(desc(total_product_weight))
+  
+  # Trade flow summary
+  trade_summary <- data %>%
+    group_by(source_country_iso3c, exporter_iso3c, consumer_iso3c) %>%
+    summarise(
+      total_product_weight = sum(product_weight_t, na.rm = TRUE)
+    ) %>%
+    arrange(desc(total_product_weight))
+  
+  return(list(
+    type_summary = type_summary,
+    species_summary = species_summary,
+    trade_summary = trade_summary
+  ))
+}
+
+# Function to analyze Peruvian anchoveta specifically
+analyze_anchoveta <- function(data) {
+  anchoveta_data <- data %>%
+    filter(grepl("Engraulis ringens", sciname, ignore.case = TRUE) |
+           grepl("Peruvian anchoveta", common_name, ignore.case = TRUE))
+  
+  # Summarize anchoveta usage
+  anchoveta_summary <- anchoveta_data %>%
+    group_by(consumer_iso3c) %>%
+    summarise(
+      total_product_weight = sum(product_weight_t, na.rm = TRUE)
+    ) %>%
+    arrange(desc(total_product_weight))
+  
+  return(anchoveta_summary)
+}
+
+
+# Visualization functions
+plot_current_distribution <- function(data) {
+  ggplot(data %>% 
+           group_by(fishmeal_type) %>%
+           summarise(total_weight = sum(product_weight_t, na.rm = TRUE))) +
+    geom_col(aes(x = fishmeal_type, y = total_weight, fill = fishmeal_type)) +
+    scale_y_continuous(labels = scales::comma) +
+    theme_minimal() +
+    labs(
+      title = "Distribution of Fishmeal by Type",
+      x = "Fishmeal Type",
+      y = "Total Product Weight (tonnes)"
+    )
+}
+
+plot_trade_flows <- function(data) {
+  # Create a simplified trade flow visualization
+  trade_flows <- data %>%
+    group_by(source_country_iso3c, consumer_iso3c) %>%
+    summarise(
+      total_weight = sum(product_weight_t, na.rm = TRUE)
+    ) %>%
+    arrange(desc(total_weight))
+  
+  # Top 10 flows
+  top_flows <- head(trade_flows, 10)
+  
+  ggplot(top_flows) +
+    geom_segment(aes(
+      x = 1, xend = 2,
+      y = reorder(paste(source_country_iso3c, consumer_iso3c), total_weight),
+      yend = reorder(paste(source_country_iso3c, consumer_iso3c), total_weight),
+      size = total_weight
+    )) +
+    scale_size_continuous(labels = scales::comma) +
+    theme_minimal() +
+    labs(
+      title = "Top 10 Fishmeal Trade Flows",
+      x = "",
+      y = "Trade Route (Source → Consumer)",
+      size = "Product Weight (tonnes)"
+    )
+}
+
+# Main analysis pipeline
+main_analysis <- function() {
+  # Read data
+  fm_data <- fillet_price_all_gf
+  
+  # Current state analysis
+  current_state <- analyze_current_state(fm_data)
+  
+  # Anchoveta specific analysis
+  anchoveta_analysis <- analyze_anchoveta(fm_data)
+  
+  # Scenario analysis
+
+  # Generate visualizations
+  p1 <- plot_current_distribution(fm_data)
+  p2 <- plot_trade_flows(fm_data)
+  
+  # Save results
+  saveRDS(current_state, "results_current_state.rds")
+  saveRDS(anchoveta_analysis, "results_anchoveta.rds")
+
+  # Save plots
+  ggsave("distribution_plot.png", p1, width = 10, height = 6)
+  ggsave("trade_flows_plot.png", p2, width = 12, height = 8)
+}
+
+
+
+
+```
+
