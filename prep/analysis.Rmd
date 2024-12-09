@@ -34,12 +34,211 @@ fillet_artis <- full_artis %>%
   dplyr::select(-hs_version) %>% # don't need this
   rename(consumer_iso3c = importer_iso3c) # just to make things consistent
 
-artis_taxa <- read.csv(file.path(artis_dir, "artis_full_data/data/attribute tables/sciname.csv")) ## read in attribute table with common names
+artis_taxa <- read.csv(file.path(artis_dir, "artis_full_data/data/attribute tables/sciname.csv")) %>% ## read in attribute table with common names
+  mutate(phylum = case_when(
+    common_name %in% c("mackerels, tunas, and bonitos", "salmons and trouts", "herrings", "cartilaginous fishes nei", "flounders", "african lungfishes", "toothfish", "carps, minnows, loaches, etc", "blue whitings") ~ "chordata",
+    TRUE ~ phylum
+  )) # fix phylum mistakes
 countries <- read.csv(here("data/countries.csv")) ## artis countries with info
 
-fm_data <-   qs::qread(file.path(artis_dir, "artis_exchange/artis_fishmeal_trimmings_traded_consumption_gf_final.qs"))
+fm_data <-   qs::qread(file.path(artis_dir, "artis_exchange/artis_fishmeal_trimmings_traded_consumption_gf_final.qs")) %>%
+  left_join(artis_taxa)
 
 ```
+
+Figure 1: 
+Trends from 1996-2020 split by phylum
+
+```{r}
+all_spp_time <- fm_data %>%
+  group_by(year, fishmeal_type) %>%
+  summarise(product_t = sum(product_weight_t, na.rm = TRUE)) %>%
+  ungroup() %>%
+  group_by(year) %>%
+  mutate(total_t = sum(product_t)) %>%
+  ungroup() %>%
+  mutate(prop = product_t/total_t) %>%
+  mutate(data_type = "All species")
+
+finfish_time <- fm_data %>%
+  filter(phylum == "chordata") %>%
+  group_by(year, fishmeal_type) %>%
+  summarise(product_t = sum(product_weight_t, na.rm = TRUE)) %>%
+  ungroup() %>%
+  group_by(year) %>%
+  mutate(total_t = sum(product_t)) %>%
+  ungroup() %>%
+  mutate(prop = product_t/total_t) %>%
+  mutate(data_type = "Finfish") 
+
+crust_time <- fm_data %>%
+  filter(phylum == "arthropoda") %>%
+  group_by(year, fishmeal_type) %>%
+  summarise(product_t = sum(product_weight_t, na.rm = TRUE)) %>%
+  ungroup() %>%
+  group_by(year) %>%
+  mutate(total_t = sum(product_t)) %>%
+  ungroup() %>%
+  mutate(prop = product_t/total_t) %>%
+  mutate(data_type = "Crustaceans") 
+
+mollusc_time <- fm_data %>%
+  filter(phylum == "mollusca") %>%
+  group_by(year, fishmeal_type) %>%
+  summarise(product_t = sum(product_weight_t, na.rm = TRUE)) %>%
+  ungroup() %>%
+  group_by(year) %>%
+  mutate(total_t = sum(product_t)) %>%
+  ungroup() %>%
+  mutate(prop = product_t/total_t) %>%
+  mutate(data_type = "Molluscs") 
+
+overtime_all <- rbind(all_spp_time, finfish_time, crust_time, mollusc_time) %>%
+  mutate(perc = scales::percent(round(prop, 2), accuracy = 1))
+
+artis_palette(length(unique(overtime_all$fishmeal_type)))
+
+ggplot(overtime_all, aes(x = year, y = product_t, color = fishmeal_type)) +
+  geom_line() +
+  theme_bw() +
+  facet_wrap(~data_type, scales = "free_x") + 
+  labs(x = "Year", y = "Fishmeal product (tonnes)", color = "Fishmeal type") + 
+    scale_color_manual(values = c("trimmings" = "#741A32", "whole fish" = "#114F59"), 
+                     labels = c("Trimmings-derived", "Whole fish-derived")) + 
+  scale_x_continuous(limits = c(1994.5, 2021.5), breaks = c(1996, 2002, 2008, 2014, 2020), 
+                     labels = c(1996, 2002, 2008, 2014, 2020)) +
+  theme(legend.position = "bottom") +
+    geom_text(data = filter(overtime_all, year == 2020, fishmeal_type == "trimmings", data_type != "Molluscs"),
+            aes(x = year, y = product_t, label = perc),
+            vjust = 0, hjust = -0.1, show.legend = FALSE, size = 3) +
+      geom_text(data = filter(overtime_all, year == 2020, fishmeal_type == "whole fish", data_type != "Molluscs"),
+            aes(x = year, y = product_t, label = perc),
+            vjust = 0, hjust = -0.1, show.legend = FALSE, size = 3) +
+      geom_text(data = filter(overtime_all, year %in% c(2020), fishmeal_type == "trimmings", data_type == "Molluscs"),
+            aes(x = year, y = product_t, label = perc),
+            vjust = 0.5, hjust = -0.1, show.legend = FALSE, size = 3) +
+      geom_text(data = filter(overtime_all, year == 2020, fishmeal_type == "whole fish", data_type == "Molluscs"),
+            aes(x = year, y = product_t, label = perc),
+            vjust = -0.5, hjust = -0.1, show.legend = FALSE, size = 3) + 
+      geom_text(data = filter(overtime_all, year == 1996, fishmeal_type == "trimmings", data_type != "Crustaceans"),
+            aes(x = year, y = product_t, label = perc),
+            vjust = 0, hjust = 1, show.legend = FALSE, size = 3) +
+      geom_text(data = filter(overtime_all, year == 1996, fishmeal_type == "whole fish", data_type != "Crustaceans"),
+            aes(x = year, y = product_t, label = perc),
+            vjust = 0, hjust = 1, show.legend = FALSE, size = 3) +
+        geom_text(data = filter(overtime_all, year == 1996, fishmeal_type == "trimmings", data_type == "Crustaceans"),
+            aes(x = year, y = product_t, label = perc),
+            vjust = 0, hjust = 1, show.legend = FALSE, size = 3) +
+      geom_text(data = filter(overtime_all, year == 1996, fishmeal_type == "whole fish", data_type == "Crustaceans"),
+            aes(x = year, y = product_t, label = perc),
+            vjust = 0.5, hjust = 1, show.legend = FALSE, size = 3) 
+
+
+
+ggsave(here("outputs/figs/MS/Figure_1_time.png"), width = 180, height =180 , units = "mm", bg = "white", dpi =300)
+
+
+```
+
+
+Trade flows:
+
+```{r}
+
+library(exploreARTIS)
+
+
+  # Create a simplified trade flow visualization
+  trade_flows <- fm_data %>%
+    filter(year == 2020) %>%
+    group_by(source_country_iso3c, exporter_iso3c, importer_iso3c = consumer_iso3c, fishmeal_type, phylum) %>%
+    summarise(
+      product_weight_t = sum(product_weight_t, na.rm = TRUE),
+            live_weight_t = sum(live_weight_t, na.rm = TRUE)
+
+    ) %>%
+    arrange(desc(product_weight_t)) %>%
+    filter(product_weight_t > 0)
+
+  plot_sankey(trade_flows %>% filter(fishmeal_type == "whole fish"), cols = c("phylum", "source_country_iso3c", "importer_iso3c"), prop_flow_cutoff = 0.03, value = "product_weight_t") 
+  
+    plot_sankey(trade_flows %>% filter(fishmeal_type == "trimmings"), cols = c("phylum", "source_country_iso3c", "importer_iso3c"), prop_flow_cutoff = 0.03, value = "product_weight_t") 
+    
+      plot_sankey(trade_flows %>% filter(fishmeal_type == "whole fish"), cols = c("phylum", "source_country_iso3c", "importer_iso3c"), prop_flow_cutoff = 0.03, value = "product_weight_t") 
+  
+    plot_sankey(trade_flows, cols = c("phylum", "fishmeal_type", "importer_iso3c"), prop_flow_cutoff = 0.025, value = "product_weight_t") 
+  
+  trade_flows_2 <- filter(trade_flows, exporter_iso3c != importer_iso3c)
+  
+  plot_map(trade_flows_2 %>% filter(fishmeal_type == "whole fish"), country_fill = "importer_iso3c", flow_arrows = TRUE, arrow_label = "Trade (product t)", fill_label = "Import (product t)", value = "product_weight_t")
+  
+    plot_map(trade_flows_2 %>% filter(fishmeal_type == "trimmings"), country_fill = "importer_iso3c", flow_arrows = TRUE, arrow_label = "Trade (product t)", fill_label = "Import (product t)", value = "product_weight_t")
+  
+    
+      plot_map(trade_flows_2 %>% filter(fishmeal_type == "whole fish", phylum == "chordata"), country_fill = "importer_iso3c", flow_arrows = TRUE, arrow_label = "Trade (product t)", fill_label = "Import (product t)", value = "product_weight_t")
+  
+    plot_map(trade_flows_2 %>% filter(fishmeal_type == "trimmings", phylum == "chordata"), country_fill = "importer_iso3c", flow_arrows = TRUE, arrow_label = "Trade (product t)", fill_label = "Import (product t)", value = "product_weight_t")
+  
+    
+  trade_flows_3 <- fm_data %>%
+    filter(year == 2020) %>%
+    group_by(importer_iso3c = consumer_iso3c, fishmeal_type) %>%
+    summarise(
+      product_weight_t = sum(product_weight_t, na.rm = TRUE),
+            live_weight_t = sum(live_weight_t, na.rm = TRUE)
+
+    ) %>%
+    arrange(desc(product_weight_t)) %>%
+    filter(product_weight_t > 0) 
+  
+    trade_flows_3 <- fm_data %>%
+    filter(year == 2020, source_country_iso3c != consumer_iso3c) %>%
+    group_by(importer_iso3c = consumer_iso3c, fishmeal_type) %>%
+    summarise(
+      product_weight_t = sum(product_weight_t, na.rm = TRUE),
+            live_weight_t = sum(live_weight_t, na.rm = TRUE)
+
+    ) %>%
+    arrange(desc(product_weight_t)) %>%
+    filter(product_weight_t > 0) 
+    
+    
+        
+  trade_flows_4 <- fm_data %>%
+    filter(year == 2020) %>%
+    group_by(source_country_iso3c, fishmeal_type) %>%
+    summarise(
+      product_weight_t = sum(product_weight_t, na.rm = TRUE),
+            live_weight_t = sum(live_weight_t, na.rm = TRUE)
+
+    ) %>%
+    arrange(desc(product_weight_t)) %>%
+    filter(product_weight_t > 0) 
+
+  
+  
+    trade_flows_4 <- fm_data %>%
+    filter(year == 2020) %>%
+    group_by(common_name, fishmeal_type) %>%
+    summarise(
+      product_weight_t = sum(product_weight_t, na.rm = TRUE),
+            live_weight_t = sum(live_weight_t, na.rm = TRUE)
+
+    ) %>%
+    arrange(desc(product_weight_t)) %>%
+    filter(product_weight_t > 0) 
+    
+    
+    
+    
+plot_bar(trade_flows_4,
+        bar_group = "common_name",
+        fill_type = "fishmeal_type", 
+        value = "product_weight_t", 
+        top_n = 15)
+
+```
+
 
  
 To figure out: 

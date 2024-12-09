@@ -293,6 +293,21 @@ qs::qsave(artis_trimmings_all_gf, file.path(artis_dir, "artis_exchange/artis_fis
 Some testing to make sure things ran ok 
 
 ```{r}
+trim_gf <- qs::qread(file.path(artis_dir, "artis_exchange/artis_fishmeal_trimmings_simple_gf_traded_consumption.qs"))
+
+summary <- trim_gf %>%
+  filter(year == 2020) %>%
+  group_by(method_gf) %>%
+  summarise(tonnes_prod_gf = sum(product_weight_t, na.rm = TRUE),
+            spp = n_distinct(sciname),
+            iso3c = n_distinct(source_country_iso3c)) %>%
+  ungroup() %>%
+  mutate(prop = tonnes_prod_gf/sum(tonnes_prod_gf))
+
+```
+
+
+```{r}
 test_sal_tuna <- artis_trimmings_all_gf %>%
   filter(year == "2020",
          str_detect(common_name, "tuna|almonids nei"),
