@@ -1,7 +1,7 @@
 ---
 title: "Model and predict trimmings proportions"
 output: html_document
-date: "2024-08-22"
+date: "2024-12-08"
 editor_options: 
   chunk_output_type: inline
 ---
@@ -168,7 +168,7 @@ run_all_models <- function(data) {
 }
 
 # Example usage:
-if(TRUE) {  # Set to TRUE to run
+if(FALSE) {  # Set to TRUE to run
   # Assuming your data is in artis_trimmings_beta_2
   models <- run_all_models(artis_trimmings_beta)
 }
@@ -273,7 +273,7 @@ cross validation
  - Choose best models? I want to cut this down as much as possible, because some of these models take really long to run (~7-8 hours), and running them 5 times might take quite a long time. 
 
 ```{r}
-ctrl <- list(nthreads=6) # try with 8 cores?
+ctrl <- list(nthreads=20) # 20 cores?
 
 file_paths <- list.files(here("int/models/"), full.names = TRUE)
 file_paths <- file_paths[!grepl("diagnostics", file_paths)]
@@ -284,115 +284,177 @@ all_diagnostics <- read.csv(here("int/models/diagnostics/all_model_diagnostics.c
    
 choose_models <- all_diagnostics %>%
   arrange(aic) %>% # ok looks like the best models (according to AIC and BIC) are the first 9. Let's do cv on these
-  slice(1:9) %>% 
+  slice(26:31) %>% 
   pull(formula) 
 
+k = 5
+data = artis_trimmings_beta
+set.seed(123)
+folds <- sample(1:k, nrow(data), replace = TRUE)
 
-perform_cv <- function(data, k = 5) {
+aggregated_results <- data.frame(
+  model_formula = character(),
+  mean_mse = numeric(),
+  mean_mae = numeric(),
+  fold_i = numeric(),
+  stringsAsFactors = FALSE
+)
+
+for (i in 1:k) {
+  # i = 2
+  cat(sprintf("\nProcessing fold %d of %d...\n", i, k))
   
-  # data = artis_trimmings_beta
-  # k=5
+  train <- data[folds != i, ]
+  test <- data[folds == i, ]
+  
+  # Align levels of source_country_iso3c
+  if ("source_country_iso3c" %in% names(train)) {
+    test <- test %>% 
+      filter(source_country_iso3c %in% unique(train$source_country_iso3c))
+  }
+  
+  for (formula in choose_models) {
+    # formula = choose_models[5]
+    
+    # Skip if result for this formula and fold already exists
+    output_path <- here(glue("int/models/diagnostics/cv_results/{formula}_fold_{k}_{i}_results.qs"))
+    if (file.exists(output_path)) {
+      cat(sprintf("Skipping formula '%s' for fold %d as results already exist.\n", formula, i))
+      next()
+    }
+    
+    # Fit model
+    cat(sprintf("Fitting model: %s\n", formula))
+    model <- tryCatch(
+      gam(as.formula(formula), data = train, family = betar(), control = ctrl),
+      error = function(e) e
+    )
+    
+    # Evaluate model if successful
+    if (!inherits(model, "try-error")) {
+      pred <- predict(model, newdata = test, type = "response")
+      mse <- mean((test$trim_prop_beta - pred)^2, na.rm = TRUE)
+      mae <- mean(abs(test$trim_prop_beta - pred), na.rm = TRUE)
+    } else {
+      mse <- NA
+      mae <- NA
+    }
+    
+    # Update aggregated results
+      aggregated_results <- rbind(aggregated_results, data.frame(
+        model_formula = formula,
+        mean_mse = mse,
+        mean_mae = mae,
+        fold_i = i,
+        stringsAsFactors = FALSE
+      ))
+
+    # Save results for the current formula and fold
+    qs::qsave(aggregated_results, output_path)
+  }
+}
+
+```
+
+
+```{r}
+  
+  k = 5
+  data = artis_trimmings_beta
   set.seed(123)
   folds <- sample(1:k, nrow(data), replace = TRUE)
-  cv_results <- list()
   
-  for(i in 1:k) {
-    # Split data
+   aggregated_results <- data.frame(
+    model_formula = character(),
+    mean_mse = numeric(),
+    mean_mae = numeric(),
+    n_folds = numeric(),
+    stringsAsFactors = FALSE
+  )
+
+  for (i in 1:k) {
+    # i= 1
     
-    # i=1
+    cat(sprintf("\nProcessing fold %d of %d...\n", i, k))
     train <- data[folds != i, ]
     test <- data[folds == i, ]
-    
-  cv_models <- lapply(choose_models, function(f) {
+            
+    # Align levels of source_country_iso3c
+    if ("source_country_iso3c" %in% names(train)) {
+      test <- test %>% 
+        filter(source_country_iso3c %in% unique(train$source_country_iso3c))
+      
+    }
+
+ #     if(file.exists(here("int/models/diagnostics/cv_results/"))) need to figure out how to skip formula that is already done
+
+
+    cv_models <- lapply(choose_models, function(f) {
       tryCatch(
-        
         gam(as.formula(f), data = train, family = betar(), control = ctrl),
-        error = function(e) e # Return error object if fitting fails
+        error = function(e) e
       )
     })
     
-    # Calculate errors
-    cv_results[[i]] <- lapply(cv_models, function(m) {
-      if(!inherits(m, "try-error")) {
-        # m = models[[1]]
+        # Process results for this fold
+    fold_results <- do.call(rbind, lapply(seq_along(cv_models), function(idx) {
+      m <- cv_models[[idx]]
+      if (!inherits(m, "try-error")) {
+        #m = cv_models[[1]]
+        
         pred <- predict(m, newdata = test, type = "response")
         mse <- mean((test$trim_prop_beta - pred)^2, na.rm = TRUE)
         mae <- mean(abs(test$trim_prop_beta - pred), na.rm = TRUE)
-        return(c(mse = mse, mae = mae))
+        data.frame(model_formula = choose_models[idx], mse = mse, mae = mae)
       } else {
-        return(c(mse = NA, mae = NA))
+        data.frame(model_formula = choose_models[idx], mse = NA, mae = NA)
       }
-    })
-  }
-  
-  # Summarize results
-  # Summarize results
-  cv_summary <- do.call(rbind, lapply(cv_results, function(x) {
-    do.call(rbind, x)
+    }))
     
-  }))
-  
-  colMeans(cv_summary, na.rm = TRUE)
-}
+    
+      # Update aggregated results
+    for (formula in unique(fold_results$model_formula)) {
+      
+      # formula = "trim_prop_beta ~ filleted"
+      fold_data <- fold_results[fold_results$model_formula == formula, ]
+      
+      # Check if this model formula exists in aggregated results
+      existing_row <- which(aggregated_results$model_formula == formula)
+      
+      if (length(existing_row) == 0) {
+        # Add new row
+        aggregated_results <- rbind(aggregated_results, data.frame(
+          model_formula = formula,
+          mean_mse = fold_data$mse,
+          mean_mae = fold_data$mae,
+          n_folds = 1,
+          stringsAsFactors = FALSE
+        ))
+      } else {
+        # Update existing row
+        current <- aggregated_results[existing_row, ]
+        n <- current$n_folds
+        aggregated_results$mean_mse[existing_row] <- 
+          (current$mean_mse * n + fold_data$mse) / (n + 1)
+        aggregated_results$mean_mae[existing_row] <- 
+          (current$mean_mae * n + fold_data$mae) / (n + 1)
+        aggregated_results$n_folds[existing_row] <- n + 1
+      }
+      qs::qsave(aggregated_results, here(glue("int/models/diagnostics/cv_results/{formula}_fold_{k}_{i}_results.qs")))
+      
+    }
+  }
+   
+   
+final_cv_results <- lapply(list.files(here("int/models/diagnostics/cv_results/"), full.names = TRUE), qread) %>%
+  bind_rows() %>%
+  group_by(model_formula) %>%
+  summarise(mean_mse = mean(mean_mse, na.rm = TRUE), 
+            mean_mae = mean(mean_mae, na.rm = TRUE)) %>%
+  ungroup()
 
-
-
-perform_cv(artis_trimmings_beta_2)
 
 ```
-
-```{r}
-save_analysis <- function(data) {
-
-  # Save model comparison
-  write.csv(model_comparison, 
-            here("int/models/model_comparison.csv"),
-            row.names = FALSE)
-  
-  # Save cross-validation results
-  write.csv(cv_results,
-            here("int/models/cross_validation.csv"),
-            row.names = FALSE)
-
-  
-  # Generate summary report
-  sink(here("int/models/analysis_summary.txt"))
-  
-  cat("Fishmeal Trimmings GAM Analysis Summary\n")
-  cat("=====================================\n\n")
-  
-  cat("1. Model Comparison\n")
-  cat("-----------------\n")
-  print(model_comparison)
-  cat("\n\n")
-  
-  cat("2. Cross-Validation Results\n")
-  cat("------------------------\n")
-  print(cv_results)
-  cat("\n\n")
-  
-  
-  cat("3. Model Selection Recommendations\n")
-  cat("------------------------------\n")
-  
-  # Add model selection recommendations based on results
-  best_aic <- model_comparison$model[which.min(model_comparison$aic)]
-  best_cv <- names(which.min(colMeans(cv_results)))
-  
-  cat(sprintf("Best model by AIC: %s\n", best_aic))
-  cat(sprintf("Best model by cross-validation: %s\n", best_cv))
-  
-  sink()
-}
-
-save_analysis()
-
-```
-
-
-
-
-
 
 3. Gap Filling
 

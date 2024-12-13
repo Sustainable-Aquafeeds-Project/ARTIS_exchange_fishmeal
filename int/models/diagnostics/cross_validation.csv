@@ -1,0 +1,10 @@
+"model_formula","mean_mse","mean_mae"
+"trim_prop_beta ~ s(price_gf) + year + filleted + source_country_iso3c",0.170970849059993,0.39155314131716
+"trim_prop_beta ~ s(price_gf)",0.197523078113835,0.428410595854512
+"trim_prop_beta ~ s(price_gf) + source_country_iso3c",0.171575507559123,0.39237518441498
+"trim_prop_beta ~ source_country_iso3c",0.185231932627535,0.410148766013711
+"trim_prop_beta ~ filleted",0.209955595721205,0.4444249242285
+"trim_prop_beta ~ s(price_gf) + filleted",0.197492596126033,0.428353887356185
+"trim_prop_beta ~ s(price_gf) + year",0.197515981509635,0.428404995285638
+"trim_prop_beta ~ s(price_gf) + year + filleted",0.197481425754064,0.428341236461775
+"trim_prop_beta ~ year",0.210454528242872,0.445115683877887
