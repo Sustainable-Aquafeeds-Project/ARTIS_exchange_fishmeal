@@ -1,0 +1,361 @@
+---
+title: "Model and predict trimmings proportions"
+output: html_document
+date: "2024-12-08"
+editor_options: 
+  chunk_output_type: inline
+---
+
+## Summary
+
+Use GAMs to predict trimmings proportions
+
+## Setup
+
+```{r setup}
+
+library(here)
+library(tidyverse)
+library(glue)
+library(sf)
+library(devtools)
+library(janitor)
+library(countrycode)
+library(qs)
+library(mgcv)
+library(scales)
+library(tictoc)
+library(parallel)
+library(performance)
+library(gratia)
+library(arrow)
+
+
+source(here("R/directories.R"))
+
+
+artis_taxa <- read.csv(file.path(artis_dir, "artis_full_data/data/attribute tables/sciname.csv")) ## read in attribute table with common names
+
+countries <- read.csv(here("data/countries.csv")) ## artis countries with info
+
+artis_trimmings <- qs::qread(here("int/artis_trimmings_fillet_prices_consumption.qs")) %>%
+  mutate(filleted = ifelse(filleted == "yes", 1, 0)) %>%
+  left_join(artis_taxa)
+
+```
+
+
+```{r}
+artis_trimmings_beta <- artis_trimmings %>% 
+  mutate(trim_prop_beta = case_when(
+    trim_prop_gf == 0 ~ trim_prop_gf + 0.000000001,
+        trim_prop_gf == 1 ~ trim_prop_gf - 0.000000001, # regular beta regression can't take 0 or 1
+    TRUE ~ trim_prop_gf
+  )) %>%
+    mutate(
+      # Convert only necessary columns to factors
+      filleted = as.factor(filleted),
+      source_country_iso3c = as.factor(source_country_iso3c),
+      family = as.factor(family),
+      year = as.numeric(as.character(year))  # Keep year numeric for smoother
+    ) %>%
+    # Remove any unnecessary columns
+    distinct(trim_prop_beta, price_gf, filleted, 
+           source_country_iso3c, family, year) %>%
+    # Remove NA values upfront
+    na.omit()
+
+```
+
+Gap Filling
+
+Fill using GAM fitted in last script
+
+What is the "best" model? 
+
+ - I've saved model diagnostics. We'll read these in and choose the best model. 
+
+```{r}
+
+aic_bic_models <- read.csv(here("int/models/diagnostics/all_model_diagnostics.csv"))
+
+
+min_aic <- aic_bic_models %>%
+  filter(aic == min(aic_bic_models$aic)) %>%
+  pull(formula)
+
+min_bic <- aic_bic_models %>%
+  filter(bic == min(aic_bic_models$bic)) %>%
+  pull(formula)
+  
+# these are the same, that's good! Deviance explained is not so good, ~25%
+# [1] "trim_prop_beta ~ s(price_gf) + year + filleted + source_country_iso3c"
+
+max_dev_explained <- aic_bic_models %>%
+  filter(dev_explained == max(dev_explained)) %>% 
+  pull(formula)
+# highest deviance explained is including family, ~78%. However, this is the 10th best AIC and BIC. Could this be overfitting?
+# [1] "trim_prop_beta ~ s(price_gf) + filleted + source_country_iso3c +      family + year"
+
+min_gcv <- aic_bic_models %>%
+  filter(gcv == min(gcv)) %>% 
+  pull(formula)
+# lowest gcv is same as lowest AIC and BIC, that's good.
+# [1] "trim_prop_beta ~ s(price_gf) + year + filleted + source_country_iso3c"
+
+
+max_rsq <- aic_bic_models %>%
+  filter(rsq == max(rsq)) %>% 
+  pull(formula)
+# max rsq is same as max deviance explained, makes sense.
+# [1] [1] "trim_prop_beta ~ s(price_gf) + filleted + source_country_iso3c +      family + year"
+
+
+## ok, so we have this discrepancy between one model having the lowest (best) AIC and BIC, while the other has the highest (best) rsquared and deviance explained. From what I know about model diagnostics, AIC and BIC are usually the preferred methods, and having a high deviance explained/r squared isn't necessarily the "best" for predictions, because it could be a sign of over fitting. For now, I'll use the model with the lowest AIC and BICs for prediction.
+
+mae_mse_models <- lapply(list.files(here("int/models/diagnostics/cv_results/"), full.names = TRUE), qread) %>%
+  bind_rows() %>%
+  group_by(model_formula) %>%
+  summarise(mean_mae = mean(mean_mae),
+            mean_mse = mean(mean_mse)) %>%
+  ungroup()
+
+```
+
+
+ - gam with price, filleted, year, and source country has the lowest AIC, best log likelihood. The lowest MSE and MAE from cross validation (for the ones we could complete...) excluded year, however, it had much higher AIC and BIC, with minimal gains in MSE and MAE. We will use the gam with price, filleted, year, and source country for our prediction model.
+ 
+
+```{r}
+gam_model2 <- qread(here("int/models/gam_model_price_gf_filleted_source_country_iso3c_year.qs"))
+
+predict_data_2 <- artis_trimmings %>% 
+  mutate(gam_preds_2 = predict(gam_model2, newdata = ., type = "response")) 
+
+test <- predict_data_2 %>%
+  filter(is.na(trim_prop_gf))
+
+
+fin_data <- predict_data_2 %>%
+  mutate(trim_prop_gf = ifelse(is.na(trim_prop_gf), gam_preds_2, trim_prop_gf),
+         trim_prop_gf_flag = ifelse(is.na(trim_prop_gf), "GAM model", trim_prop_gf_flag))
+
+qsave(fin_data, file.path(rdsi_raw_data_dir, "ARTIS/artis_exchange/predicted_trimmings_gam_traded_consumption.qs"))
+
+```
+
+
+Allocation to product weight 
+
+```{r}
+
+predict_data_all_gf_fin <- qread(file.path(rdsi_raw_data_dir, "ARTIS/artis_exchange/predicted_trimmings_gam_traded_consumption.qs"))
+
+
+all_data_gf <- predict_data_all_gf_fin %>%
+  mutate(trim_liveweight = trim_prop_gf*live_weight_t,
+    trim_product = trim_prop_gf*product_weight_t, 
+    wholefish_liveweight = (1-trim_prop_gf)*live_weight_t,
+    wholefish_product = (1-trim_prop_gf)*product_weight_t) %>%
+  left_join(artis_taxa) %>%
+    dplyr::select(year, source_country_iso3c, exporter_iso3c, consumer_iso3c, dom_source, sciname, common_name, habitat, method, trim_prop_gf, trim_liveweight, trim_product, wholefish_liveweight, wholefish_product, phylum, method_trim_gf = trim_prop_gf_flag) %>%
+  pivot_longer(., cols = c(trim_product, wholefish_product), names_to = "fishmeal_type", values_to = "product_weight_t") %>%
+  mutate(live_weight_t = product_weight_t*2.975207,
+         fishmeal_type = ifelse(fishmeal_type == "trim_product", "trimmings", "whole fish")) 
+
+for(year_loop in 1996:2020){
+
+#  year_loop = 2020
+artis_all_2020 <- all_data_gf %>%
+  filter(year == year_loop
+         #,
+         #phylum == "chordata"
+        # phylum == "mollusca"
+         ) %>%
+  left_join(countries, by = c("source_country_iso3c" = "iso3c")) %>%
+  mutate(owid_region = ifelse(is.na(owid_region), "unknown", owid_region)) %>%
+    mutate(owid_region = ifelse(owid_region == "Other nei", "unknown", owid_region))
+
+
+total_product_weight <- sum(artis_all_2020$product_weight_t, na.rm = TRUE) # 6187648
+
+
+## Let's make a bar plot and have x axis be the type of fish meal, y axis the proportion it represents, and fill by continent
+
+
+bar_plot_df <- artis_all_2020 %>% 
+  filter(!is.na(trim_prop_gf)) %>% # shouldn't be any
+  group_by(fishmeal_type, owid_region) %>%
+  summarise(total = sum(product_weight_t, na.rm = TRUE)) %>%
+  ungroup() %>%
+  mutate(total_product_t = total_product_weight) %>%
+  mutate(prop = total/total_product_t) %>%
+  mutate(perc = prop * 100) %>% # Convert to percentage
+  mutate(label = paste0(round(perc, 1), "%")) %>%
+  arrange(desc(fishmeal_type))  %>%
+  filter(prop > 0) %>%
+  arrange(-prop) 
+
+## oceania: #9F6144
+## Africa: #A660A1
+## Asia: #3F8D87
+## South America: #8F464E
+## North America: #E47669
+## Europe: #5E74A1
+## unknown: #808080
+## Other_nei: #808080
+  
+wholefish_prop <- bar_plot_df %>% filter(fishmeal_type == "whole fish") %>% pull(prop) %>% sum()
+
+ggplot(bar_plot_df, aes(x = reorder(fishmeal_type, -prop), y = prop, fill = owid_region)) +
+  geom_bar(stat = "identity", color = "white") + 
+ scale_fill_manual(values = c("#A660A1", "#3F8D87", "#5E74A1", "#E47669", "#9F6144", "#8F464E", "#808080")) +
+  theme_classic() +
+  labs(fill = "Region", y = "Proportion of global trade", x = "Fishmeal type") + 
+    scale_x_discrete(expand = c(0,0)) +
+  scale_y_continuous(expand = c(0,0))
+
+ggsave(glue(here("outputs/figs/gam/all_species/props_{wholefish_prop}_{year_loop}.png")))
+
+}
+
+
+library(scales)
+yearly_table <- all_data_gf %>%
+  group_by(year, fishmeal_type) %>%
+  summarise(total = sum(product_weight_t)) %>%
+  ungroup() %>%
+  pivot_wider(names_from = fishmeal_type, values_from = total) %>% 
+  mutate(total = `whole fish`+trimmings) %>%
+  mutate(prop_whole = `whole fish`/total,
+         prop_trim = trimmings/total) %>%
+    mutate(perc_whole = percent(`whole fish` / total, accuracy = 0.1),
+         perc_trim = percent(trimmings / total, accuracy = 0.1)) %>%
+  dplyr::select(year, perc_whole, perc_trim)
+
+print(yearly_table)
+
+
+yearly_table <- all_data_gf %>%
+  filter(phylum == "chordata") %>%
+   group_by(year, fishmeal_type) %>%
+  summarise(total = sum(product_weight_t)) %>%
+  ungroup() %>%
+  pivot_wider(names_from = fishmeal_type, values_from = total) %>% 
+  mutate(total = `whole fish`+trimmings) %>%
+  mutate(prop_whole = `whole fish`/total,
+         prop_trim = trimmings/total) %>%
+    mutate(perc_whole = percent(`whole fish` / total, accuracy = 0.1),
+         perc_trim = percent(trimmings / total, accuracy = 0.1)) %>%
+  dplyr::select(year, perc_whole, perc_trim)
+
+print(yearly_table)
+
+```
+
+Plots
+
+```{r}
+## look at proportions over time 
+
+over_time <- all_data_gf %>%
+  group_by(year, fishmeal_type) %>%
+  summarise(product_t = sum(product_weight_t, na.rm = TRUE)) %>%
+  ungroup() %>%
+  group_by(year) %>%
+  mutate(total_t = sum(product_t)) %>%
+  ungroup() %>%
+  mutate(prop = product_t/total_t)
+
+ggplot(over_time, aes(x = year, y = prop, color = fishmeal_type)) +
+  # geom_point() +
+  geom_line() +
+    geom_text(data = over_time, aes(label = round(prop,2)), 
+            # hjust = -0.2, 
+            vjust = -0.5,
+            size = 3) + 
+  theme_bw() +
+  labs(title = "Global fishmeal production over time (1996-2020)", x = "Year", y = "Proportion of fishmeal", caption = "All species")
+
+
+over_time <- all_data_gf %>%
+  filter(phylum %in% c("chordata", NA)) %>% # ok only finfish (or NA)
+  filter(!(common_name %in% c("sea urchins", "saltwater mussels", "sea lamprey", "lampreys nei"))) %>%
+  group_by(year, fishmeal_type) %>%
+  summarise(product_t = sum(product_weight_t, na.rm = TRUE)) %>%
+  ungroup() %>%
+  group_by(year) %>%
+  mutate(total_t = sum(product_t)) %>%
+  ungroup() %>%
+  mutate(prop = product_t/total_t)
+
+ggplot(over_time, aes(x = year, y = product_t, color = fishmeal_type)) +
+ # geom_point() +
+  geom_line() +
+  geom_text(data = over_time, aes(label = round(prop,2)), 
+            # hjust = -0.2, 
+            vjust = -0.5,
+            size = 3) + 
+  theme_bw() +
+  labs(title = "Global fishmeal production over time (1996-2020)", x = "Year", y = "Proportion of fishmeal", caption = "Finfish only")
+
+
+over_time <- all_data_gf %>%
+  group_by(year, fishmeal_type, phylum) %>%
+  summarise(product_t = sum(product_weight_t, na.rm = TRUE)) %>%
+  ungroup() %>%
+  group_by(year) %>%
+  mutate(total_t = sum(product_t)) %>%
+  ungroup() %>%
+  mutate(prop = product_t/total_t)
+
+ggplot(over_time, aes(x = year, y = product_t, color = fishmeal_type)) +
+ #geom_point() +
+  geom_line() +
+  facet_wrap(~phylum) + 
+  theme_bw() +
+  labs(title = "Global fishmeal production over time (1996-2020)", x = "Year", y = "Product weight (tonnes)")
+
+
+over_time <- all_data_gf %>%
+  filter(phylum %in% c("chordata", NA)) %>% # ok only finfish (or NA)
+  filter(!(common_name %in% c("sea urchins", "saltwater mussels", "sea lamprey", "lampreys nei"))) %>%
+  filter(source_country_iso3c == "CHN") %>%
+  group_by(year, fishmeal_type) %>%
+  summarise(product_t = sum(product_weight_t, na.rm = TRUE)) %>%
+  ungroup() %>%
+  group_by(year) %>%
+  mutate(total_t = sum(product_t)) %>%
+  ungroup() %>%
+  mutate(prop = product_t/total_t)
+
+ggplot(over_time, aes(x = year, y = product_t, color = fishmeal_type)) +
+  geom_line() +
+  geom_text(data = over_time, aes(label = round(prop,2)), 
+            # hjust = -0.2, 
+            vjust = -0.5,
+            size = 3) + 
+  theme_bw() +
+  labs(title = "Finfish fishmeal production over time (1996-2020) in China", x = "Year", y = "Proportion of fishmeal", caption = "Finfish only")
+
+
+over_time <- all_data_gf %>%
+  #filter(phylum %in% c("chordata", NA)) %>% # ok only finfish (or NA)
+  #filter(!(common_name %in% c("sea urchins", "saltwater mussels", "sea lamprey", "lampreys nei"))) %>%
+  filter(source_country_iso3c == "CHN") %>%
+  group_by(year, fishmeal_type, phylum) %>%
+  summarise(product_t = sum(product_weight_t, na.rm = TRUE)) %>%
+  ungroup() %>%
+  group_by(year) %>%
+  mutate(total_t = sum(product_t)) %>%
+  ungroup() %>%
+  mutate(prop = product_t/total_t)
+
+ggplot(over_time, aes(x = year, y = product_t, color = fishmeal_type)) +
+  geom_line() +
+  facet_wrap(~phylum) + 
+  theme_bw() +
+  labs(title = "Fishmeal production over time (1996-2020) in China", x = "Year", y = "Product weight (tonnes)")
+
+```
+
