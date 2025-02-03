@@ -140,6 +140,150 @@ ggsave(here("outputs/figs/MS/Figure_1_time.png"), width = 180, height =180 , uni
 
 ```
 
+Does the increase in shrimp meal correlate with shrimp aquaculture increase?
+
+Did oyster aquaculture production ever recover after 2013 in China? 
+
+```{r}
+## read in aquaculture production data
+
+aqua_prod <- read.csv(file.path(rdsi_raw_data_dir, "fao/FAO_fishstat_2020/global_aquaculture_production_1950_2020.csv")) %>%
+  clean_names() %>%
+    rename(country= country_name,
+         common_name = asfis_species_name,
+         area = fao_major_fishing_area_name,
+         environment = environment_name) %>% 
+   dplyr::select(-unit_name, -asfis_species_name_1, -fao_major_fishing_area_code) %>% 
+  mutate(common_name = tolower(common_name)) %>%
+  dplyr::select(-c(starts_with("s_"))) %>% 
+  dplyr::select(-s) %>%
+        pivot_longer(names_to = "year", values_to = "value", cols = -c(country, common_name, area, environment, unit)) %>% 
+      mutate(iso3c = countrycode(country, origin = "country.name", destination = "iso3c", warn = TRUE)) %>%
+      mutate(iso3c = case_when(country == "Zanzibar" ~ "TZA",
+                               country == "CuraÃ§ao" ~ "CUW",
+                               country == "RÃ©union" ~ "REU", 
+                               country == "TÃ¼rkiye" ~ "TUR",
+                                TRUE ~ iso3c))  %>%
+  filter(country != "FAO. 2022. Fishery and Aquaculture Statistics. Global aquaculture production 1950-2020 (FishStatJ). In: FAO Fisheries and Aquaculture Division [online]. Rome. Updated 2022. www.fao.org/fishery/statistics/software/fishstatj/en") %>%
+  mutate(year = as.numeric(str_remove_all(year, "x_")))
+ 
+  
+
+shrimp_prod <- aqua_prod %>%
+  filter(str_detect(common_name, "shrimp|prawn")) %>%
+  filter(year %in% c(1996:2020)) %>%
+  group_by(year) %>% 
+  summarise(tonnes = sum(value, na.rm = TRUE)) %>%
+  ungroup() %>%
+    arrange(year) %>%  # Ensure data is sorted by year
+  mutate(pct_change = (tonnes - lag(tonnes)) / lag(tonnes) * 100)
+
+overall_increase <- shrimp_prod %>%
+  summarise(
+    pct_increase = ((last(tonnes) - first(tonnes)) / first(tonnes)) * 100
+  ) # 659% increase
+
+avg_annual_increase <- shrimp_prod %>%
+  summarise(
+    cagr = ((last(tonnes) / first(tonnes))^(1 / (last(year) - first(year))) - 1) * 100
+  ) # 8.81% average yearly increase 
+
+
+ggplot(shrimp_prod, aes(x = year, y = tonnes)) + 
+  geom_line()
+
+
+  
+shrimp_fm <- fm_data %>%
+  filter(phylum == "arthropoda") %>%
+  filter(str_detect(common_name, "shrimp|prawn")) %>%
+    group_by(year) %>% 
+  summarise(tonnes = sum(live_weight_t, na.rm = TRUE)) %>%
+  ungroup() %>%
+    arrange(year) %>%  # Ensure data is sorted by year
+  mutate(pct_change = (tonnes - lag(tonnes)) / lag(tonnes) * 100)
+
+
+
+overall_increase <- shrimp_fm %>%
+  summarise(
+    pct_increase = ((last(tonnes) - first(tonnes)) / first(tonnes)) * 100
+  ) # 441% increase
+
+avg_annual_increase <- shrimp_fm %>%
+  summarise(
+    cagr = ((last(tonnes) / first(tonnes))^(1 / (last(year) - first(year))) - 1) * 100
+  ) # 7.28% average yearly increase 
+
+
+
+oyster_prod <- aqua_prod %>%
+ # filter(str_detect(common_name, "oyster|Oyster")) %>%
+  filter(year %in% c(1996:2020), iso3c == "CHN") %>%
+  group_by(year) %>% 
+  summarise(tonnes = sum(value, na.rm = TRUE)) %>%
+  ungroup() %>%
+    arrange(year) %>%  # Ensure data is sorted by year
+  mutate(pct_change = (tonnes - lag(tonnes)) / lag(tonnes) * 100)
+
+overall_increase <- oyster_prod %>%
+  summarise(
+    pct_increase = ((last(tonnes) - first(tonnes)) / first(tonnes)) * 100
+  ) # 200% increase
+
+avg_annual_increase <- oyster_prod %>%
+  summarise(
+    cagr = ((last(tonnes) / first(tonnes))^(1 / (last(year) - first(year))) - 1) * 100
+  ) # 4.69% average yearly increase 
+
+
+
+mollusc_time <- fm_data %>%
+  filter(phylum == "mollusca", source_country_iso3c == "CHN") %>%
+  filter(str_detect(common_name, "oyster")) %>%
+  group_by(year) %>%
+  summarise(product_t = sum(live_weight_t, na.rm = TRUE)) %>%
+  ungroup() %>%
+  mutate(data_type = "Molluscs") 
+
+
+## look at finfish over time, see if the reduction in 2010 was peruvian anchoveta
+
+
+finfish_time <- fm_data %>%
+  filter(phylum == "chordata", common_name == "anchoveta(=peruvian anchovy)") %>%
+  group_by(year, common_name) %>%
+  summarise(product_t = sum(product_weight_t, na.rm = TRUE)) %>%
+  ungroup()  %>%
+  filter(year %in% c(2009:2010))
+
+# 17% decrease in peruvian anchoveta 2009 - 2010
+
+finfish_time <- fm_data %>%
+  left_join(countries, by = c("source_country_iso3c" = "iso3c")) %>%
+  filter(phylum == "chordata",
+         owid_region == "South America") %>%
+  group_by(year, common_name) %>%
+  summarise(tonnes = sum(product_weight_t, na.rm = TRUE)) %>%
+  filter(tonnes > 1000) %>%
+  filter(year %in% c(2009:2010)) %>%
+  arrange(common_name, year) %>%
+  group_by(common_name) %>%
+  mutate(pct_change = (tonnes - lag(tonnes)) / lag(tonnes) * 100) # -38.2407252% decrease in South America, matches global decrease 
+
+
+finfish_time <- fm_data %>%
+  filter(phylum == "chordata") %>%
+  group_by(year) %>%
+  summarise(tonnes = sum(product_weight_t, na.rm = TRUE)) %>%
+  ungroup() %>%
+    arrange(year) %>%  # Ensure data is sorted by year
+  mutate(pct_change = (tonnes - lag(tonnes)) / lag(tonnes) * 100)
+# 38.0034010% decrease all species globally
+
+```
+
+
 
 Trade flows:
 
@@ -158,7 +302,9 @@ library(exploreARTIS)
 
     ) %>%
     arrange(desc(product_weight_t)) %>%
-    filter(product_weight_t > 0)
+    filter(product_weight_t > 0) %>%
+    ungroup() %>%
+    mutate(prop = product_weight_t/sum(product_weight_t))
 
   plot_sankey(trade_flows %>% filter(fishmeal_type == "whole fish"), cols = c("phylum", "source_country_iso3c", "importer_iso3c"), prop_flow_cutoff = 0.03, value = "product_weight_t") 
   
@@ -237,6 +383,59 @@ plot_bar(trade_flows_4,
         value = "product_weight_t", 
         top_n = 15)
 
+tonnes_2020 <- fm_data %>% 
+  filter(year == 2020) %>%
+  pull(product_weight_t) %>%
+  sum()
+
+
+  trade_flows <- fm_data %>%
+    filter(year == 2020) %>%
+    group_by(source_country_iso3c, fishmeal_type) %>%
+    summarise(
+      product_weight_t = sum(product_weight_t, na.rm = TRUE),
+            live_weight_t = sum(live_weight_t, na.rm = TRUE)
+
+    ) %>%
+    arrange(desc(product_weight_t)) %>%
+    filter(product_weight_t > 0) %>%
+    ungroup() %>%
+    mutate(prop = product_weight_t/tonnes_2020)
+
+  
+# Summary
+# Countries using the most trimmings fishmeal
+## China (~1.5 million tonnes, 24% of global fishmeal), Indonesia (412k tonnes, 6.6% of global fishmeal), Vietnam (213k tonnes, 3.4% of global fishmeal), India (464k tonnes, 2.5% of global FM), Japan (364k tonnes, 1.9% global fishmeal), Taiwan(71k, 1.1%), Turkey (65k, 1%), Greece (55k, 0.09%) Norway (48k, 0.08%)
+# Countries using the most whole fish fishmeal
+## China (1.48 million tonnes, 23% of global FM), Indonesia (162k, 2.6%), Japan (149k, 2.4%), India (115k, 1.8%), Norway (112k, 1.8%) 
+# Who imports the most trimmings or whole fish, does not include domestic production
+# Trimmings
+## China (472k tonnes, 7.6% of global FM), Indonesia (80k tonnes, 1.3%), Japan (78k tonnes, 1.25%)
+# Whole fish
+## China (902k tonnes, 14.5% of global FM), Japan (126k tonnes, 2%), Norway (87k tonnes, 1.4%), Turkey (83k tonnes, 1.3%)
+# Who produces the most trimmings or whole fish
+# Whole fish
+## Peru (756k tonnes, 12%), China (604k tonnes, 10%), Chile (227k tonnes, 3.6%), Indonesia (131k tonnes, 2.1%), Denmark (117k tonnes, 1.9%)
+# Trimmings
+## China (1.04 million tonnes, 17%), Indonesia (345k tonnes, 5.5%), Vietnam (255k tonnes, 4.1%), India (165k tonnes, 2.6%), Thailand (114k tonnes, 1.8%)
+
+
+```
+
+
+Species summary 
+
+```{r}
+  
+  # Species summary
+  species_summary <- fm_data %>%
+  filter(year == 2020) %>%
+    group_by(sciname, common_name, source_country_iso3c, fishmeal_type) %>%
+    summarise(
+      total_product_weight = sum(product_weight_t, na.rm = TRUE)
+    ) %>%
+    arrange(desc(total_product_weight))
+
 ```
 
 
@@ -279,6 +478,7 @@ test <- extra_trimmings %>%
 
 sum(test$trimmings_fm_t) # 2611612 - 2.61 million tonnes; This is just additional fishmeal (probably, we will need to match to ARTIS fishmeal data and subtract any trimmings from that out). Newton and Jackson say There is ~2.365 million unused by-product tonnes of fishmeal on average from 2009-2013. So we are exceeding them by ~300k tonnes (without accounting for trimmings we already see in data...). If we account for what we already have in the ARTIS data, this number will come down. 
 
+
 # from newton and jackson for TOTAL AMOUNT OF FISHMEAL:  "If all fish were processed and all the by-product collected it is estimated that globally there would be around 36 million tonnes of raw material available producing about 9.5 million tonnes of fishmeal and 1.5 million tonnes of fish oil."
   
 fm_trim_df <- fm_data %>%
@@ -301,8 +501,27 @@ test <- extra_trimmings_final %>%
   summarise(unused_trimmings_t = mean(unused_trimmings_t, na.rm = TRUE)) %>%
   ungroup()
 
-sum(test$unused_trimmings_t, na.rm = TRUE) # 2353571; ALMOST EXACTLY LOL; after accounting for what we already use
+sum(test$unused_trimmings_t, na.rm = TRUE) # 2308605; ALMOST EXACTLY LOL; after accounting for what we already use
 
+
+test_2020 <- extra_trimmings_final %>%
+  filter(year == 2020)
+sum(test_2020$unused_trimmings_t, na.rm = TRUE) # 1697655
+
+wholefish_tonnes_2020 <- fm_data %>%
+  filter(year == 2020, fishmeal_type == "whole fish") %>%
+  pull(product_weight_t) %>%
+  sum() # 2905354
+
+
+test <- extra_trimmings %>%
+  filter(year %in% c(2020)) %>%
+  group_by(source_country_iso3c, exporter_iso3c, sciname, habitat, method) %>%
+  summarise(processing_waste_t = mean(processing_waste_t, na.rm = TRUE)) %>%
+  ungroup() %>%
+  mutate(trimmings_fm_t = processing_waste_t/2.975207)
+
+sum(test$trimmings_fm_t)/2905354 # if we used fillet trimmings fully, that could cover ~2/3s of the demand
 
 ## IFFO reports that ~33% FM for the 2009-2013 average period is from trimmings
 test2 <- fm_data %>%
@@ -316,136 +535,58 @@ test2 <- fm_data %>%
   summarise(product_weight_t = mean(product_weight_t, na.rm = TRUE)) %>%
   ungroup() # we get 0.3590324 ~36%, so pretty close. 
 
+
+# If the reduction fisheries were instead re-allocated to human consumption, and their trimmings used for fish meal, AND fillet trimmings used fully, would this make up loss of whole fish-derived fishmeal? 
+
+#### Look at only reductions fisheries SUITABLE for human consumption
+#### Don't include any possible trash fish 
+#### Will need to figure out %s of each fish species which are edible (look at allocation proportions?)
+#### lets start easy with peruvian anchoveta, european pilchard, blue whiting, chilean jack mackerel
+
+
+reduction_fisheries <- fm_data %>%
+  filter(common_name %in% c("anchoveta(=peruvian anchovy)", "european pilchard(=sardine)", "blue whiting(=poutassou)", "chilean jack mackerel"),
+         year == 2020) %>% 
+  group_by(sciname, common_name, year) %>%
+  summarise(live_weight_t = sum(live_weight_t, na.rm = TRUE)) %>%
+  ungroup()
+sum(reduction_fisheries$live_weight_t)/2.97
+
+
+# from fishbase,  the W = aL^b
+## for peruvian anchovy: W = 0.000457*L^3.13; average length at maturity is 12 cm
+
+anchovy_weight = 0.00457*(12^3.13) # = 10.90821 grams
+pilchard_weight = 0.00631*(14.8**3.08) # 25.37672 grams
+blue_whiting_weight = 0.00417*(15**3.12) # 19.47784
+chljackmack_weight = 0.01202*(40.5**2.93) # 616.2369
+ 
+## now we have average weights for the fish live
+
+## need to determine % that is edible. For anchoby, pilchard, blue whiting, the only edible part will be its body including bones since we will probably assume canning (not heads or tails). Chilean jack mackerel can be filleted I bet? 
+
+# look at ARTIS fillet data and see if any of these are filleted. Maybe we can sus out the weight difference from that. 
+
+fillet_test <- fillet_artis %>%
+  left_join(artis_taxa) %>%
+  filter(common_name %in% c("anchoveta(=peruvian anchovy)", "european pilchard(=sardine)", "blue whiting(=poutassou)", "chilean jack mackerel")) %>%
+  mutate(prop_fillet = product_weight_t/live_weight_t) %>%
+  group_by(common_name) %>%
+  summarise(avg_prop_fillet = mean(prop_fillet)) %>%
+  ungroup()
+
+
+reduction_fisheries_fillet <- reduction_fisheries %>%
+  left_join(fillet_test) %>%
+  mutate(fillet_weight = avg_prop_fillet*live_weight_t) %>%
+  mutate(live_weight_for_trimmings = live_weight_t - fillet_weight) %>%
+  mutate(product_weight_trimmings = live_weight_for_trimmings/2.97)
+
+ sum(reduction_fisheries_fillet$product_weight_trimmings) # [1] 960952.4 - so if we took all of the FM from those 4 main species and made it into fillets and used trimmings for fishmeal, we would end up with 961k tonnes of fish meal. This is compared to the 1396089 tonnes doing it normally. How do we make up the 435k tonnes missing? 
+ 
+ 
+ 
 ```
 
-```{r}
 
-# Read the data
-fm_data <- fillet_price_all_gf
-
-# Function to summarize current state of fishmeal trade
-analyze_current_state <- function(data) {
-  # Overall summary by fishmeal type
-  type_summary <- data %>%
-    group_by(fishmeal_type) %>%
-    summarise(
-      total_product_weight = sum(product_weight_t, na.rm = TRUE),
-      total_live_weight = sum(live_weight_t, na.rm = TRUE)
-    )
-  
-  # Species summary
-  species_summary <- data %>%
-    group_by(sciname, common_name, fishmeal_type) %>%
-    summarise(
-      total_product_weight = sum(product_weight_t, na.rm = TRUE)
-    ) %>%
-    arrange(desc(total_product_weight))
-  
-  # Trade flow summary
-  trade_summary <- data %>%
-    group_by(source_country_iso3c, exporter_iso3c, consumer_iso3c) %>%
-    summarise(
-      total_product_weight = sum(product_weight_t, na.rm = TRUE)
-    ) %>%
-    arrange(desc(total_product_weight))
-  
-  return(list(
-    type_summary = type_summary,
-    species_summary = species_summary,
-    trade_summary = trade_summary
-  ))
-}
-
-# Function to analyze Peruvian anchoveta specifically
-analyze_anchoveta <- function(data) {
-  anchoveta_data <- data %>%
-    filter(grepl("Engraulis ringens", sciname, ignore.case = TRUE) |
-           grepl("Peruvian anchoveta", common_name, ignore.case = TRUE))
-  
-  # Summarize anchoveta usage
-  anchoveta_summary <- anchoveta_data %>%
-    group_by(consumer_iso3c) %>%
-    summarise(
-      total_product_weight = sum(product_weight_t, na.rm = TRUE)
-    ) %>%
-    arrange(desc(total_product_weight))
-  
-  return(anchoveta_summary)
-}
-
-
-# Visualization functions
-plot_current_distribution <- function(data) {
-  ggplot(data %>% 
-           group_by(fishmeal_type) %>%
-           summarise(total_weight = sum(product_weight_t, na.rm = TRUE))) +
-    geom_col(aes(x = fishmeal_type, y = total_weight, fill = fishmeal_type)) +
-    scale_y_continuous(labels = scales::comma) +
-    theme_minimal() +
-    labs(
-      title = "Distribution of Fishmeal by Type",
-      x = "Fishmeal Type",
-      y = "Total Product Weight (tonnes)"
-    )
-}
-
-plot_trade_flows <- function(data) {
-  # Create a simplified trade flow visualization
-  trade_flows <- data %>%
-    group_by(source_country_iso3c, consumer_iso3c) %>%
-    summarise(
-      total_weight = sum(product_weight_t, na.rm = TRUE)
-    ) %>%
-    arrange(desc(total_weight))
-  
-  # Top 10 flows
-  top_flows <- head(trade_flows, 10)
-  
-  ggplot(top_flows) +
-    geom_segment(aes(
-      x = 1, xend = 2,
-      y = reorder(paste(source_country_iso3c, consumer_iso3c), total_weight),
-      yend = reorder(paste(source_country_iso3c, consumer_iso3c), total_weight),
-      size = total_weight
-    )) +
-    scale_size_continuous(labels = scales::comma) +
-    theme_minimal() +
-    labs(
-      title = "Top 10 Fishmeal Trade Flows",
-      x = "",
-      y = "Trade Route (Source → Consumer)",
-      size = "Product Weight (tonnes)"
-    )
-}
-
-# Main analysis pipeline
-main_analysis <- function() {
-  # Read data
-  fm_data <- fillet_price_all_gf
-  
-  # Current state analysis
-  current_state <- analyze_current_state(fm_data)
-  
-  # Anchoveta specific analysis
-  anchoveta_analysis <- analyze_anchoveta(fm_data)
-  
-  # Scenario analysis
-
-  # Generate visualizations
-  p1 <- plot_current_distribution(fm_data)
-  p2 <- plot_trade_flows(fm_data)
-  
-  # Save results
-  saveRDS(current_state, "results_current_state.rds")
-  saveRDS(anchoveta_analysis, "results_anchoveta.rds")
-
-  # Save plots
-  ggsave("distribution_plot.png", p1, width = 10, height = 6)
-  ggsave("trade_flows_plot.png", p2, width = 12, height = 8)
-}
-
-
-
-
-```
 

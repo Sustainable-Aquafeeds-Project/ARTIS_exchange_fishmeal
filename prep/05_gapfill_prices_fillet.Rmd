@@ -452,6 +452,61 @@ oyster_meal <- fillet_price_all_gf %>%
 ```
 
 
+```{r}
+krill_meal <- fillet_price_all_gf %>%
+  filter(year == 2020, 
+         str_detect(common_name, "krill"),
+         product_weight_t > 0) 
+
+sum(krill_meal$product_weight_t) # 19825.16
+
+all_2020 <- fillet_price_all_gf %>%
+  filter(year == 2020)
+sum(all_2020$product_weight_t) # 6233093
+
+
+sum(krill_meal$product_weight_t)/ 6233093 # 0.00318063
+
+
+unspec_meal <- fillet_price_all_gf %>%
+  filter(year == 2020, 
+         str_detect(sciname, "animalia|actinopterygii"),
+         product_weight_t > 0) 
+
+sum(unspec_meal$product_weight_t)/ 6233093 # 0.03199211
+
+
+unspec_meal <- fillet_price_all_gf %>%
+  filter(year == 2020, 
+         method_trim_gf == "Asian trash fish assumption",
+         product_weight_t > 0) 
+
+sum(unspec_meal$product_weight_t)/ 6233093 # 0.06201794
+sum(unspec_meal$live_weight_t) # 1150107 - this is under the value which is estimated in https://www.slideshare.net/slideshow/the-status-of-asian-fisheries-meeting-the-demands-for-food-and-feeds/47356205#4
+
+unspec_meal <- fillet_price_all_gf %>%
+  filter(year == 2010, 
+         method_trim_gf == "Asian trash fish assumption",
+         product_weight_t > 0) 
+
+sum(unspec_meal$live_weight_t) # 1013141 - this is under the value which is estimated in https://www.slideshare.net/slideshow/the-status-of-asian-fisheries-meeting-the-demands-for-food-and-feeds/47356205#4
+
+countries <- read.csv(here("data/countries.csv")) ## artis countries with info
+
+asia_iso3c <- countries %>% 
+  filter(owid_region == "Asia") %>%
+  pull(iso3c)
+
+trash_fish_test <- fillet_price_all_gf %>%
+  filter(year == 2010, 
+         source_country_iso3c %in% asia_iso3c, 
+         trash_fish == "yes",
+         product_weight_t > 0) 
+sum(trash_fish_test$live_weight_t) # 1306160
+
+```
+
+
 
 https://www.marketsandmarkets.com/Market-Reports/aquafeeds-market-1151.html 
   - https://www.fortunebusinessinsights.com/industry-reports/aquafeed-market-100698 says that the aquafeed industry is worth USD 59 billion in 2024
