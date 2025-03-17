@@ -48,7 +48,37 @@ countries <- read.csv(here("data/countries.csv")) ## artis countries with info
 fm_data <-   qs::qread(file.path(artis_dir, "artis_exchange/artis_fishmeal_trimmings_traded_consumption_gf_final.qs")) %>%
   left_join(artis_taxa)
 
+
 ```
+
+Adjust fishmeal data to include production and blood losses for trimmings weight
+
+ - [Cao et al 2015](https://www.science.org/doi/10.1126/science.1260149): "We assume a median production yield for whole raw fish of 40% and a 2% flesh loss due to spoilage and other technical reasons." 
+ - [Stevens et al. 2017](https://www.sciencedirect.com/science/article/pii/S0308597X17305328?via%3Dihub) referring to Atlantic Salmon: "For example, BPs in the form of trimmings represent a 2% yield of the whole fish"
+ - [Sandstrom et al. 2022](https://www.nature.com/articles/s43016-022-00589-6): "The amounts of potential fish by-products were estimated by multiplying the amounts of fish for human consumption from capture fisheries and aquaculture by the ratios processed75,76 and multiplying the processed quantities by the average ratio of 41.5% of fish consisting of by-products (such as trimmings)79, subtracting 2% blood that is not used in reduction and finally assuming 2% losses at the primary fish processing stage"; 41.5% and 2% blood loss is based on Atlantic salmon, and the 2% processing is from Cao et al.
+ 
+Based on this, we will assume that for finfish and non-bilvalve molluscs (i.e. squids and octopus), a 2% blood loss and 2% processing loss, everything else (namely shrimp/prawns) just a 2% processing loss (since they don't have blood)
+
+
+```{r}
+fm_data_adjusted <- fm_data %>%
+      mutate(phylum = case_when(is.na(phylum) & sciname %in% c("lampetra fluviatilis", "petromyzontidae", "petromyzon marinus") ~ "chordata",
+                              is.na(phylum) & sciname == "animalia" ~ "animalia",
+                            TRUE ~ phylum)) %>% 
+    filter(phylum %in% c("chordata", "arthropoda") | phylum == "mollusca" & class == "cephalopoda") %>%
+    dplyr::select(-product_weight_t) %>%
+  mutate(live_weight_t =
+           case_when(
+             phylum == "arthropoda" & fishmeal_type == "trimmings" ~ live_weight_t*0.98,
+             phylum %in% c("mollusca", "chordata") & fishmeal_type == "trimmings" ~ live_weight_t*0.96,
+             TRUE ~ live_weight_t
+           )) %>%
+  mutate(product_weight_t = live_weight_t/2.975207)
+
+qs::qsave(fm_data_adjusted, file.path(artis_dir, "artis_exchange/artis_fishmeal_trimmings_traded_consumption_adjusted_final_18-03-2025.qs"))
+
+```
+
 
 Save a file for top 20 contributing species per country for average years 2009-2013 (to match IFFO newton & jackson) and 2015-2019 (for latest years, excluding covid)
 
@@ -173,6 +203,8 @@ fm_data_top_spp <- fm_data %>%
     filter(!is.na(total_product_weight)) %>%
     left_join(artis_taxa) # this takes awhile to run
 
+qs::qsave(fm_data_top_spp, here("outputs/top_species_fm_1996_2020.qs"))
+
 test <- fm_data_top_spp %>%
   group_by(year, source_country_iso3c) %>%
   summarise(n_distinct(sciname)) %>%
@@ -183,7 +215,6 @@ test <- fm_data_top_spp %>%
 fm_data_top_spp %>% filter(year == 2020) %>% pull(product_weight_t) %>% sum() # 5160282
 fm_data %>% filter(year == 2020) %>% pull(product_weight_t) %>% sum()
 5160282/6233093 # we retain ~89% of fishmeal reported in ARTIS by only keeping top 20 species.
-
 
 test <- fm_data_top_spp %>%
        mutate(phylum = case_when(is.na(phylum) & sciname %in% c("lampetra fluviatilis", "petromyzontidae", "petromyzon marinus") ~ "chordata",
@@ -261,13 +292,13 @@ ggplot(overtime_all, aes(x = year, y = product_t, color = fishmeal_type)) +
             vjust = 0, hjust = -0.1, show.legend = FALSE, size = 3) +
       geom_text(data = filter(overtime_all, year %in% c(2020), fishmeal_type == "trimmings", data_type == "Molluscs"),
             aes(x = year, y = product_t, label = perc),
-            vjust = 0, hjust = 0.5, show.legend = FALSE, size = 3) +
+            vjust = -0.5, hjust = 0.5, show.legend = FALSE, size = 3) +
       geom_text(data = filter(overtime_all, year == 2020, fishmeal_type == "whole fish", data_type == "Molluscs"),
             aes(x = year, y = product_t, label = perc),
             vjust = -0.5, hjust = -0.1, show.legend = FALSE, size = 3) +
       geom_text(data = filter(overtime_all, year == 1996, fishmeal_type == "trimmings", data_type != "Crustaceans"),
             aes(x = year, y = product_t, label = perc),
-            vjust = -0.5, hjust = 0.5, show.legend = FALSE, size = 3) +
+            vjust = -0.9, hjust = 0.7, show.legend = FALSE, size = 3) +
       geom_text(data = filter(overtime_all, year == 1996, fishmeal_type == "whole fish", data_type != "Crustaceans"),
             aes(x = year, y = product_t, label = perc),
             vjust = 0, hjust = 1, show.legend = FALSE, size = 3) +
@@ -291,17 +322,19 @@ Compare our total fishmeal values to what FAO reports
 comm_codes <- read.csv(here("data/FI_Trade_PP_2024.1.0/CL_FI_COMMODITY_ISSCFC.csv")) %>%
   clean_names()
 
-countries <- read.csv(here("data/FI_Trade_PP_2024.1.0/CL_FI_COUNTRY_GROUPS.csv")) %>%
+countries_fao <- read.csv(here("data/FI_Trade_PP_2024.1.0/CL_FI_COUNTRY_GROUPS.csv")) %>%
   clean_names()
 
 FAO_fm <- read.csv(here("data/FI_Trade_PP_2024.1.0/TRADE_PP_QUANTITY.csv")) %>%
   clean_names() %>%
   left_join(comm_codes, by = c("commodity_fao_code" = "code")) %>%
-  left_join(countries, by = c("country_un_code" = "un_code")) %>%
+  left_join(countries_fao, by = c("country_un_code" = "un_code")) %>%
   filter(sit_cv4 == 81.42) %>%
   group_by(period) %>%
   summarise(tonnes_pw = sum(value, na.rm = TRUE)) %>%
   ungroup()
+
+5160282/5320713 # 0.9698478
 
 ```
 
@@ -1226,8 +1259,9 @@ shrimp_prod <- aqua_prod %>%
   dplyr::select(source_country_iso3c = iso3c, common_name, year, trim_lw) %>%
   mutate(fishmeal_type = "trimmings")
 
-
-
+## check this 
+# test <- shrimp_prod %>% 
+#   mutate(product = trim_lw/2.975) 
 
 fm_trim_df <- fm_data %>%
     mutate(phylum = case_when(is.na(phylum) & sciname %in% c("lampetra fluviatilis", "petromyzontidae", "petromyzon marinus") ~ "chordata",
@@ -1297,36 +1331,30 @@ Does the increase in shrimp meal correlate with shrimp aquaculture increase?
 
 Did oyster aquaculture production ever recover after 2013 in China? 
 
+How much fed-fish aquaculture does China produce? 
+
 ```{r}
-## read in aquaculture production data
-
-aqua_prod <- read.csv(file.path(rdsi_raw_data_dir, "fao/FAO_fishstat_2020/global_aquaculture_production_1950_2020.csv")) %>%
+# aqua prod data
+aqua_country <- read.csv("/mnt/rdsi/raw_data/fao/FAO_fishstat_2020/aquaculture_production_2024/CL_FI_COUNTRY_GROUPS.csv") %>%
   clean_names() %>%
-    rename(country= country_name,
-         common_name = asfis_species_name,
-         area = fao_major_fishing_area_name,
-         environment = environment_name) %>% 
-   dplyr::select(-unit_name, -asfis_species_name_1, -fao_major_fishing_area_code) %>% 
-  mutate(common_name = tolower(common_name)) %>%
-  dplyr::select(-c(starts_with("s_"))) %>% 
-  dplyr::select(-s) %>%
-        pivot_longer(names_to = "year", values_to = "value", cols = -c(country, common_name, area, environment, unit)) %>% 
-      mutate(iso3c = countrycode(country, origin = "country.name", destination = "iso3c", warn = TRUE)) %>%
-      mutate(iso3c = case_when(country == "Zanzibar" ~ "TZA",
-                               country == "CuraÃ§ao" ~ "CUW",
-                               country == "RÃ©union" ~ "REU", 
-                               country == "TÃ¼rkiye" ~ "TUR",
-                                TRUE ~ iso3c))  %>%
-  filter(country != "FAO. 2022. Fishery and Aquaculture Statistics. Global aquaculture production 1950-2020 (FishStatJ). In: FAO Fisheries and Aquaculture Division [online]. Rome. Updated 2022. www.fao.org/fishery/statistics/software/fishstatj/en") %>%
-  mutate(year = as.numeric(str_remove_all(year, "x_")))
- 
-  
+  dplyr::select(country_un_code = un_code, iso3c = iso3_code)
+aqua_spp <- read.csv("/mnt/rdsi/raw_data/fao/FAO_fishstat_2020/aquaculture_production_2024/CL_FI_SPECIES_GROUPS.csv") %>%
+  clean_names() %>%
+  dplyr::select(x3a_code, common_name = name_en, isscaap_group_en, major_group, scientific_name)
 
+aqua_prod <- read.csv("/mnt/rdsi/raw_data/fao/FAO_fishstat_2020/aquaculture_production_2024/Aquaculture_Quantity.csv") %>%
+  clean_names() %>%
+  left_join(aqua_country) %>%
+  filter(iso3c != "") %>%
+  left_join(aqua_spp, by = c("species_alpha_3_code" = "x3a_code")) %>%
+  dplyr::select(iso3c, year = period, common_name, scientific_name, isscaap_group_en, major_group, tonnes_lw = value)
+
+ 
 shrimp_prod <- aqua_prod %>%
   filter(str_detect(common_name, "shrimp|prawn")) %>%
   filter(year %in% c(1996:2020)) %>%
   group_by(year) %>% 
-  summarise(tonnes = sum(value, na.rm = TRUE)) %>%
+  summarise(tonnes = sum(tonnes_lw, na.rm = TRUE)) %>%
   ungroup() %>%
     arrange(year) %>%  # Ensure data is sorted by year
   mutate(pct_change = (tonnes - lag(tonnes)) / lag(tonnes) * 100)
@@ -1374,7 +1402,7 @@ oyster_prod <- aqua_prod %>%
  # filter(str_detect(common_name, "oyster|Oyster")) %>%
   filter(year %in% c(1996:2020), iso3c == "CHN") %>%
   group_by(year) %>% 
-  summarise(tonnes = sum(value, na.rm = TRUE)) %>%
+  summarise(tonnes = sum(tonnes_lw, na.rm = TRUE)) %>%
   ungroup() %>%
     arrange(year) %>%  # Ensure data is sorted by year
   mutate(pct_change = (tonnes - lag(tonnes)) / lag(tonnes) * 100)
@@ -1433,6 +1461,136 @@ finfish_time <- fm_data %>%
     arrange(year) %>%  # Ensure data is sorted by year
   mutate(pct_change = (tonnes - lag(tonnes)) / lag(tonnes) * 100)
 # 38.0034010% decrease all species globally
+
+## China
+
+chn_aquaculture_finfish_shrimp <- aqua_prod %>%
+  filter(year %in% c(2015:2019),
+         iso3c == "CHN",
+         !(isscaap_group_en %in% c("Freshwater molluscs", "Abalones, winkles, conchs", "Oysters", "Mussels", "Scallops, pectens",                "Clams, cockles, arkshells", "Miscellaneous marine molluscs", "Sea-urchins and other echinoderms", "Miscellaneous aquatic invertebrates", "Pearls, mother-of-pearl, shells", "Brown seaweeds", "Red seaweeds", "Green seaweeds", "Miscellaneous aquatic plants"))  ) %>%
+  filter(!str_detect(common_name, "Carp|carp"), # filter out carp since they are omnivores
+         scientific_name != "Carassius spp") %>%
+      group_by(iso3c, scientific_name, common_name, major_group) %>%
+    summarise(
+            live_weight_t = sum(tonnes_lw, na.rm = TRUE)
+
+    ) %>%
+    ungroup() %>%
+      group_by(iso3c, scientific_name, common_name, major_group) %>%
+    summarise(
+            live_weight_t = mean(live_weight_t, na.rm = TRUE)
+    ) %>%
+    ungroup()
+
+unique(chn_aquaculture_finfish_shrimp$isscaap_group_en)
+sum(chn_aquaculture_finfish_shrimp$live_weight_t) # 65513435
+
+top_species_by_country_2019 <- qs::qread(here("outputs/top_species_fm_2015_2019.qs")) 
+
+top_species_by_country_2019 %>% filter(importer_iso3c == "CHN") %>%
+  pull(live_weight_t) %>% sum() # 6846208
+
+top_species_by_country_2019 %>% filter(importer_iso3c == "CHN") %>%
+  pull(product_weight_t) %>% sum() # 2301086
+
+65513435/6846208 # 9.569302 pretty efficient... 
+
+
+chn_aquaculture_finfish_shrimp <- aqua_prod %>%
+  filter(year %in% c(2015:2019),
+         iso3c == "CHN",
+         !(isscaap_group_en %in% c("Freshwater molluscs", "Abalones, winkles, conchs", "Oysters", "Mussels", "Scallops, pectens",                "Clams, cockles, arkshells", "Miscellaneous marine molluscs", "Sea-urchins and other echinoderms", "Miscellaneous aquatic invertebrates", "Pearls, mother-of-pearl, shells", "Brown seaweeds", "Red seaweeds", "Green seaweeds", "Miscellaneous aquatic plants"))  ) %>%
+  filter(!str_detect(common_name, "Carp|carp"), # filter out carp since they are omnivores
+         scientific_name != "Carassius spp") %>%
+      group_by(iso3c, scientific_name, common_name, major_group) %>%
+    summarise(
+            live_weight_t = sum(tonnes_lw, na.rm = TRUE)
+
+    ) %>%
+    ungroup() %>%
+      group_by(iso3c, scientific_name, common_name, major_group) %>%
+    summarise(
+            live_weight_t = mean(live_weight_t, na.rm = TRUE)
+    ) %>%
+    ungroup()
+
+
+
+all_aquaculture_fed <- aqua_prod %>%
+  filter(year %in% c(2015:2019),
+         !(isscaap_group_en %in% c("Freshwater molluscs", "Abalones, winkles, conchs", "Oysters", "Mussels", "Scallops, pectens",                "Clams, cockles, arkshells", "Miscellaneous marine molluscs", "Sea-urchins and other echinoderms", "Miscellaneous aquatic invertebrates", "Pearls, mother-of-pearl, shells", "Brown seaweeds", "Red seaweeds", "Green seaweeds", "Miscellaneous aquatic plants"))  ) %>%
+    filter(!str_detect(common_name, "Carp|carp"), # filter out carp since they are omnivores
+           major_group != "AMPHIBIA, REPTILIA", 
+         !(scientific_name %in% c("Carassius spp", "Cyprinidae", "Labeo rohita")),
+         common_name != "Catla",) %>%
+ # distinct(common_name, scientific_name, isscaap_group_en, major_group)
+      group_by(iso3c, scientific_name, common_name, major_group) %>%
+    summarise(
+            live_weight_t = sum(tonnes_lw, na.rm = TRUE)
+
+    ) %>%
+    ungroup() %>%
+      group_by(iso3c, scientific_name, common_name, major_group) %>%
+    summarise(
+            live_weight_t = mean(live_weight_t, na.rm = TRUE)
+    ) %>%
+    ungroup() %>%
+  filter(live_weight_t > 0)
+
+iso3c_aqua_fed <- all_aquaculture_fed %>%
+  group_by(iso3c) %>%
+  summarise(live_weight_t_farmed = sum(live_weight_t, na.rm = TRUE)) %>%
+  ungroup()
+
+iso3c_fm_used <- top_species_by_country_2019 %>%
+  group_by(importer_iso3c) %>%
+  summarise(live_weight_t_fm = sum(live_weight_t, na.rm = TRUE)) %>%
+  ungroup()
+
+eff_iso3c <- iso3c_aqua_fed %>%
+  left_join(iso3c_fm_used, by = c("iso3c" = "importer_iso3c")) %>%
+  filter(!is.na(live_weight_t_fm)) %>%
+  mutate(efficiency = live_weight_t_farmed/live_weight_t_fm)
+
+
+ggplot(eff_iso3c, aes(x = live_weight_t_fm, y = live_weight_t_farmed, label = iso3c)) + 
+  geom_point() +
+  geom_abline() +
+  geom_label()
+
+summary(eff_iso3c)
+
+library(rnaturalearth)
+world <- ne_countries(scale = "medium", returnclass = "sf")
+
+
+# Ensure ISO3C is uppercase for matching
+eff_iso3c <- eff_iso3c %>% mutate(iso3c = toupper(iso3c))
+
+# Merge data with world map
+world_data <- world %>% left_join(eff_iso3c, by = c("iso_a3" = "iso3c"))
+
+# Create individual maps
+p1 <- ggplot(world_data) +
+  geom_sf(aes(fill = efficiency), color = "grey20", size = 0.1) +
+  scale_fill_viridis_c(option = "viridis", na.value = "grey80") +
+  theme_minimal() +
+  ggtitle("Efficiency")
+
+p2 <- ggplot(world_data) +
+  geom_sf(aes(fill = live_weight_t_fm), color = "grey20", size = 0.1) +
+  scale_fill_viridis_c(option = "viridis", na.value = "grey80") +
+  theme_minimal() +
+  ggtitle("Live Weight from Fishmeal")
+
+p3 <- ggplot(world_data) +
+  geom_sf(aes(fill = live_weight_t_farmed), color = "grey20", size = 0.1) +
+  scale_fill_viridis_c(option = "viridis", na.value = "grey80") +
+  theme_minimal() +
+  ggtitle("Live Weight Farmed")
+
+# Combine all plots with patchwork
+p1 / p2 / p3  # Arranges them vertically
 
 ```
 
