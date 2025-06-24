@@ -120,7 +120,7 @@ prices_aggregated <- prices_aggregated %>%
                                                  FUN = mean, 
                                                  align = "right", 
                                                  fill = NA),
-         # Add ±5% buffer
+         # Add ±10% buffer
          price_3yr_rolling_mean_lower = price_3yr_rolling_mean * 0.90,
          price_3yr_rolling_mean_upper = price_3yr_rolling_mean * 1.1) %>%
   ungroup() %>%
@@ -130,19 +130,12 @@ price_empty_gf <- artis_trimmings_all_gf %>%
   filter(is.na(trim_prop_gf)) %>%
   left_join(prices_aggregated) %>%
   left_join(filled_price_data) %>%
-   # left_join(fillet_data) %>%
     distinct() %>%
-    # mutate(trim_prop_gf = case_when(
-    #    filleted == "yes" ~ 1, 
-    #    price2010usd_mean <= price_3yr_rolling_mean_lower & is.na(filleted) ~ 0,
-    #    price2010usd_mean > price_3yr_rolling_mean_lower & is.na(filleted) ~ 1,
-    #   TRUE ~ 0)) %>%
   mutate(trim_prop_gf = ifelse(price2010usd_mean <= price_3yr_rolling_mean_upper, 0, trim_prop_gf),
          method_gf = ifelse(price2010usd_mean <= price_3yr_rolling_mean_upper, "gapfilled whole fish because average price is lower than 3-year average whole fish price", method_gf)) %>%
    dplyr::select(colnames(artis_trimmings_all_gf)) 
 
 summary(price_empty_gf) 
-
 
  price_all_gf <- artis_trimmings_all_gf %>%
   filter(!is.na(trim_prop_gf)) %>%
@@ -185,7 +178,7 @@ fillet_price_all_gf <- price_all_gf %>%
 
 ```
 
-Read in forage fisheries data and join; Forage fish species list taken from Clawson et al. 2024 in review: Continued transitions from fish meal and oil in aquafeeds require close attention to biodiversity trade-offs
+Read in forage fisheries data and join; Forage fish species list taken from Clawson et al. 2024 in press: Continued transitions from fish meal and oil in aquafeeds require close attention to habitat impact trade-offs
 
 ```{r}
 # forage fish spp list
@@ -210,14 +203,37 @@ test <- fm_data %>%
   summarise(tonnes = sum(product_weight_t, na.rm = TRUE)) %>%
   ungroup() %>%
   mutate(total = sum(tonnes)) %>%
-  mutate(prop = tonnes/total) # cool. Looks like ~30$% of trimmings fish meal is from forage fish. I wonder if this makes sense? Probably mostly from canned anchovies, sardines, etc
+  mutate(prop = tonnes/total) # cool. 11% of all fishmeal is trimmings derived from forage fish. Of the trimmings fish meal only, 30% is from forage fish. Probably from canning operations. 
 
 fm_data_2020 <- fm_data %>%
   group_by(year, source_country_iso3c, consumer_iso3c, sciname, fishmeal_type, method, forage_fish) %>%
   summarise(product_weight_t = sum(product_weight_t, na.rm = TRUE)) %>%
   ungroup() %>%
-  filter(year == 2020, forage_fish == 1, fishmeal_type == "whole fish", method != "aquaculture") # yep, the forage fish trimmings is mostly from anchovies and sardines. I wonder if this matches the market for canned fish? There are definitely trimmings from anchovy canning (heads, tails). From google it seems like 40-60% of a peruvian anchoveta are discarded when canning (if they aren't canned whole)... so it's not implausible to think that the trimmings from canning could be used for FM and this could be the result? 
+  filter(year == 2020, forage_fish == 1, fishmeal_type == "trimmings", method != "aquaculture", product_weight_t > 0) # yep, the forage fish trimmings is mostly from anchovies and sardines. I wonder if this matches the market for canned fish? There are definitely trimmings from anchovy canning (heads, tails). From google it seems like 40-60% of a peruvian anchoveta are discarded when canning (if they aren't canned whole)... so it's not implausible to think that the trimmings from canning could be used for FM and this could be the result? 
 # most whole fish production is peruvian anchoveta or blue whiting
+# there has also been some major pushes for using anchovies for human consumption by the peruvian government. 
+
+
+fm_data_2020 <- fm_data %>%
+  group_by(year, source_country_iso3c, sciname, fishmeal_type, method, forage_fish) %>%
+  summarise(product_weight_t = sum(product_weight_t, na.rm = TRUE),
+            live_weight_t = sum(live_weight_t, na.rm = TRUE)) %>%
+  ungroup() %>%
+  filter(year == 2020, forage_fish == 1, fishmeal_type == "whole fish", method != "aquaculture", product_weight_t > 0) %>%
+  left_join(countries, by = c("source_country_iso3c" = "iso3c"))
+
+
+fm_data_2020 <- fm_data %>%
+  group_by(year, source_country_iso3c, sciname, fishmeal_type, method, forage_fish) %>%
+  summarise(product_weight_t = sum(product_weight_t, na.rm = TRUE),
+            live_weight_t = sum(live_weight_t, na.rm = TRUE)) %>%
+  ungroup() %>%
+  filter(year == 2020,  method != "aquaculture", product_weight_t > 0, source_country_iso3c == "GMB") %>%
+  left_join(countries, by = c("source_country_iso3c" = "iso3c")) 
+
+
+test <- fm_data %>%
+  filter(year == 2020, source_country_iso3c == "GMB")
 
 ```
 

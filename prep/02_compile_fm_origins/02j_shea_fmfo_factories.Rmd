@@ -1,0 +1,1063 @@
+---
+title: "Establish trimmings origins for Havfisk"
+output: html_document
+date: "2024-07-24"
+---
+
+
+```{r setup}
+
+knitr::opts_chunk$set(echo = TRUE)
+
+library(here)
+library(tidyverse)
+library(glue)
+library(janitor)
+library(countrycode)
+library(taxize)
+library(qs)
+library(stringi)
+library(strex)
+library(dplyr)
+library(purrr)
+
+source(here("R/directories.R"))
+
+artis_taxa <- read.csv(file.path(artis_dir, "artis_full_data/data/attribute tables/sciname.csv")) ## read in attribute table with common names
+
+fm_artis <- qs::qread(file.path(artis_dir, "full_artis_fm_2024_09_19.qs")) %>%
+  mutate(hs6 = 230120,
+         dom_source = ifelse(dom_source == "", consumption_type, dom_source)) %>%
+  dplyr::select(year, source_country_iso3c, exporter_iso3c, consumer_iso3c, dom_source, hs6, sciname, habitat, method, product_weight_t, live_weight_t = consumption_t_capped) %>%
+  mutate(exporter_iso3c = ifelse(source_country_iso3c == consumer_iso3c, source_country_iso3c, exporter_iso3c))
+```
+
+### Data Sources
+
+Shea et al. 2025
+https://www.science.org/doi/10.1126/sciadv.adr6921
+Spatial distribution of fishmeal and fish oil factories around the globe
+
+## Summary
+
+Their supplementary material provides a csv (located at `data/shea_et_al_FMFO/adr6921_Suppl_Excel_v2.csv`) that describes the raw material (often with a species label), if it is by products or whole fish, and country of the fish meal factory. We will grab the country and species and use this in our database. 
+
+Step 1: Tidy the  data
+
+```{r}
+
+raw_df <- read.csv(here("data/shea_et_al_FMFO/adr6921_Suppl_Excel_v2.csv")) %>%
+filter(!is.na(factory_id)) %>%
+  mutate(country = stri_replace_all_fixed(country, "\u00A0", " ")) 
+raw_df$country <- iconv(raw_df$country, from = "", to = "UTF-8", sub = "")
+
+
+tidy_df <- raw_df %>%
+  distinct(country, material_type, common_name = comm_name, sciname = sci_name) %>%
+  filter(!is.na(material_type)|material_type != "") %>%
+  mutate(aquaculture = ifelse(str_detect(material_type, "aquaculture"), "yes", "no"),
+         wholefish = ifelse(str_detect(material_type, "whole"), "yes", "no"),
+         trimmings = ifelse(str_detect(material_type, "by-products"), "yes", "no"), 
+         data_source_feed = "Shea et al. 2025", 
+         data_source_fao_area_country = NA, 
+         feed_report_spp_name = tolower(common_name),
+         trash_fish = "no",
+         capture = ifelse(aquaculture == "yes", "no", "yes")) %>%
+  dplyr::select(-material_type) %>%
+  mutate(country = ifelse(country == "El<a0>Salvador", "El Salvador", country)) %>%
+  mutate(sciname = tolower(sciname),
+         common_name = tolower(common_name),
+         source_country_iso3c = countrycode(sourcevar = country, origin = "country.name", destination = "iso3c")) %>% # add sardinella for GMB??
+  add_row(country = "Gambia", common_name = "sardinellas nei", sciname = "sardinella", aquaculture = "no", wholefish = "yes", trimmings = "no", data_source_feed = "Shea et al. 2025", data_source_fao_area_country = NA, feed_report_spp_name = "Round sardinella", trash_fish = "No", capture = "yes", source_country_iso3c = "GMB") %>% # known from OOSC presentations
+  mutate(sciname = ifelse(common_name == "araucanian herring", "strangomera bentincki", sciname)) # fix error in the dataset
+  
+```
+
+
+Step 2: Gapfill any rows which have a common name and do not have a scientific name. For example, Argentina just says "shrimp"
+
+Rules: 
+ - If there is no scientific name but there is a common name, we will match to any common names in the ARTIS FM data that have that common name string in it. For example, Chile reports "salmon" as the common name. In this case, we str_detect the artis FM database for "salmon" and filter for CHL, and assume that that "salmon" row in the Shea database matches to any salmon reported in Chile FM. Then we rejoin to the tidy shea database by the original common name ("salmon"). If the species are not reported in the ARTIS FM data then we will repeat the process, but with the FAO fisheries data (this isn't really necessary but for posterity sake we do it).
+ 
+```{r}
+missing_sciname_df <- tidy_df %>%
+  filter(is.na(sciname) & !is.na(common_name)) %>%
+  distinct() 
+
+# ok lets fix the rows with sciname == NA where we can by cross referencing the common name with ARTIS data, and if none in the ARTIS data, we will grab the species from the FAO fisheries data
+
+fao_fisheries_df <- read.csv(file.path("/mnt/rdsi/raw_data/fao/FAO_fishstat_2020/global_capture_production_1950-2020.csv")) %>%
+  clean_names() %>%
+  filter(x_2015 >0 |x_2016 >0 |x_2017 >0 |x_2018 >0 |x_2019 >0 |x_2020 >0) %>%
+      dplyr::select(country_name, asfis_species_name, asfis_species_name_1, fao_major_fishing_area_code, fao_major_fishing_area_name, unit_name, x_2015, x_2016, x_2017, x_2018, x_2019, x_2020)
+
+fm_artis_check <- fm_artis %>%
+  group_by(source_country_iso3c, sciname, method) %>%
+  summarise(product_weight_t = sum(product_weight_t, na.rm = TRUE)) %>%
+  ungroup() %>% 
+  left_join(artis_taxa)
+
+# Argentina 
+# original common_name == "shrimp"
+test_arg <- fm_artis_check %>%
+  filter(source_country_iso3c == "ARG", str_detect(common_name, "shrimp")) # ok they report none.. ? What about in fisheries data? 
+
+fix_arg <- fao_fisheries_df %>%
+  filter(country_name == "Argentina", str_detect(asfis_species_name, "shrimp")|str_detect(asfis_species_name_1, "shrimp")) %>%
+  mutate(source_country_iso3c = "ARG", common_name = tolower(asfis_species_name)) %>%
+  mutate(feed_report_spp_name = "shrimp") %>%
+  left_join(artis_taxa) %>%
+  dplyr::select(source_country_iso3c, country = country_name, sciname, feed_report_spp_name, common_name) %>%
+  full_join(tidy_df %>%
+              dplyr::select(-feed_report_spp_name) %>%
+              filter(country == "Argentina"), by = c("country", "feed_report_spp_name" = "common_name", "source_country_iso3c")) %>%
+    mutate(common_name = ifelse(is.na(common_name), feed_report_spp_name, common_name)) %>%
+        mutate(sciname = ifelse(is.na(sciname.x) & !is.na(sciname.y), sciname.y, sciname.x)) %>%
+  dplyr::select(-sciname.y, -sciname.x) %>%
+  group_by(source_country_iso3c, country, common_name, aquaculture, wholefish, trimmings, data_source_feed, data_source_fao_area_country, trash_fish, capture, sciname) %>%
+  summarise(feed_report_spp_name = paste(unique(feed_report_spp_name), collapse = ", "),
+            .groups = "drop") %>%
+  distinct()
+
+# Chile
+# krill 
+# salmon
+fix_chl <- fm_artis_check %>%
+  filter(source_country_iso3c == "CHL", str_detect(common_name, "krill|salmon")) %>%
+  mutate(feed_report_spp_name = ifelse(str_detect(common_name, "krill"), "krill", "salmon"),
+         country = "Chile") %>%
+  dplyr::select(source_country_iso3c, country, sciname, common_name, feed_report_spp_name) %>%
+    full_join(tidy_df %>%
+              dplyr::select(-feed_report_spp_name) %>%
+                filter(country == "Chile"), by = c("country", "feed_report_spp_name" = "common_name", "source_country_iso3c")) %>%
+    mutate(common_name = ifelse(is.na(common_name), feed_report_spp_name, common_name)) %>%
+        mutate(sciname = ifelse(is.na(sciname.x) & !is.na(sciname.y), sciname.y, sciname.x)) %>%
+  dplyr::select(-sciname.y, -sciname.x) %>%
+  group_by(source_country_iso3c, country, common_name, aquaculture, wholefish, trimmings, data_source_feed, data_source_fao_area_country, trash_fish, capture, sciname) %>%
+  summarise(feed_report_spp_name = paste(unique(feed_report_spp_name), collapse = ", "),
+            .groups = "drop") %>%
+  distinct()
+
+# Ecuador 
+# tuna 
+fix_ecu <- fm_artis_check %>%
+  filter(source_country_iso3c == "ECU", str_detect(common_name, "tuna")) %>%
+  mutate(feed_report_spp_name = "tuna",
+         country = "Ecuador") %>%
+  dplyr::select(source_country_iso3c, country, sciname, common_name, feed_report_spp_name) %>%
+    full_join(tidy_df %>%
+              dplyr::select(-feed_report_spp_name) %>%
+                filter(country == "Ecuador"), by = c("country", "feed_report_spp_name" = "common_name", "source_country_iso3c")) %>%
+    mutate(common_name = ifelse(is.na(common_name), feed_report_spp_name, common_name)) %>%
+        mutate(sciname = ifelse(is.na(sciname.x) & !is.na(sciname.y), sciname.y, sciname.x)) %>%
+  dplyr::select(-sciname.y, -sciname.x) %>%
+  group_by(source_country_iso3c, country, common_name, aquaculture, wholefish, trimmings, data_source_feed, data_source_fao_area_country, trash_fish, capture, sciname) %>%
+  summarise(feed_report_spp_name = paste(unique(feed_report_spp_name), collapse = ", "),
+            .groups = "drop") %>%
+  distinct()
+
+# India
+# catfish
+# ribbonfish 
+# anchovy
+# tuna
+
+fix_ind <- fm_artis_check %>%
+  filter(source_country_iso3c == "IND") %>%
+         filter(str_detect(common_name, "catfish|ribbon|anchov|tuna")) %>%
+  mutate(feed_report_spp_name = case_when(str_detect(common_name, "catfish") ~ "catfish",
+                                          str_detect(common_name, "tuna") ~ "tuna",
+                                          str_detect(common_name, "ribbon") ~ "ribbonfishes",
+                                          str_detect(common_name, "anchov") ~ "anchovy",
+         TRUE ~ NA), 
+         country = "India") %>%
+  dplyr::select(source_country_iso3c, country, sciname, common_name, feed_report_spp_name) %>%
+    full_join(tidy_df %>%
+              dplyr::select(-feed_report_spp_name) %>%
+                filter(country == "India"), by = c("country", "feed_report_spp_name" = "common_name", "source_country_iso3c")) %>%
+  mutate(common_name = ifelse(is.na(common_name), feed_report_spp_name, common_name)) %>%
+        mutate(sciname = ifelse(is.na(sciname.x) & !is.na(sciname.y), sciname.y, sciname.x)) %>%
+  dplyr::select(-sciname.y, -sciname.x) %>%
+    group_by(source_country_iso3c, country, common_name, aquaculture, wholefish, trimmings, data_source_feed, data_source_fao_area_country, trash_fish, capture, sciname) %>%
+  summarise(feed_report_spp_name = paste(unique(feed_report_spp_name), collapse = ", "),
+            .groups = "drop") %>%
+  distinct()
+
+
+# Indonesia 
+# tuna 
+# sardine
+
+fix_idn <- fm_artis_check %>%
+  filter(source_country_iso3c == "IDN") %>%
+         filter(str_detect(common_name, "sardine|tuna")) %>%
+  mutate(feed_report_spp_name = case_when(str_detect(common_name, "sardine") ~ "sardine",
+                                          str_detect(common_name, "tuna") ~ "tuna",
+         TRUE ~ NA), 
+         country = "Indonesia") %>% 
+  dplyr::select(source_country_iso3c, country, sciname, common_name, feed_report_spp_name) %>%
+    full_join(tidy_df %>%
+              dplyr::select(-feed_report_spp_name) %>%
+                filter(country == "Indonesia"), by = c("country", "source_country_iso3c", "feed_report_spp_name" = "common_name")) %>% 
+    mutate(common_name = ifelse(is.na(common_name), feed_report_spp_name, common_name)) %>%
+      mutate(sciname = ifelse(is.na(sciname.x) & !is.na(sciname.y), sciname.y, sciname.x)) %>%
+  dplyr::select(-sciname.y, -sciname.x) %>%
+  distinct() %>%
+    group_by(source_country_iso3c, country, common_name, aquaculture, wholefish, trimmings, data_source_feed, data_source_fao_area_country, trash_fish, capture, sciname) %>%
+  summarise(feed_report_spp_name = paste(unique(feed_report_spp_name), collapse = ", "),
+            .groups = "drop") %>%
+  distinct()
+
+# Iran
+# sardine
+
+fix_irn <- fm_artis_check %>%
+  filter(source_country_iso3c == "IRN") %>%
+         filter(str_detect(common_name, "sardine")) %>%
+  mutate(feed_report_spp_name = case_when(str_detect(common_name, "sardine") ~ "sardine",
+         TRUE ~ NA), 
+         country = "Iran") %>% 
+  dplyr::select(source_country_iso3c, country, sciname, common_name, feed_report_spp_name) %>%
+    full_join(tidy_df %>%
+              dplyr::select(-feed_report_spp_name) %>%
+                filter(country == "Iran"), by = c("country", "source_country_iso3c", "feed_report_spp_name" = "common_name")) %>% 
+    mutate(common_name = ifelse(is.na(common_name), feed_report_spp_name, common_name)) %>%
+      mutate(sciname = ifelse(is.na(sciname.x) & !is.na(sciname.y), sciname.y, sciname.x)) %>%
+  dplyr::select(-sciname.y, -sciname.x) %>%
+  distinct() %>%
+    group_by(source_country_iso3c, country, common_name, aquaculture, wholefish, trimmings, data_source_feed, data_source_fao_area_country, trash_fish, capture, sciname) %>%
+  summarise(feed_report_spp_name = paste(unique(feed_report_spp_name), collapse = ", "),
+            .groups = "drop") %>%
+  distinct()
+
+
+# Ireland 
+# anchovy
+# anglerfish 
+# hake 
+# crab 
+# norwegian lobster 
+# haddock 
+
+irl_missing <- tidy_df %>%
+  filter(country == "Ireland", 
+         is.na(sciname) & !is.na(common_name)) %>%
+  pull(common_name) %>%
+  unique()
+
+fix_irl <- fm_artis_check %>%
+  filter(source_country_iso3c == "IRL") %>%
+         filter(str_detect(common_name, str_c(c(irl_missing, "anchov", "norway lobster"), collapse = "|"))) %>%
+  mutate(feed_report_spp_name = map_chr(tolower(common_name), function(cn) {
+    match_name <- irl_missing[str_detect(cn, irl_missing)]
+    if (length(match_name) == 1) {
+      return(match_name)
+    } else if (length(match_name) > 1) {
+      return(match_name[1])  # or handle differently if multiple matches
+    } else {
+      return(NA_character_)
+    }
+  })) %>%
+  mutate(feed_report_spp_name = ifelse(common_name == "norway lobster", "norwegian lobster", feed_report_spp_name)) %>% # need to fix the norwegian lobster name
+  mutate(country = "Ireland") %>% 
+  dplyr::select(source_country_iso3c, country, sciname, common_name, feed_report_spp_name) %>%
+    full_join(tidy_df %>%
+              dplyr::select(-feed_report_spp_name) %>%
+                filter(country == "Ireland"), by = c("country", "source_country_iso3c", "feed_report_spp_name" = "common_name")) %>% 
+    mutate(common_name = ifelse(is.na(common_name), feed_report_spp_name, common_name)) %>%
+      mutate(sciname = ifelse(is.na(sciname.x) & !is.na(sciname.y), sciname.y, sciname.x)) %>%
+  dplyr::select(-sciname.y, -sciname.x) %>%
+  group_by(source_country_iso3c, country, common_name, aquaculture, wholefish, trimmings, data_source_feed, data_source_fao_area_country, trash_fish, capture, sciname) %>%
+  summarise(feed_report_spp_name = paste(unique(feed_report_spp_name), collapse = ", "),
+            .groups = "drop") %>%
+  distinct()
+
+# South Korea
+# squid
+
+kor_missing <- tidy_df %>%
+  filter(country == "South Korea", 
+         is.na(sciname) & !is.na(common_name)) %>%
+  pull(common_name) %>%
+  unique()
+
+fix_kor <- fm_artis_check %>%
+  filter(source_country_iso3c == "KOR") %>%
+         filter(str_detect(common_name, str_c(kor_missing, collapse = "|"))) %>%
+  mutate(feed_report_spp_name = "squid", 
+         country = "South Korea") %>% 
+  dplyr::select(source_country_iso3c, country, sciname, common_name, feed_report_spp_name) %>%
+    full_join(tidy_df %>%
+              dplyr::select(-feed_report_spp_name) %>%
+                filter(country == "South Korea"), by = c("country", "source_country_iso3c", "feed_report_spp_name" = "common_name")) %>% 
+    mutate(common_name = ifelse(is.na(common_name), feed_report_spp_name, common_name)) %>%
+      mutate(sciname = ifelse(is.na(sciname.x) & !is.na(sciname.y), sciname.y, sciname.x)) %>%
+  dplyr::select(-sciname.y, -sciname.x) %>%
+  distinct()
+
+# Malaysia 
+# tuna 
+# mackerel 
+# sardine
+# anchovy
+
+missing <- tidy_df %>%
+  filter(country == "Malaysia", 
+         is.na(sciname) & !is.na(common_name)) %>%
+  pull(common_name) %>%
+  unique()
+
+fix_mys <- fm_artis_check %>%
+  filter(source_country_iso3c == "MYS") %>%
+         filter(str_detect(common_name, str_c(missing, collapse = "|"))) %>%
+ mutate(feed_report_spp_name = map_chr(tolower(common_name), function(cn) {
+    match_found <- missing[str_detect(cn, fixed(missing))]
+    
+    if (length(match_found) == 1) {
+      return(match_found)
+    } else if (length(match_found) > 1) {
+      return(match_found[1])  # If multiple matches, keep the first
+    } else {
+      return(NA_character_)
+    }
+  })) %>%
+    mutate(feed_report_spp_name = ifelse(common_name == "stolephorus anchovies nei", "anchovy", feed_report_spp_name)) %>% # need to fix anchovy name
+  mutate(country = "Malaysia") %>% 
+  dplyr::select(source_country_iso3c, country, sciname, common_name, feed_report_spp_name) %>%
+    full_join(tidy_df %>%
+              dplyr::select(-feed_report_spp_name) %>%
+                filter(country == "Malaysia"), by = c("country", "source_country_iso3c", "feed_report_spp_name" = "common_name")) %>% 
+    mutate(common_name = ifelse(is.na(common_name), feed_report_spp_name, common_name)) %>%
+      mutate(sciname = ifelse(is.na(sciname.x) & !is.na(sciname.y), sciname.y, sciname.x)) %>%
+  dplyr::select(-sciname.y, -sciname.x) %>%
+  group_by(source_country_iso3c, country, common_name, aquaculture, wholefish, trimmings, data_source_feed, data_source_fao_area_country, trash_fish, capture, sciname) %>%
+  summarise(feed_report_spp_name = paste(unique(feed_report_spp_name), collapse = ", "),
+            .groups = "drop") %>%
+  distinct()
+
+# New Zealand 
+# tuna
+
+missing <- tidy_df %>%
+  filter(country == "New Zealand", 
+         is.na(sciname) & !is.na(common_name)) %>%
+  pull(common_name) %>%
+  unique()
+
+fix_nzl <- fm_artis_check %>%
+  filter(source_country_iso3c == "NZL") %>%
+         filter(str_detect(common_name, str_c(missing, collapse = "|"))) %>%
+ mutate(feed_report_spp_name = map_chr(tolower(common_name), function(cn) {
+    match_found <- missing[str_detect(cn, fixed(missing))]
+    
+    if (length(match_found) == 1) {
+      return(match_found)
+    } else if (length(match_found) > 1) {
+      return(match_found[1])  # If multiple matches, keep the first
+    } else {
+      return(NA_character_)
+    }
+  })) %>%
+  mutate(country = "New Zealand") %>% 
+  dplyr::select(source_country_iso3c, country, sciname, common_name, feed_report_spp_name) %>%
+    full_join(tidy_df %>%
+              dplyr::select(-feed_report_spp_name) %>%
+                filter(country == "New Zealand"), by = c("country", "source_country_iso3c", "feed_report_spp_name" = "common_name")) %>% 
+    mutate(common_name = ifelse(is.na(common_name), feed_report_spp_name, common_name)) %>%
+      mutate(sciname = ifelse(is.na(sciname.x) & !is.na(sciname.y), sciname.y, sciname.x)) %>%
+  dplyr::select(-sciname.y, -sciname.x) %>%
+  group_by(source_country_iso3c, country, common_name, aquaculture, wholefish, trimmings, data_source_feed, data_source_fao_area_country, trash_fish, capture, sciname) %>%
+  summarise(feed_report_spp_name = paste(unique(feed_report_spp_name), collapse = ", "),
+            .groups = "drop") %>%
+  distinct()
+
+# Norway 
+# krill - "antarctic krill" = "euphausia superba"
+
+missing <- tidy_df %>%
+  filter(country == "Norway", 
+         is.na(sciname) & !is.na(common_name)) %>%
+  pull(common_name) %>%
+  unique()
+
+fix_nor <- fm_artis_check %>%
+  filter(source_country_iso3c == "NOR") %>%
+         filter(str_detect(common_name, str_c(missing, collapse = "|"))) %>%
+ mutate(feed_report_spp_name = map_chr(tolower(common_name), function(cn) {
+    match_found <- missing[str_detect(cn, fixed(missing))]
+    
+    if (length(match_found) == 1) {
+      return(match_found)
+    } else if (length(match_found) > 1) {
+      return(match_found[1])  # If multiple matches, keep the first
+    } else {
+      return(NA_character_)
+    }
+  })) %>%
+  mutate(country = "Norway") %>% 
+  dplyr::select(source_country_iso3c, country, sciname, common_name, feed_report_spp_name) %>%
+    full_join(tidy_df %>%
+              dplyr::select(-feed_report_spp_name) %>%
+                filter(country == "Norway"), by = c("country", "source_country_iso3c", "feed_report_spp_name" = "common_name")) %>% 
+    mutate(common_name = ifelse(is.na(common_name), feed_report_spp_name, common_name)) %>%
+      mutate(sciname = ifelse(is.na(sciname.x) & !is.na(sciname.y), sciname.y, sciname.x)) %>%
+  dplyr::select(-sciname.y, -sciname.x) %>%
+  group_by(source_country_iso3c, country, common_name, aquaculture, wholefish, trimmings, data_source_feed, data_source_fao_area_country, trash_fish, capture, sciname) %>%
+  summarise(feed_report_spp_name = paste(unique(feed_report_spp_name), collapse = ", "),
+            .groups = "drop") %>%
+  distinct()
+
+# Oman
+# tuna
+missing <- tidy_df %>%
+  filter(country == "Oman", 
+         is.na(sciname) & !is.na(common_name)) %>%
+  pull(common_name) %>%
+  unique()
+
+fix_omn <- fm_artis_check %>%
+  filter(source_country_iso3c == "OMN") %>%
+         filter(str_detect(common_name, str_c(missing, collapse = "|"))) %>%
+ mutate(feed_report_spp_name = map_chr(tolower(common_name), function(cn) {
+    match_found <- missing[str_detect(cn, fixed(missing))]
+    
+    if (length(match_found) == 1) {
+      return(match_found)
+    } else if (length(match_found) > 1) {
+      return(match_found[1])  # If multiple matches, keep the first
+    } else {
+      return(NA_character_)
+    }
+  })) %>%
+  mutate(country = "Oman") %>% 
+  dplyr::select(source_country_iso3c, country, sciname, common_name, feed_report_spp_name) %>%
+    full_join(tidy_df %>%
+              dplyr::select(-feed_report_spp_name) %>%
+                filter(country == "Oman"), by = c("country", "source_country_iso3c", "feed_report_spp_name" = "common_name")) %>% 
+    mutate(common_name = ifelse(is.na(common_name), feed_report_spp_name, common_name)) %>%
+      mutate(sciname = ifelse(is.na(sciname.x) & !is.na(sciname.y), sciname.y, sciname.x)) %>%
+  dplyr::select(-sciname.y, -sciname.x) %>%
+  group_by(source_country_iso3c, country, common_name, aquaculture, wholefish, trimmings, data_source_feed, data_source_fao_area_country, trash_fish, capture, sciname) %>%
+  summarise(feed_report_spp_name = paste(unique(feed_report_spp_name), collapse = ", "),
+            .groups = "drop") %>%
+  distinct()
+
+# Papua New Guinea 
+# tuna
+
+missing <- tidy_df %>%
+  filter(country == "Papua New Guinea", 
+         is.na(sciname) & !is.na(common_name)) %>%
+  pull(common_name) %>%
+  unique()
+
+fix_png <- fm_artis_check %>%
+  filter(source_country_iso3c == "PNG") %>%
+         filter(str_detect(common_name, str_c(missing, collapse = "|"))) %>%
+ mutate(feed_report_spp_name = map_chr(tolower(common_name), function(cn) {
+    match_found <- missing[str_detect(cn, fixed(missing))]
+    
+    if (length(match_found) == 1) {
+      return(match_found)
+    } else if (length(match_found) > 1) {
+      return(match_found[1])  # If multiple matches, keep the first
+    } else {
+      return(NA_character_)
+    }
+  })) %>%
+  mutate(country = "Papua New Guinea") %>% 
+  dplyr::select(source_country_iso3c, country, sciname, common_name, feed_report_spp_name) %>%
+    full_join(tidy_df %>%
+              dplyr::select(-feed_report_spp_name) %>%
+                filter(country == "Papua New Guinea"), by = c("country", "source_country_iso3c", "feed_report_spp_name" = "common_name")) %>% 
+    mutate(common_name = ifelse(is.na(common_name), feed_report_spp_name, common_name)) %>%
+      mutate(sciname = ifelse(is.na(sciname.x) & !is.na(sciname.y), sciname.y, sciname.x)) %>%
+  dplyr::select(-sciname.y, -sciname.x) %>%
+  group_by(source_country_iso3c, country, common_name, aquaculture, wholefish, trimmings, data_source_feed, data_source_fao_area_country, trash_fish, capture, sciname) %>%
+  summarise(feed_report_spp_name = paste(unique(feed_report_spp_name), collapse = ", "),
+            .groups = "drop") %>%
+  distinct()
+
+# Poland
+# tuna 
+missing <- tidy_df %>%
+  filter(country == "Poland", 
+         is.na(sciname) & !is.na(common_name)) %>%
+  pull(common_name) %>%
+  unique()
+
+fix_pol <- fm_artis_check %>%
+  filter(source_country_iso3c == "POL") %>%
+         filter(str_detect(common_name, str_c(missing, collapse = "|"))) %>%
+ mutate(feed_report_spp_name = map_chr(tolower(common_name), function(cn) {
+    match_found <- missing[str_detect(cn, fixed(missing))]
+    
+    if (length(match_found) == 1) {
+      return(match_found)
+    } else if (length(match_found) > 1) {
+      return(match_found[1])  # If multiple matches, keep the first
+    } else {
+      return(NA_character_)
+    }
+  })) %>%
+  mutate(country = "Poland") %>% 
+  dplyr::select(source_country_iso3c, country, sciname, common_name, feed_report_spp_name) %>%
+    full_join(tidy_df %>%
+              dplyr::select(-feed_report_spp_name) %>%
+                filter(country == "Poland"), by = c("country", "source_country_iso3c", "feed_report_spp_name" = "common_name")) %>% 
+    mutate(common_name = ifelse(is.na(common_name), feed_report_spp_name, common_name)) %>%
+      mutate(sciname = ifelse(is.na(sciname.x) & !is.na(sciname.y), sciname.y, sciname.x)) %>%
+  dplyr::select(-sciname.y, -sciname.x) %>%
+  group_by(source_country_iso3c, country, common_name, aquaculture, wholefish, trimmings, data_source_feed, data_source_fao_area_country, trash_fish, capture, sciname) %>%
+  summarise(feed_report_spp_name = paste(unique(feed_report_spp_name), collapse = ", "),
+            .groups = "drop") %>%
+  distinct()
+
+
+# Seychelles
+# tuna 
+missing <- tidy_df %>%
+  filter(country == "Seychelles", 
+         is.na(sciname) & !is.na(common_name)) %>%
+  pull(common_name) %>%
+  unique()
+
+fix_syc <- fm_artis_check %>%
+  filter(source_country_iso3c == "SYC") %>%
+         filter(str_detect(common_name, str_c(missing, collapse = "|"))) %>%
+ mutate(feed_report_spp_name = map_chr(tolower(common_name), function(cn) {
+    match_found <- missing[str_detect(cn, fixed(missing))]
+    
+    if (length(match_found) == 1) {
+      return(match_found)
+    } else if (length(match_found) > 1) {
+      return(match_found[1])  # If multiple matches, keep the first
+    } else {
+      return(NA_character_)
+    }
+  })) %>%
+  mutate(country = "Seychelles") %>% 
+  dplyr::select(source_country_iso3c, country, sciname, common_name, feed_report_spp_name) %>%
+    full_join(tidy_df %>%
+              dplyr::select(-feed_report_spp_name) %>%
+                filter(country == "Seychelles"), by = c("country", "source_country_iso3c", "feed_report_spp_name" = "common_name")) %>% 
+    mutate(common_name = ifelse(is.na(common_name), feed_report_spp_name, common_name)) %>%
+      mutate(sciname = ifelse(is.na(sciname.x) & !is.na(sciname.y), sciname.y, sciname.x)) %>%
+  dplyr::select(-sciname.y, -sciname.x) %>%
+  group_by(source_country_iso3c, country, common_name, aquaculture, wholefish, trimmings, data_source_feed, data_source_fao_area_country, trash_fish, capture, sciname) %>%
+  summarise(feed_report_spp_name = paste(unique(feed_report_spp_name), collapse = ", "),
+            .groups = "drop") %>%
+  distinct()
+
+
+# Spain
+# tuna 
+# shrimp
+# salmon 
+# anchovy 
+# sardine
+
+missing <- tidy_df %>%
+  filter(country == "Spain", 
+         is.na(sciname) & !is.na(common_name)) %>%
+  pull(common_name) %>%
+  unique()
+
+fix_esp <- fm_artis_check %>%
+  filter(source_country_iso3c == "ESP") %>%
+         filter(str_detect(common_name, str_c(missing, collapse = "|"))) %>%
+ mutate(feed_report_spp_name = map_chr(tolower(common_name), function(cn) {
+    match_found <- missing[str_detect(cn, fixed(missing))]
+    
+    if (length(match_found) == 1) {
+      return(match_found)
+    } else if (length(match_found) > 1) {
+      return(match_found[1])  # If multiple matches, keep the first
+    } else {
+      return(NA_character_)
+    }
+  })) %>%
+  mutate(feed_report_spp_name = ifelse(str_detect(common_name, "anchov"), "anchovy", feed_report_spp_name)) %>%
+  mutate(country = "Spain") %>% 
+  dplyr::select(source_country_iso3c, country, sciname, common_name, feed_report_spp_name) %>%
+    full_join(tidy_df %>%
+              dplyr::select(-feed_report_spp_name) %>%
+                filter(country == "Spain"), by = c("country", "source_country_iso3c", "feed_report_spp_name" = "common_name")) %>% 
+    mutate(common_name = ifelse(is.na(common_name), feed_report_spp_name, common_name)) %>%
+      mutate(sciname = ifelse(is.na(sciname.x) & !is.na(sciname.y), sciname.y, sciname.x)) %>%
+  dplyr::select(-sciname.y, -sciname.x) %>%
+  group_by(source_country_iso3c, country, common_name, aquaculture, wholefish, trimmings, data_source_feed, data_source_fao_area_country, trash_fish, capture, sciname) %>%
+  summarise(feed_report_spp_name = paste(unique(feed_report_spp_name), collapse = ", "),
+            .groups = "drop") %>%
+  distinct()
+
+
+# Taiwan
+# salmon; no salmon reported for taiwan catch
+# cod; none reported in catch 
+# tuna 
+# shark
+# sardine; none reported
+
+missing <- tidy_df %>%
+  filter(country == "Taiwan", 
+         is.na(sciname) & !is.na(common_name)) %>%
+  pull(common_name) %>%
+  unique()
+
+# fm data is missing salmon, cod, and sardine for TWN, what about FAO fisheries? It doesn't have them either. So we will ignore. 
+test <- fao_fisheries_df %>%
+  filter(country_name == "Taiwan Province of China")
+  
+
+fix_twn <- fm_artis_check %>%
+  filter(source_country_iso3c == "TWN") %>%
+         filter(str_detect(common_name, str_c(missing, collapse = "|"))) %>%
+ mutate(feed_report_spp_name = map_chr(tolower(common_name), function(cn) {
+    match_found <- missing[str_detect(cn, fixed(missing))]
+    
+    if (length(match_found) == 1) {
+      return(match_found)
+    } else if (length(match_found) > 1) {
+      return(match_found[1])  # If multiple matches, keep the first
+    } else {
+      return(NA_character_)
+    }
+  })) %>%
+  # mutate(feed_report_spp_name = ifelse(str_detect(common_name, "anchov"), "anchovy", feed_report_spp_name)) %>%
+  mutate(country = "Taiwan") %>% 
+  dplyr::select(source_country_iso3c, country, sciname, common_name, feed_report_spp_name) %>%
+    full_join(tidy_df %>%
+              dplyr::select(-feed_report_spp_name) %>%
+                filter(country == "Taiwan"), by = c("country", "source_country_iso3c", "feed_report_spp_name" = "common_name")) %>% 
+    mutate(common_name = ifelse(is.na(common_name), feed_report_spp_name, common_name)) %>%
+      mutate(sciname = ifelse(is.na(sciname.x) & !is.na(sciname.y), sciname.y, sciname.x)) %>%
+  dplyr::select(-sciname.y, -sciname.x) %>%
+  group_by(source_country_iso3c, country, common_name, aquaculture, wholefish, trimmings, data_source_feed, data_source_fao_area_country, trash_fish, capture, sciname) %>%
+  summarise(feed_report_spp_name = paste(unique(feed_report_spp_name), collapse = ", "),
+            .groups = "drop") %>%
+  distinct()
+
+# Thailand
+# tuna 
+missing <- tidy_df %>%
+  filter(country == "Thailand", 
+         is.na(sciname) & !is.na(common_name)) %>%
+  pull(common_name) %>%
+  unique()
+
+fix_tha <- fm_artis_check %>%
+  filter(source_country_iso3c == "THA") %>%
+         filter(str_detect(common_name, str_c(missing, collapse = "|"))) %>%
+ mutate(feed_report_spp_name = map_chr(tolower(common_name), function(cn) {
+    match_found <- missing[str_detect(cn, fixed(missing))]
+    
+    if (length(match_found) == 1) {
+      return(match_found)
+    } else if (length(match_found) > 1) {
+      return(match_found[1])  # If multiple matches, keep the first
+    } else {
+      return(NA_character_)
+    }
+  })) %>%
+  # mutate(feed_report_spp_name = ifelse(str_detect(common_name, "anchov"), "anchovy", feed_report_spp_name)) %>%
+  mutate(country = "Thailand") %>% 
+  dplyr::select(source_country_iso3c, country, sciname, common_name, feed_report_spp_name) %>%
+    full_join(tidy_df %>%
+              dplyr::select(-feed_report_spp_name) %>%
+                filter(country == "Thailand"), by = c("country", "source_country_iso3c", "feed_report_spp_name" = "common_name")) %>% 
+    mutate(common_name = ifelse(is.na(common_name), feed_report_spp_name, common_name)) %>%
+      mutate(sciname = ifelse(is.na(sciname.x) & !is.na(sciname.y), sciname.y, sciname.x)) %>%
+  dplyr::select(-sciname.y, -sciname.x) %>%
+  group_by(source_country_iso3c, country, common_name, aquaculture, wholefish, trimmings, data_source_feed, data_source_fao_area_country, trash_fish, capture, sciname) %>%
+  summarise(feed_report_spp_name = paste(unique(feed_report_spp_name), collapse = ", "),
+            .groups = "drop") %>%
+  distinct()
+
+# Turkey
+# tuna 
+# sardine
+missing <- tidy_df %>%
+  filter(country == "Turkey", 
+         is.na(sciname) & !is.na(common_name)) %>%
+  pull(common_name) %>%
+  unique()
+
+fix_tur <- fm_artis_check %>%
+  filter(source_country_iso3c == "TUR") %>%
+         filter(str_detect(common_name, str_c(missing, collapse = "|"))) %>%
+ mutate(feed_report_spp_name = map_chr(tolower(common_name), function(cn) {
+    match_found <- missing[str_detect(cn, fixed(missing))]
+    
+    if (length(match_found) == 1) {
+      return(match_found)
+    } else if (length(match_found) > 1) {
+      return(match_found[1])  # If multiple matches, keep the first
+    } else {
+      return(NA_character_)
+    }
+  })) %>%
+  # mutate(feed_report_spp_name = ifelse(str_detect(common_name, "anchov"), "anchovy", feed_report_spp_name)) %>%
+  mutate(country = "Turkey") %>% 
+  dplyr::select(source_country_iso3c, country, sciname, common_name, feed_report_spp_name) %>%
+    full_join(tidy_df %>%
+              dplyr::select(-feed_report_spp_name) %>%
+                filter(country == "Turkey"), by = c("country", "source_country_iso3c", "feed_report_spp_name" = "common_name")) %>% 
+    mutate(common_name = ifelse(is.na(common_name), feed_report_spp_name, common_name)) %>%
+      mutate(sciname = ifelse(is.na(sciname.x) & !is.na(sciname.y), sciname.y, sciname.x)) %>%
+  dplyr::select(-sciname.y, -sciname.x) %>%
+  group_by(source_country_iso3c, country, common_name, aquaculture, wholefish, trimmings, data_source_feed, data_source_fao_area_country, trash_fish, capture, sciname) %>%
+  summarise(feed_report_spp_name = paste(unique(feed_report_spp_name), collapse = ", "),
+            .groups = "drop") %>%
+  distinct()
+
+# United Kingdom
+# tuna 
+missing <- tidy_df %>%
+  filter(country == "United Kingdom", 
+         is.na(sciname) & !is.na(common_name)) %>%
+  pull(common_name) %>%
+  unique()
+
+fix_gbr <- fm_artis_check %>%
+  filter(source_country_iso3c == "GBR") %>%
+         filter(str_detect(common_name, str_c(missing, collapse = "|"))) %>%
+ mutate(feed_report_spp_name = map_chr(tolower(common_name), function(cn) {
+    match_found <- missing[str_detect(cn, fixed(missing))]
+    
+    if (length(match_found) == 1) {
+      return(match_found)
+    } else if (length(match_found) > 1) {
+      return(match_found[1])  # If multiple matches, keep the first
+    } else {
+      return(NA_character_)
+    }
+  })) %>%
+  # mutate(feed_report_spp_name = ifelse(str_detect(common_name, "anchov"), "anchovy", feed_report_spp_name)) %>%
+  mutate(country = "United Kingdom") %>% 
+  dplyr::select(source_country_iso3c, country, sciname, common_name, feed_report_spp_name) %>%
+    full_join(tidy_df %>%
+              dplyr::select(-feed_report_spp_name) %>%
+                filter(country == "United Kingdom"), by = c("country", "source_country_iso3c", "feed_report_spp_name" = "common_name")) %>% 
+    mutate(common_name = ifelse(is.na(common_name), feed_report_spp_name, common_name)) %>%
+      mutate(sciname = ifelse(is.na(sciname.x) & !is.na(sciname.y), sciname.y, sciname.x)) %>%
+  dplyr::select(-sciname.y, -sciname.x) %>%
+  group_by(source_country_iso3c, country, common_name, aquaculture, wholefish, trimmings, data_source_feed, data_source_fao_area_country, trash_fish, capture, sciname) %>%
+  summarise(feed_report_spp_name = paste(unique(feed_report_spp_name), collapse = ", "),
+            .groups = "drop") %>%
+  distinct()
+
+# United States of America 
+# salmon 
+# halibut
+
+missing <- tidy_df %>%
+  filter(country == "United States of America", 
+         is.na(sciname) & !is.na(common_name)) %>%
+  pull(common_name) %>%
+  unique()
+
+fix_usa <- fm_artis_check %>%
+  filter(source_country_iso3c == "USA") %>%
+         filter(str_detect(common_name, str_c(missing, collapse = "|"))) %>%
+ mutate(feed_report_spp_name = map_chr(tolower(common_name), function(cn) {
+    match_found <- missing[str_detect(cn, fixed(missing))]
+    
+    if (length(match_found) == 1) {
+      return(match_found)
+    } else if (length(match_found) > 1) {
+      return(match_found[1])  # If multiple matches, keep the first
+    } else {
+      return(NA_character_)
+    }
+  })) %>%
+  # mutate(feed_report_spp_name = ifelse(str_detect(common_name, "anchov"), "anchovy", feed_report_spp_name)) %>%
+  mutate(country = "United States of America") %>% 
+  dplyr::select(source_country_iso3c, country, sciname, common_name, feed_report_spp_name) %>%
+    full_join(tidy_df %>%
+              dplyr::select(-feed_report_spp_name) %>%
+                filter(country == "United States of America"), by = c("country", "source_country_iso3c", "feed_report_spp_name" = "common_name")) %>% 
+    mutate(common_name = ifelse(is.na(common_name), feed_report_spp_name, common_name)) %>%
+      mutate(sciname = ifelse(is.na(sciname.x) & !is.na(sciname.y), sciname.y, sciname.x)) %>%
+  dplyr::select(-sciname.y, -sciname.x) %>%
+  group_by(source_country_iso3c, country, common_name, aquaculture, wholefish, trimmings, data_source_feed, data_source_fao_area_country, trash_fish, capture, sciname) %>%
+  summarise(feed_report_spp_name = paste(unique(feed_report_spp_name), collapse = ", "),
+            .groups = "drop") %>%
+  distinct()
+
+# Costa Rica 
+# shrimp 
+# fish
+# ok for Costa Rica we'll do something a little bit different, since they just list "fish". We'll apply the method normally for shrimp. But for fish, if we look directly on that producers website, they do list specific species: https://pmtcr.com/english/fish.htm 
+
+# Mahi-mahi
+# Blue marlin
+# Striped marlin
+# Grouper
+# Sailfish
+# Snapper
+# Swordfish
+# Blacktip shark
+# Thresher shark
+# Tuna
+
+missing <- tidy_df %>%
+  filter(country == "Costa Rica", 
+         is.na(sciname) & !is.na(common_name)) %>%
+  pull(common_name) %>%
+  unique()
+
+missing <- c("shrimp")
+
+fix_cri_1 <- fm_artis_check %>%
+  filter(source_country_iso3c == "CRI") %>%
+         filter(str_detect(common_name, str_c(missing, collapse = "|"))) %>%
+ mutate(feed_report_spp_name = map_chr(tolower(common_name), function(cn) {
+    match_found <- missing[str_detect(cn, fixed(missing))]
+    
+    if (length(match_found) == 1) {
+      return(match_found)
+    } else if (length(match_found) > 1) {
+      return(match_found[1])  # If multiple matches, keep the first
+    } else {
+      return(NA_character_)
+    }
+  })) %>%
+  # mutate(feed_report_spp_name = ifelse(str_detect(common_name, "anchov"), "anchovy", feed_report_spp_name)) %>%
+  mutate(country = "Costa Rica") %>% 
+  dplyr::select(source_country_iso3c, country, sciname, common_name, feed_report_spp_name) %>%
+    full_join(tidy_df %>%
+              dplyr::select(-feed_report_spp_name) %>%
+                filter(country == "Costa Rica"), by = c("country", "source_country_iso3c", "feed_report_spp_name" = "common_name")) %>% 
+    mutate(common_name = ifelse(is.na(common_name), feed_report_spp_name, common_name)) %>%
+      mutate(sciname = ifelse(is.na(sciname.x) & !is.na(sciname.y), sciname.y, sciname.x)) %>%
+  dplyr::select(-sciname.y, -sciname.x) %>%
+  group_by(source_country_iso3c, country, common_name, aquaculture, wholefish, trimmings, data_source_feed, data_source_fao_area_country, trash_fish, capture, sciname) %>%
+  summarise(feed_report_spp_name = paste(unique(feed_report_spp_name), collapse = ", "),
+            .groups = "drop") %>%
+  distinct()
+
+cri_fm <- fm_artis_check %>%
+  filter(source_country_iso3c == "CRI", phylum == "chordata")
+
+# Mahi-mahi, Blue marlin, Striped marlin, Grouper, Sailfish, Snapper, Swordfish, Blacktip shark, Thresher shark, Tuna
+
+costa_rica_rows <- tibble::tibble(
+  country = rep("Costa Rica", 14),
+  common_name = c(
+    "common dolphinfish", "striped marlin", "Groupers, seabasses nei",
+    "marlins,sailfishes,etc. nei", "indo-pacific sailfish", "snappers, jobfishes nei", "spotted rose snapper", "swordfish",
+    "blacktip shark", "thresher", "bigeye tuna", "skipjack tuna", "tuna-like fishes nei", "yellowfin tuna"
+  ),
+  sciname = c(
+    "coryphaena hippurus", "kajikia audax", "serranidae",
+    "istiophoridae", "istiophorus platypterus", "lutjanidae", "lutjanus guttatus", "xiphias gladius",
+    "carcharhinus limbatus", "alopias vulpinus", "thunnus obesus", "katsuwonus pelamis", "perciformes", "thunnus albacares"
+  )
+) %>%
+  mutate(aquaculture = "no",
+         wholefish = "no",
+         trimmings = "yes", 
+         data_source_feed = "Shea et al. 2025",
+         data_source_fao_area_country = NA,
+         feed_report_spp_name = "fish",
+         trash_fish = "no",
+         capture = "yes", source_country_iso3c = "CRI")
+
+fix_cri  <- rbind(fix_cri_1, costa_rica_rows)
+
+# stopped here 12:14pm June 24
+
+fix_sciname_df <- rbind(fix_arg, fix_chl, fix_cri, fix_ecu, fix_esp, fix_gbr, fix_idn, fix_ind, fix_irl, fix_irn, fix_kor, fix_mys, fix_mys, fix_omn, fix_png, fix_pol, fix_syc, fix_tha, fix_tur, fix_twn, fix_usa, fix_nor, fix_nzl)
+
+# rm(list = c("fix_arg", "fix_chl", "fix_cri", "fix_ecu", "fix_esp", 
+#             "fix_gbr", "fix_idn", "fix_ind", "fix_irl", "fix_irn", 
+#             "fix_kor", "fix_mys", "fix_omn", "fix_png", "fix_pol", 
+#             "fix_syc", "fix_tha", "fix_tur", "fix_twn", "fix_usa", "fix_nor", "fix_nzl", "fix_cri_1"))
+
+fixed_iso <- unique(fix_sciname_df$source_country_iso3c)
+
+tidy_df_fix <- tidy_df %>% 
+  filter(!(source_country_iso3c %in% fixed_iso)) %>%
+  rbind(., fix_sciname_df) # want to retain repeats here because this will affect the trim_prop estimates
+
+```
+
+ Step 3: 
+
+ - If the Shea data only has a genus listed (e.g., "sardinella spp."), we will match to ANY species within that genus and country in the ARTIS database. For example, Ecuador reports "larimus spp.", in this case, we will filter the ARTIS database for any "larimus" genus and assume this row in the Shea database is true for all larimus species. If we don't have a genus reported, but instead have a family, then match to the family, and then if not genus or family, match to the order. 
+ 
+ 
+```{r}
+
+one_word_spp <- tidy_df %>%
+  filter(!grepl("\\s", sciname), 
+         !is.na(sciname)) %>%
+  pull(sciname) %>%
+  unique() # Filters for rows where the column does NOT contain any whitespace## filter for any rows which have "spp."
+
+genus_df <- tidy_df %>%
+  filter(str_detect(sciname, "spp.")|sciname %in% one_word_spp) %>%
+  mutate(sciname = str_trim(str_replace_all(sciname, "spp.", ""))) %>%
+  distinct(sciname, common_name) %>%
+  left_join(artis_taxa, by = "sciname") %>%
+  mutate(genus = ifelse(sciname == "larimus", "larimus", genus)) %>%
+  mutate(genus = ifelse(sciname == "opisthonema", "opisthonema", genus)) %>%
+  mutate(genus = ifelse(sciname == "amblygaster", "amblygaster", genus)) %>%
+  mutate(genus = ifelse(sciname == "oligoplites", "oligoplites", genus)) %>%
+  mutate(genus = ifelse(sciname == "urophycis", "urophycis", genus))
+
+
+# match by genus, then if missing genus by family, if missing genus and family, by order 
+rows_to_match <- tidy_df %>%
+    filter(str_detect(sciname, "spp.")|sciname %in% one_word_spp) %>%
+  mutate(sciname = str_trim(str_replace_all(sciname, "spp.", ""))) %>%
+  left_join(genus_df, by = c("sciname", "common_name" = "common_name.x")) %>%
+  mutate(row_id = row_number())
+
+# Function for matching one Shea row
+match_row <- function(row) {
+  # test_row <- rows_to_match %>% slice(1)
+  # row = test_row
+  
+  country <- row$source_country_iso3c
+  genus_i <- row$genus
+  family_i <- row$family
+  order_i <- row$order
+  spp_name <- row$sciname
+  country_name <- row$country  # Assuming you have this column
+
+  # Filter ARTIS to relevant country
+  artis_subset <- fm_artis_check %>%
+    filter(source_country_iso3c == country)
+
+  # Try genus match first
+  match <- artis_subset %>%
+    filter(genus == genus_i)
+
+  match_level <- "genus"
+
+  # If no genus match, try family
+  if (nrow(match) == 0 && !is.na(family)) {
+    match <- artis_subset %>% filter(family == family_i)
+    match_level <- "family"
+  }
+
+  # If no family match, try order
+  if (nrow(match) == 0 && !is.na(order)) {
+    match <- artis_subset %>% filter(order == order_i)
+    match_level <- "order"
+  }
+
+  # If still no match, return NULL
+  if (nrow(match) == 0) return(NULL)
+  
+  join_var <- match_level
+
+  # Add Shea row info to matched rows
+  match %>%
+    mutate(country = country_name,
+           # feed_report_spp_name = spp_name,
+           match_level = match_level) %>%
+    left_join(row, 
+           by = c("country", 
+                   "source_country_iso3c", 
+                   setNames("sciname", match_level))) %>%
+      rename(common_name = common_name.x) %>%
+    select(colnames(tidy_df_fix)) %>%
+    distinct()
+}
+
+# Apply to all Shea rows
+matched_all <- rows_to_match %>%
+  split(.$row_id) %>%
+  map_dfr(~ match_row(.x)) %>%
+  dplyr::select(colnames(tidy_df_fix))
+
+fix_can_tuna <- matched_all %>%
+  filter(source_country_iso3c == "CAN", 
+         feed_report_spp_name == "auxis") %>%
+  mutate(trimmings = "yes",
+         wholefish = "no",
+         capture = "yes",
+         trash_fish = "no",
+         aquaculutre = "no",
+         data_source_feed = "Shea et al. 2025") %>%
+  dplyr::select(colnames(matched_all))
+
+matched_all_fix <- matched_all %>%
+  filter(!is.na(aquaculture)) %>%
+  rbind(., fix_can_tuna)
+  
+  
+## ok cool, this worked. There are some where there just isn't a match. E.g. Canada and opisthonema (thread herring)).
+
+```
+
+ 
+Step 4: rbind all together and save 
+
+```{r}
+filter_out <- tidy_df %>%
+    filter(str_detect(sciname, "spp.")|sciname %in% one_word_spp) 
+
+tidy_df_fix_2 <- tidy_df_fix %>% 
+  anti_join(., filter_out) %>%
+  rbind(matched_all_fix)
+
+
+write.csv(tidy_df_fix_2, here("data/shea_et_al_FMFO/fmfo_tidy.csv"), row.names = FALSE)
+
+```
+
+ 
+ Step 6: Calculate trimmings proportions based on the proportion of each species row that reports whole fish vs trimmings. 
+
+```{r}
+# Script to calculate the proportion of a species derived from trimmings
+# for each unique combination of country and species
+
+# Read the CSV file
+data <- read_csv(here("data/shea_et_al_FMFO/fmfo_tidy.csv"))
+
+# Calculate trim_prop for each country-species combination
+result <- data %>%
+  # Group by country and scientific name
+  group_by(country, sciname, aquaculture) %>%
+  # Calculate the proportion of rows where trimmings = "yes"
+  summarize(
+    trim_prop = mean(trimmings == "yes", na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  ungroup() %>%
+    # filter(!is.na(sciname)) %>% 
+  # left_join(artis_taxa) %>%
+  # mutate(trimmings = ifelse(trim_prop > 0, "yes", "no"),
+  #        wholefish = ifelse(trim_prop < 1, "yes", "no"))
+  # Join back to the original data
+  right_join(data, by = c("country", "sciname", "aquaculture")) %>%
+  filter(!is.na(sciname))
+
+# test <-  data  %>%
+# # Group by country and scientific name
+#   group_by(country, sciname, aquaculture) %>%
+#   # Calculate the proportion of rows where trimmings = "yes"
+#   summarize(
+#     trim_prop = mean(trimmings == "yes", na.rm = TRUE),
+#     .groups = "drop"
+#   ) %>%
+#   ungroup() %>%
+#   filter(!is.na(sciname))
+# 
+# test2 <- result %>%
+#   group_by(country, sciname, aquaculture) %>%
+#   summarise(trim_prop = mean(trim_prop, na.rm = TRUE))
+# ok cool, they're the same. We'll save it like this for now then. 
+
+# Write the filtered result to a new CSV file
+write.csv(result, here("int/material_origins_shea_2025.csv"), row.names = FALSE)
+
+```
+
+
+

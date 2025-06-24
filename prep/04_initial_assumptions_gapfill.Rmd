@@ -66,7 +66,9 @@ asia_iso3c <- countries %>%
 Join ARTIS data to data compiled from literature review
 
 ```{r}
-fm_origins_df_fin <- read.csv(here("outputs/all_fmfo_material_origins_reports.csv"))
+fm_origins_df_fin <- read.csv(here("outputs/all_fmfo_material_origins_reports.csv")) %>%
+ # mutate(method = ifelse(capture == "yes", "capture", "aquaculture")) %>%
+  dplyr::select(-common_name)
 
 # take a look at the distribution of values
 ggplot(fm_origins_df_fin) +
@@ -76,8 +78,9 @@ ggplot(fm_origins_df_fin) +
        y = "Distinct species and source country count")
 
 artis_trimmings_all <- fm_artis %>%
-  left_join(artis_taxa) %>%
-  left_join(fm_origins_df_fin, by = c("sciname", "source_country_iso3c" = "iso3c", "common_name")) 
+ # left_join(artis_taxa) %>%
+  left_join(fm_origins_df_fin, by = c("sciname", "source_country_iso3c" = "iso3c")) %>%
+   left_join(artis_taxa)
 
 artis_trimmings_info <- artis_trimmings_all %>% 
   filter(!is.na(trimmings)) %>%
@@ -121,29 +124,27 @@ artis_trimmings_info <- artis_trimmings_all %>%
 artis_trimmings_info_fix <- artis_trimmings_info %>%
   filter(!is.na(trim_prop_gf))
 
-## make sure we retained the same amount of rows
-nrow(artis_trimmings_info) - nrow(artis_trimmings_info_fix) == nrow(test) # TRUE perfect
-
 artis_trimmings_missing_1 <- artis_trimmings_info %>% 
   filter(is.na(trim_prop_gf)) %>%
   dplyr::select(-trim_prop_gf, -trimmings_gf, -wholefish_gf, -method_gf)
-
 
 artis_trimmings_missing <- artis_trimmings_all %>% 
   filter(is.na(trimmings)) %>%
   rbind(artis_trimmings_missing_1)
 
-nrow(artis_trimmings_missing) - 3038992 # 12774 perfect
-
 test_all <- artis_trimmings_all %>%
   filter(year == 2020) %>%
-  group_by(trimmings) %>%
-  summarise(tonnes = sum(product_weight_t, na.rm = TRUE)) %>%
-  ungroup() %>%
-  mutate(prop = tonnes/sum(tonnes)) # ok missing ~61% of fishmeal 
+  mutate(trim_weight = product_weight_t*trim_prop,
+         whole_weight = product_weight_t*(1-trim_prop))
 
-nrow(artis_trimmings_missing) + nrow(artis_trimmings_info_fix) == nrow(artis_trimmings_all) # TRUE perfect
+sum(test_all$product_weight_t) # 6237031
+sum(test_all$trim_weight, na.rm = TRUE) # 850941.9
+sum(test_all$whole_weight, na.rm = TRUE) # 1683809
 
+1683809/6237031 # 27% from whole fish 
+850941.9/6237031 # 13.6 from trimmings
+0.2699696+0.1364338
+# ok so missing ~59% of fishmeal for 2020
 
 # Define a helper function for trash fish conditions
 is_asian_trash_fish <- function(common_name, phylum, sciname, source_country_iso3c, method) {
@@ -179,7 +180,7 @@ artis_trimmings_gf <- artis_trimmings_missing %>%
         common_name %in% c("squillids nei", "stomatopods nei", "west african geryon") | 
         str_detect(common_name, "crab|abalone|shrimp|squillid") | 
         genus %in% c("geryon", "scylla") ~ "yes",
-      #  mollusc meal is whole fish: https://link.springer.com/book/10.1007/978-94-011-4018-8
+      #  assume mollusc meal is whole fish: https://link.springer.com/book/10.1007/978-94-011-4018-8
       isscaap %in% c("Abalones, winkles, conchs", "Clams, cockles, arkshells", "Multiple ISSCAAP groups", "Mussels", "Oysters", "Scallops, pectens") & 
         phylum == "mollusca" & !str_detect(common_name, "abalone|barnacle") ~ "no",
       TRUE ~ trimmings
@@ -304,6 +305,15 @@ summary <- trim_gf %>%
   ungroup() %>%
   mutate(prop = tonnes_prod_gf/sum(tonnes_prod_gf))
 
+
+test_all <- trim_gf %>%
+  filter(year == 2020) 
+
+sum(test_all$product_weight_t) # 6237031
+sum(test_all$trim_product, na.rm = TRUE) + sum(test_all$wholefish_product, na.rm = TRUE)
+
+5765249/6237031
+# only missing ~8% now 
 ```
 
 

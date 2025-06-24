@@ -61,5 +61,15 @@ cargill_grouped <- cargill_raw %>%
 
 write.csv(cargill_grouped, here("int/material_origins_cargill.csv"), row.names = FALSE)
   
+
+cargill_df <- read.csv(here("int/material_origins_cargill.csv"))
+
+cargill_locations <- c("CAN", "USA", "MEX", "ECU", "CHL", "NOR", "GBR", "AUT", "CHN", "IND", "THA", "VNM") # from their about page where feedmills are located https://www.cargill.com/sustainability/aquaculture/our-performance-in-2024
+
+expand_df <- cargill_df %>%
+  crossing(importer_iso3c = cargill_locations)
+
+write.csv(expand_df, here("int/material_origins_cargill_expanded.csv"), row.names = FALSE)
+
 ```
 

@@ -45,8 +45,7 @@ From there, skretting reports that on average, 12.6% of feeds used by their prod
 ```{r}
 skretting_raw <- read.csv(here("data/Trimmings info - skretting_origin_global.csv")) %>%
   dplyr::select(-fao_fishing_area) 
-# %>%  # remove fishing area because ARTIS is only resolved to country level information
-#   filter(str_detect(country, "Iceland"))
+
 
 ## group by species, countries, raw material type and get tonnage
 
@@ -85,6 +84,15 @@ skretting_df <- skretting_raw %>%
 write.csv(skretting_df, here("int/material_origins_skretting_global.csv"), row.names = FALSE)
   
 
-test2 <- read.csv(here("int/material_origins_skretting_global.csv"))
+skretting_df <- read.csv(here("int/material_origins_skretting_global.csv"))
+
+skretting_countries <- c("AUS", "CAN", "CHL", "CHN", "ECU", "EGY", "FRA", "HND", "ITA", "JPN", "NOR", "NGA", "TUR", "ESP", "USA", "VNM") # this is where the fishmeal could theoretically be exported to 
+  
+
+
+expand_df <- skretting_df %>%
+  crossing(importer_iso3c = skretting_countries)
+
+write.csv(expand_df, here("int/material_origins_skretting_global_expanded.csv"), row.names = FALSE)
 ```
 

@@ -139,8 +139,46 @@ havfisk_int <- read.csv(here("int/material_origins_havfisk_nor.csv")) %>%
 setdiff(colnames(havfisk_int), colnames(chiu_int))
 setdiff(colnames(chiu_int), colnames(havfisk_int))
 
-  
-all_int_dfs <- rbind(biomar_int, cargill_int, skretting_int, cao_int, chiu_int, greenpeace_int, peron_int, edwards_int, havfisk_int) %>%
+artis_comm <- artis_genus_df %>%
+  distinct(sciname, common_name)
+
+shea_int <- read.csv(here("int/material_origins_shea_2025.csv")) %>%
+      mutate(trimmings_tonnes = NA, wholefish_tonnes = NA) %>%
+  dplyr::select(-aquaculture, -common_name) %>%
+  left_join(., artis_comm) # ok now we need to fix the scinames that have missing common names....
+
+shea_missing_comms <- shea_int %>%
+  filter(is.na(common_name)) %>%
+  mutate(sciname = case_when(
+   country == "Canada" & sciname == "auxis spp." ~ "auxis",
+   country == "Canada" &   sciname == "oncorhynchus spp." ~ "oncorhynchus",
+   country == "Canada" &   sciname == "opisthonema spp." ~ "opisthonema oglinum",
+    country == "Ecuador" &  sciname == "auxis brachydorax" ~ "auxis thazard", # synonym
+     country == "Ecuador" & sciname == "larimus spp." ~ "sciaenidae",
+     country == "Ecuador" & sciname == "opisthonema spp." ~ "clupea pallasii", # FAO only reports pacific thread herring
+    country == "India" & sciname == "alutera monoceros" ~ "aluterus monoceros",
+    country == "India" & sciname == "caesio erythrogaster" ~ "caesio cuning", # synonym
+    country == "India" & sciname == "sardinella fimbriate" ~ "sardinella fimbriata", 
+     country == "India" & sciname == "secutor insidiator" ~ "deveximentum insidiator", # synonym
+   country == "Indonesia" &   sciname == "amblygaster spp." ~ "amblygaster sirm", # sardinella caught in Indonesia
+    country == "Mauritania" & sciname == "sardinella spp." ~ "sardinella",
+   country == "Mexico" & sciname == "etrumeus teres" ~ "etrumeus sadina", # synonym
+   country == "Mexico" & sciname == "oligoplites spp." ~ "oligoplites refulgens", # reported in FAO catch
+   country == "Mexico" & sciname == "opisthonema spp." ~ "opisthonema libertate", # FAO catch
+   country == "Panama" & sciname == "opisthonema spp." ~ "opisthonema libertate", # FAO catch
+   country == "United Kingdom" & sciname == "lepidorhombus spp." ~ "lepidorhombus",
+   country == "United States of America" & sciname == "urophycis spp." ~ "urophycis tenuis", # FAO catch
+   country == "Vietnam" & sciname == "pangasius hypophthalmas" ~ "pangasius",
+      country == "Thailand" & sciname == "pangasius hypophthalmas" ~ "pangasius",
+   TRUE ~ sciname
+      )) %>%
+  dplyr::select(-common_name) %>%
+  left_join(., artis_comm) # a couple I couldn't fill.
+
+shea_int_fin <- rbind(shea_int %>% filter(!is.na(common_name)), shea_missing_comms)
+
+
+all_int_dfs <- rbind(biomar_int, cargill_int, skretting_int, cao_int, chiu_int, greenpeace_int, peron_int, edwards_int, havfisk_int, shea_int_fin) %>%
   mutate(sciname = tolower(sciname),
          common_name = tolower(common_name)) %>%
   mutate(capture = ifelse(iso3c == "MEX" & common_name == "yellowfin tuna", "no", capture)) # make sure mexico is listed as aquaculture. Oman also lists wholefish reduction, however, oman doesnt have any tuna aquaculture
@@ -159,11 +197,8 @@ Now lets summarise so that we don't have any duplicate countries and species.
 int_dfs_summary <- all_int_dfs %>%
   group_by(sciname, common_name, iso3c, capture, trash_fish) %>%
   summarise(
-    # trim_prop_w_mean = weighted.mean(trim_prop, trimmings_tonnes, na.rm = TRUE),
             trim_prop_mean = mean(trim_prop, na.rm = TRUE)) %>%
   ungroup() %>%
- # mutate(trim_prop_w_mean = ifelse(trim_prop_w_mean == "NaN", 0, trim_prop_w_mean)) %>% # fix those with 0 trimmings tonnes
-#  mutate(trim_prop_w_mean = ifelse(is.na(trim_prop_w_mean), trim_prop_mean, trim_prop_w_mean)) %>%
   dplyr::select(sciname, common_name, iso3c, capture, trash_fish, trim_prop = trim_prop_mean) %>%
   mutate(trimmings = case_when(
     trim_prop == 1 ~ "yes",

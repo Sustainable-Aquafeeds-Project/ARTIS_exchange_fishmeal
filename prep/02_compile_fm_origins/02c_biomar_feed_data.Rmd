@@ -742,7 +742,17 @@ fm_origins_df_fin <- fm_origins_df %>%
 
 write.csv(fm_origins_df_fin, here("int/material_origins_biomar_raw.csv"), row.names = FALSE)
 
-test <- read.csv(here("int/material_origins_biomar_raw.csv"))
+biomar_df <- read.csv(here("int/material_origins_biomar_raw.csv"))
+
+biomar_countries <- c("NOR", "CHL", "DNK", "GBR", "ESP", "FRA", "VNM", "TUR", "GRC", "CHN", "ECU", "AUS", "CRI")
+  
+summary(biomar_df)
+  
+
+expand_df <- biomar_df %>%
+  crossing(importer_iso3c = biomar_countries)
+
+write.csv(expand_df, here("int/material_origins_biomar_raw_expanded.csv"), row.names = FALSE)
 
 
 ```
