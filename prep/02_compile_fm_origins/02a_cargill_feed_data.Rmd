@@ -26,7 +26,7 @@ source(here("R/directories.R"))
 
 ## Summary
 
-Cargill reports forage fish and trimmings amounts for warmwater and coldwater feeds, on pages 45-46 of their [sustainability report](https://www.cargill.com/sustainability/aquaculture/aquaculture-sustainability-reporting). Here we take this information and figure out weightings for each species (and country combination) of how much of their raw materials come from trimmings vs forage fish. 
+Cargill reports forage fish and trimmings amounts for warmwater and coldwater feeds, on pages 45-46 of their [sustainability report](https://www.cargill.com/doc/1432261381843/cargill-aqua-nutrition-sustainability-report-2023.pdf). Here we take this information and figure out weightings for each species (and country combination) of how much of their raw materials come from trimmings vs forage fish. 
 
 ## Methods
 

@@ -53,7 +53,7 @@ raw_df$country <- iconv(raw_df$country, from = "", to = "UTF-8", sub = "")
 
 
 tidy_df <- raw_df %>%
-  distinct(country, material_type, common_name = comm_name, sciname = sci_name) %>%
+  distinct(factory_id, country, material_type, common_name = comm_name, sciname = sci_name) %>%
   filter(!is.na(material_type)|material_type != "") %>%
   mutate(aquaculture = ifelse(str_detect(material_type, "aquaculture"), "yes", "no"),
          wholefish = ifelse(str_detect(material_type, "whole"), "yes", "no"),
@@ -68,7 +68,9 @@ tidy_df <- raw_df %>%
   mutate(sciname = tolower(sciname),
          common_name = tolower(common_name),
          source_country_iso3c = countrycode(sourcevar = country, origin = "country.name", destination = "iso3c")) %>% # add sardinella for GMB??
-  add_row(country = "Gambia", common_name = "sardinellas nei", sciname = "sardinella", aquaculture = "no", wholefish = "yes", trimmings = "no", data_source_feed = "Shea et al. 2025", data_source_fao_area_country = NA, feed_report_spp_name = "Round sardinella", trash_fish = "No", capture = "yes", source_country_iso3c = "GMB") %>% # known from OOSC presentations
+  add_row(factory_id = 114, country = "Gambia", common_name = "sardinellas nei", sciname = "sardinella", aquaculture = "no", wholefish = "yes", trimmings = "no", data_source_feed = "Shea et al. 2025", data_source_fao_area_country = NA, feed_report_spp_name = "Round sardinella", trash_fish = "No", capture = "yes", source_country_iso3c = "GMB") %>% # known from OOSC presentations
+    add_row(factory_id = 115, country = "Gambia", common_name = "sardinellas nei", sciname = "sardinella", aquaculture = "no", wholefish = "yes", trimmings = "no", data_source_feed = "Shea et al. 2025", data_source_fao_area_country = NA, feed_report_spp_name = "Round sardinella", trash_fish = "No", capture = "yes", source_country_iso3c = "GMB") %>%
+    add_row(factory_id = 116, country = "Gambia", common_name = "sardinellas nei", sciname = "sardinella", aquaculture = "no", wholefish = "yes", trimmings = "no", data_source_feed = "Shea et al. 2025", data_source_fao_area_country = NA, feed_report_spp_name = "Round sardinella", trash_fish = "No", capture = "yes", source_country_iso3c = "GMB") %>%
   mutate(sciname = ifelse(common_name == "araucanian herring", "strangomera bentincki", sciname)) # fix error in the dataset
   
 ```
@@ -114,10 +116,11 @@ fix_arg <- fao_fisheries_df %>%
     mutate(common_name = ifelse(is.na(common_name), feed_report_spp_name, common_name)) %>%
         mutate(sciname = ifelse(is.na(sciname.x) & !is.na(sciname.y), sciname.y, sciname.x)) %>%
   dplyr::select(-sciname.y, -sciname.x) %>%
-  group_by(source_country_iso3c, country, common_name, aquaculture, wholefish, trimmings, data_source_feed, data_source_fao_area_country, trash_fish, capture, sciname) %>%
-  summarise(feed_report_spp_name = paste(unique(feed_report_spp_name), collapse = ", "),
-            .groups = "drop") %>%
-  distinct()
+  dplyr::select(factory_id, source_country_iso3c, country, common_name, feed_report_spp_name, aquaculture, wholefish, trimmings, data_source_feed, data_source_fao_area_country, trash_fish, capture, sciname) 
+  # group_by(factory_id, source_country_iso3c, country, common_name, aquaculture, wholefish, trimmings, data_source_feed, data_source_fao_area_country, trash_fish, capture, sciname) %>%
+  # summarise(feed_report_spp_name = paste(unique(feed_report_spp_name), collapse = ", "),
+  #           .groups = "drop") %>%
+  # distinct()
 
 # Chile
 # krill 
@@ -133,10 +136,11 @@ fix_chl <- fm_artis_check %>%
     mutate(common_name = ifelse(is.na(common_name), feed_report_spp_name, common_name)) %>%
         mutate(sciname = ifelse(is.na(sciname.x) & !is.na(sciname.y), sciname.y, sciname.x)) %>%
   dplyr::select(-sciname.y, -sciname.x) %>%
-  group_by(source_country_iso3c, country, common_name, aquaculture, wholefish, trimmings, data_source_feed, data_source_fao_area_country, trash_fish, capture, sciname) %>%
-  summarise(feed_report_spp_name = paste(unique(feed_report_spp_name), collapse = ", "),
-            .groups = "drop") %>%
-  distinct()
+    dplyr::select(factory_id, source_country_iso3c, country, common_name, feed_report_spp_name, aquaculture, wholefish, trimmings, data_source_feed, data_source_fao_area_country, trash_fish, capture, sciname) 
+  # group_by(factory_id, source_country_iso3c, country, common_name, aquaculture, wholefish, trimmings, data_source_feed, data_source_fao_area_country, trash_fish, capture, sciname) %>%
+  # summarise(feed_report_spp_name = paste(unique(feed_report_spp_name), collapse = ", "),
+  #           .groups = "drop") %>%
+  # distinct()
 
 # Ecuador 
 # tuna 
@@ -151,10 +155,11 @@ fix_ecu <- fm_artis_check %>%
     mutate(common_name = ifelse(is.na(common_name), feed_report_spp_name, common_name)) %>%
         mutate(sciname = ifelse(is.na(sciname.x) & !is.na(sciname.y), sciname.y, sciname.x)) %>%
   dplyr::select(-sciname.y, -sciname.x) %>%
-  group_by(source_country_iso3c, country, common_name, aquaculture, wholefish, trimmings, data_source_feed, data_source_fao_area_country, trash_fish, capture, sciname) %>%
-  summarise(feed_report_spp_name = paste(unique(feed_report_spp_name), collapse = ", "),
-            .groups = "drop") %>%
-  distinct()
+    dplyr::select(factory_id, source_country_iso3c, country, common_name, feed_report_spp_name, aquaculture, wholefish, trimmings, data_source_feed, data_source_fao_area_country, trash_fish, capture, sciname) 
+  # group_by(factory_id, source_country_iso3c, country, common_name, aquaculture, wholefish, trimmings, data_source_feed, data_source_fao_area_country, trash_fish, capture, sciname) %>%
+  # summarise(feed_report_spp_name = paste(unique(feed_report_spp_name), collapse = ", "),
+  #           .groups = "drop") %>%
+  # distinct()
 
 # India
 # catfish
@@ -178,10 +183,11 @@ fix_ind <- fm_artis_check %>%
   mutate(common_name = ifelse(is.na(common_name), feed_report_spp_name, common_name)) %>%
         mutate(sciname = ifelse(is.na(sciname.x) & !is.na(sciname.y), sciname.y, sciname.x)) %>%
   dplyr::select(-sciname.y, -sciname.x) %>%
-    group_by(source_country_iso3c, country, common_name, aquaculture, wholefish, trimmings, data_source_feed, data_source_fao_area_country, trash_fish, capture, sciname) %>%
-  summarise(feed_report_spp_name = paste(unique(feed_report_spp_name), collapse = ", "),
-            .groups = "drop") %>%
-  distinct()
+    dplyr::select(factory_id, source_country_iso3c, country, common_name, feed_report_spp_name, aquaculture, wholefish, trimmings, data_source_feed, data_source_fao_area_country, trash_fish, capture, sciname) 
+  #   group_by(factory_id, source_country_iso3c, country, common_name, aquaculture, wholefish, trimmings, data_source_feed, data_source_fao_area_country, trash_fish, capture, sciname) %>%
+  # summarise(feed_report_spp_name = paste(unique(feed_report_spp_name), collapse = ", "),
+  #           .groups = "drop") %>%
+  # distinct()
 
 
 # Indonesia 
@@ -203,10 +209,11 @@ fix_idn <- fm_artis_check %>%
       mutate(sciname = ifelse(is.na(sciname.x) & !is.na(sciname.y), sciname.y, sciname.x)) %>%
   dplyr::select(-sciname.y, -sciname.x) %>%
   distinct() %>%
-    group_by(source_country_iso3c, country, common_name, aquaculture, wholefish, trimmings, data_source_feed, data_source_fao_area_country, trash_fish, capture, sciname) %>%
-  summarise(feed_report_spp_name = paste(unique(feed_report_spp_name), collapse = ", "),
-            .groups = "drop") %>%
-  distinct()
+    dplyr::select(factory_id, source_country_iso3c, country, common_name, feed_report_spp_name, aquaculture, wholefish, trimmings, data_source_feed, data_source_fao_area_country, trash_fish, capture, sciname) 
+  #   group_by(factory_id, source_country_iso3c, country, common_name, aquaculture, wholefish, trimmings, data_source_feed, data_source_fao_area_country, trash_fish, capture, sciname) %>%
+  # summarise(feed_report_spp_name = paste(unique(feed_report_spp_name), collapse = ", "),
+  #           .groups = "drop") %>%
+  # distinct()
 
 # Iran
 # sardine
@@ -225,10 +232,11 @@ fix_irn <- fm_artis_check %>%
       mutate(sciname = ifelse(is.na(sciname.x) & !is.na(sciname.y), sciname.y, sciname.x)) %>%
   dplyr::select(-sciname.y, -sciname.x) %>%
   distinct() %>%
-    group_by(source_country_iso3c, country, common_name, aquaculture, wholefish, trimmings, data_source_feed, data_source_fao_area_country, trash_fish, capture, sciname) %>%
-  summarise(feed_report_spp_name = paste(unique(feed_report_spp_name), collapse = ", "),
-            .groups = "drop") %>%
-  distinct()
+    dplyr::select(factory_id, source_country_iso3c, country, common_name, feed_report_spp_name, aquaculture, wholefish, trimmings, data_source_feed, data_source_fao_area_country, trash_fish, capture, sciname) 
+  #   group_by(factory_id, source_country_iso3c, country, common_name, aquaculture, wholefish, trimmings, data_source_feed, data_source_fao_area_country, trash_fish, capture, sciname) %>%
+  # summarise(feed_report_spp_name = paste(unique(feed_report_spp_name), collapse = ", "),
+  #           .groups = "drop") %>%
+  # distinct()
 
 
 # Ireland 
@@ -267,10 +275,11 @@ fix_irl <- fm_artis_check %>%
     mutate(common_name = ifelse(is.na(common_name), feed_report_spp_name, common_name)) %>%
       mutate(sciname = ifelse(is.na(sciname.x) & !is.na(sciname.y), sciname.y, sciname.x)) %>%
   dplyr::select(-sciname.y, -sciname.x) %>%
-  group_by(source_country_iso3c, country, common_name, aquaculture, wholefish, trimmings, data_source_feed, data_source_fao_area_country, trash_fish, capture, sciname) %>%
-  summarise(feed_report_spp_name = paste(unique(feed_report_spp_name), collapse = ", "),
-            .groups = "drop") %>%
-  distinct()
+    dplyr::select(factory_id, source_country_iso3c, country, common_name, feed_report_spp_name, aquaculture, wholefish, trimmings, data_source_feed, data_source_fao_area_country, trash_fish, capture, sciname) 
+  # group_by(factory_id, source_country_iso3c, country, common_name, aquaculture, wholefish, trimmings, data_source_feed, data_source_fao_area_country, trash_fish, capture, sciname) %>%
+  # summarise(feed_report_spp_name = paste(unique(feed_report_spp_name), collapse = ", "),
+  #           .groups = "drop") %>%
+  # distinct()
 
 # South Korea
 # squid
@@ -293,7 +302,7 @@ fix_kor <- fm_artis_check %>%
     mutate(common_name = ifelse(is.na(common_name), feed_report_spp_name, common_name)) %>%
       mutate(sciname = ifelse(is.na(sciname.x) & !is.na(sciname.y), sciname.y, sciname.x)) %>%
   dplyr::select(-sciname.y, -sciname.x) %>%
-  distinct()
+    dplyr::select(factory_id, source_country_iso3c, country, common_name, feed_report_spp_name, aquaculture, wholefish, trimmings, data_source_feed, data_source_fao_area_country, trash_fish, capture, sciname) 
 
 # Malaysia 
 # tuna 
@@ -330,10 +339,11 @@ fix_mys <- fm_artis_check %>%
     mutate(common_name = ifelse(is.na(common_name), feed_report_spp_name, common_name)) %>%
       mutate(sciname = ifelse(is.na(sciname.x) & !is.na(sciname.y), sciname.y, sciname.x)) %>%
   dplyr::select(-sciname.y, -sciname.x) %>%
-  group_by(source_country_iso3c, country, common_name, aquaculture, wholefish, trimmings, data_source_feed, data_source_fao_area_country, trash_fish, capture, sciname) %>%
-  summarise(feed_report_spp_name = paste(unique(feed_report_spp_name), collapse = ", "),
-            .groups = "drop") %>%
-  distinct()
+    dplyr::select(factory_id, source_country_iso3c, country, common_name, feed_report_spp_name, aquaculture, wholefish, trimmings, data_source_feed, data_source_fao_area_country, trash_fish, capture, sciname) 
+  # group_by(factory_id, source_country_iso3c, country, common_name, aquaculture, wholefish, trimmings, data_source_feed, data_source_fao_area_country, trash_fish, capture, sciname) %>%
+  # summarise(feed_report_spp_name = paste(unique(feed_report_spp_name), collapse = ", "),
+  #           .groups = "drop") %>%
+  # distinct()
 
 # New Zealand 
 # tuna
@@ -366,10 +376,11 @@ fix_nzl <- fm_artis_check %>%
     mutate(common_name = ifelse(is.na(common_name), feed_report_spp_name, common_name)) %>%
       mutate(sciname = ifelse(is.na(sciname.x) & !is.na(sciname.y), sciname.y, sciname.x)) %>%
   dplyr::select(-sciname.y, -sciname.x) %>%
-  group_by(source_country_iso3c, country, common_name, aquaculture, wholefish, trimmings, data_source_feed, data_source_fao_area_country, trash_fish, capture, sciname) %>%
-  summarise(feed_report_spp_name = paste(unique(feed_report_spp_name), collapse = ", "),
-            .groups = "drop") %>%
-  distinct()
+    dplyr::select(factory_id, source_country_iso3c, country, common_name, feed_report_spp_name, aquaculture, wholefish, trimmings, data_source_feed, data_source_fao_area_country, trash_fish, capture, sciname) 
+  # group_by(factory_id, source_country_iso3c, country, common_name, aquaculture, wholefish, trimmings, data_source_feed, data_source_fao_area_country, trash_fish, capture, sciname) %>%
+  # summarise(feed_report_spp_name = paste(unique(feed_report_spp_name), collapse = ", "),
+  #           .groups = "drop") %>%
+  # distinct()
 
 # Norway 
 # krill - "antarctic krill" = "euphausia superba"
@@ -402,10 +413,11 @@ fix_nor <- fm_artis_check %>%
     mutate(common_name = ifelse(is.na(common_name), feed_report_spp_name, common_name)) %>%
       mutate(sciname = ifelse(is.na(sciname.x) & !is.na(sciname.y), sciname.y, sciname.x)) %>%
   dplyr::select(-sciname.y, -sciname.x) %>%
-  group_by(source_country_iso3c, country, common_name, aquaculture, wholefish, trimmings, data_source_feed, data_source_fao_area_country, trash_fish, capture, sciname) %>%
-  summarise(feed_report_spp_name = paste(unique(feed_report_spp_name), collapse = ", "),
-            .groups = "drop") %>%
-  distinct()
+    dplyr::select(factory_id, source_country_iso3c, country, common_name, feed_report_spp_name, aquaculture, wholefish, trimmings, data_source_feed, data_source_fao_area_country, trash_fish, capture, sciname) 
+  # group_by(factory_id, source_country_iso3c, country, common_name, aquaculture, wholefish, trimmings, data_source_feed, data_source_fao_area_country, trash_fish, capture, sciname) %>%
+  # summarise(feed_report_spp_name = paste(unique(feed_report_spp_name), collapse = ", "),
+  #           .groups = "drop") %>%
+  # distinct()
 
 # Oman
 # tuna
@@ -437,10 +449,11 @@ fix_omn <- fm_artis_check %>%
     mutate(common_name = ifelse(is.na(common_name), feed_report_spp_name, common_name)) %>%
       mutate(sciname = ifelse(is.na(sciname.x) & !is.na(sciname.y), sciname.y, sciname.x)) %>%
   dplyr::select(-sciname.y, -sciname.x) %>%
-  group_by(source_country_iso3c, country, common_name, aquaculture, wholefish, trimmings, data_source_feed, data_source_fao_area_country, trash_fish, capture, sciname) %>%
-  summarise(feed_report_spp_name = paste(unique(feed_report_spp_name), collapse = ", "),
-            .groups = "drop") %>%
-  distinct()
+    dplyr::select(factory_id, source_country_iso3c, country, common_name, feed_report_spp_name, aquaculture, wholefish, trimmings, data_source_feed, data_source_fao_area_country, trash_fish, capture, sciname) 
+  # group_by(factory_id, source_country_iso3c, country, common_name, aquaculture, wholefish, trimmings, data_source_feed, data_source_fao_area_country, trash_fish, capture, sciname) %>%
+  # summarise(feed_report_spp_name = paste(unique(feed_report_spp_name), collapse = ", "),
+  #           .groups = "drop") %>%
+  # distinct()
 
 # Papua New Guinea 
 # tuna
@@ -473,10 +486,11 @@ fix_png <- fm_artis_check %>%
     mutate(common_name = ifelse(is.na(common_name), feed_report_spp_name, common_name)) %>%
       mutate(sciname = ifelse(is.na(sciname.x) & !is.na(sciname.y), sciname.y, sciname.x)) %>%
   dplyr::select(-sciname.y, -sciname.x) %>%
-  group_by(source_country_iso3c, country, common_name, aquaculture, wholefish, trimmings, data_source_feed, data_source_fao_area_country, trash_fish, capture, sciname) %>%
-  summarise(feed_report_spp_name = paste(unique(feed_report_spp_name), collapse = ", "),
-            .groups = "drop") %>%
-  distinct()
+    dplyr::select(factory_id, source_country_iso3c, country, common_name, feed_report_spp_name, aquaculture, wholefish, trimmings, data_source_feed, data_source_fao_area_country, trash_fish, capture, sciname) 
+  # group_by(source_country_iso3c, country, common_name, aquaculture, wholefish, trimmings, data_source_feed, data_source_fao_area_country, trash_fish, capture, sciname) %>%
+  # summarise(feed_report_spp_name = paste(unique(feed_report_spp_name), collapse = ", "),
+  #           .groups = "drop") %>%
+  # distinct()
 
 # Poland
 # tuna 
@@ -508,10 +522,11 @@ fix_pol <- fm_artis_check %>%
     mutate(common_name = ifelse(is.na(common_name), feed_report_spp_name, common_name)) %>%
       mutate(sciname = ifelse(is.na(sciname.x) & !is.na(sciname.y), sciname.y, sciname.x)) %>%
   dplyr::select(-sciname.y, -sciname.x) %>%
-  group_by(source_country_iso3c, country, common_name, aquaculture, wholefish, trimmings, data_source_feed, data_source_fao_area_country, trash_fish, capture, sciname) %>%
-  summarise(feed_report_spp_name = paste(unique(feed_report_spp_name), collapse = ", "),
-            .groups = "drop") %>%
-  distinct()
+    dplyr::select(factory_id, source_country_iso3c, country, common_name, feed_report_spp_name, aquaculture, wholefish, trimmings, data_source_feed, data_source_fao_area_country, trash_fish, capture, sciname) 
+  # group_by(source_country_iso3c, country, common_name, aquaculture, wholefish, trimmings, data_source_feed, data_source_fao_area_country, trash_fish, capture, sciname) %>%
+  # summarise(feed_report_spp_name = paste(unique(feed_report_spp_name), collapse = ", "),
+  #           .groups = "drop") %>%
+  # distinct()
 
 
 # Seychelles
@@ -544,10 +559,11 @@ fix_syc <- fm_artis_check %>%
     mutate(common_name = ifelse(is.na(common_name), feed_report_spp_name, common_name)) %>%
       mutate(sciname = ifelse(is.na(sciname.x) & !is.na(sciname.y), sciname.y, sciname.x)) %>%
   dplyr::select(-sciname.y, -sciname.x) %>%
-  group_by(source_country_iso3c, country, common_name, aquaculture, wholefish, trimmings, data_source_feed, data_source_fao_area_country, trash_fish, capture, sciname) %>%
-  summarise(feed_report_spp_name = paste(unique(feed_report_spp_name), collapse = ", "),
-            .groups = "drop") %>%
-  distinct()
+    dplyr::select(factory_id, source_country_iso3c, country, common_name, feed_report_spp_name, aquaculture, wholefish, trimmings, data_source_feed, data_source_fao_area_country, trash_fish, capture, sciname) 
+  # group_by(source_country_iso3c, country, common_name, aquaculture, wholefish, trimmings, data_source_feed, data_source_fao_area_country, trash_fish, capture, sciname) %>%
+  # summarise(feed_report_spp_name = paste(unique(feed_report_spp_name), collapse = ", "),
+  #           .groups = "drop") %>%
+  # distinct()
 
 
 # Spain
@@ -586,10 +602,11 @@ fix_esp <- fm_artis_check %>%
     mutate(common_name = ifelse(is.na(common_name), feed_report_spp_name, common_name)) %>%
       mutate(sciname = ifelse(is.na(sciname.x) & !is.na(sciname.y), sciname.y, sciname.x)) %>%
   dplyr::select(-sciname.y, -sciname.x) %>%
-  group_by(source_country_iso3c, country, common_name, aquaculture, wholefish, trimmings, data_source_feed, data_source_fao_area_country, trash_fish, capture, sciname) %>%
-  summarise(feed_report_spp_name = paste(unique(feed_report_spp_name), collapse = ", "),
-            .groups = "drop") %>%
-  distinct()
+    dplyr::select(factory_id, source_country_iso3c, country, common_name, feed_report_spp_name, aquaculture, wholefish, trimmings, data_source_feed, data_source_fao_area_country, trash_fish, capture, sciname) 
+  # group_by(source_country_iso3c, country, common_name, aquaculture, wholefish, trimmings, data_source_feed, data_source_fao_area_country, trash_fish, capture, sciname) %>%
+  # summarise(feed_report_spp_name = paste(unique(feed_report_spp_name), collapse = ", "),
+  #           .groups = "drop") %>%
+  # distinct()
 
 
 # Taiwan
@@ -633,10 +650,11 @@ fix_twn <- fm_artis_check %>%
     mutate(common_name = ifelse(is.na(common_name), feed_report_spp_name, common_name)) %>%
       mutate(sciname = ifelse(is.na(sciname.x) & !is.na(sciname.y), sciname.y, sciname.x)) %>%
   dplyr::select(-sciname.y, -sciname.x) %>%
-  group_by(source_country_iso3c, country, common_name, aquaculture, wholefish, trimmings, data_source_feed, data_source_fao_area_country, trash_fish, capture, sciname) %>%
-  summarise(feed_report_spp_name = paste(unique(feed_report_spp_name), collapse = ", "),
-            .groups = "drop") %>%
-  distinct()
+    dplyr::select(factory_id, source_country_iso3c, country, common_name, feed_report_spp_name, aquaculture, wholefish, trimmings, data_source_feed, data_source_fao_area_country, trash_fish, capture, sciname) 
+  # group_by(source_country_iso3c, country, common_name, aquaculture, wholefish, trimmings, data_source_feed, data_source_fao_area_country, trash_fish, capture, sciname) %>%
+  # summarise(feed_report_spp_name = paste(unique(feed_report_spp_name), collapse = ", "),
+  #           .groups = "drop") %>%
+  # distinct()
 
 # Thailand
 # tuna 
@@ -669,10 +687,11 @@ fix_tha <- fm_artis_check %>%
     mutate(common_name = ifelse(is.na(common_name), feed_report_spp_name, common_name)) %>%
       mutate(sciname = ifelse(is.na(sciname.x) & !is.na(sciname.y), sciname.y, sciname.x)) %>%
   dplyr::select(-sciname.y, -sciname.x) %>%
-  group_by(source_country_iso3c, country, common_name, aquaculture, wholefish, trimmings, data_source_feed, data_source_fao_area_country, trash_fish, capture, sciname) %>%
-  summarise(feed_report_spp_name = paste(unique(feed_report_spp_name), collapse = ", "),
-            .groups = "drop") %>%
-  distinct()
+    dplyr::select(factory_id, source_country_iso3c, country, common_name, feed_report_spp_name, aquaculture, wholefish, trimmings, data_source_feed, data_source_fao_area_country, trash_fish, capture, sciname) 
+  # group_by(source_country_iso3c, country, common_name, aquaculture, wholefish, trimmings, data_source_feed, data_source_fao_area_country, trash_fish, capture, sciname) %>%
+  # summarise(feed_report_spp_name = paste(unique(feed_report_spp_name), collapse = ", "),
+  #           .groups = "drop") %>%
+  # distinct()
 
 # Turkey
 # tuna 
@@ -706,10 +725,11 @@ fix_tur <- fm_artis_check %>%
     mutate(common_name = ifelse(is.na(common_name), feed_report_spp_name, common_name)) %>%
       mutate(sciname = ifelse(is.na(sciname.x) & !is.na(sciname.y), sciname.y, sciname.x)) %>%
   dplyr::select(-sciname.y, -sciname.x) %>%
-  group_by(source_country_iso3c, country, common_name, aquaculture, wholefish, trimmings, data_source_feed, data_source_fao_area_country, trash_fish, capture, sciname) %>%
-  summarise(feed_report_spp_name = paste(unique(feed_report_spp_name), collapse = ", "),
-            .groups = "drop") %>%
-  distinct()
+    dplyr::select(factory_id, source_country_iso3c, country, common_name, feed_report_spp_name, aquaculture, wholefish, trimmings, data_source_feed, data_source_fao_area_country, trash_fish, capture, sciname) 
+  # group_by(source_country_iso3c, country, common_name, aquaculture, wholefish, trimmings, data_source_feed, data_source_fao_area_country, trash_fish, capture, sciname) %>%
+  # summarise(feed_report_spp_name = paste(unique(feed_report_spp_name), collapse = ", "),
+  #           .groups = "drop") %>%
+  # distinct()
 
 # United Kingdom
 # tuna 
@@ -742,10 +762,11 @@ fix_gbr <- fm_artis_check %>%
     mutate(common_name = ifelse(is.na(common_name), feed_report_spp_name, common_name)) %>%
       mutate(sciname = ifelse(is.na(sciname.x) & !is.na(sciname.y), sciname.y, sciname.x)) %>%
   dplyr::select(-sciname.y, -sciname.x) %>%
-  group_by(source_country_iso3c, country, common_name, aquaculture, wholefish, trimmings, data_source_feed, data_source_fao_area_country, trash_fish, capture, sciname) %>%
-  summarise(feed_report_spp_name = paste(unique(feed_report_spp_name), collapse = ", "),
-            .groups = "drop") %>%
-  distinct()
+    dplyr::select(factory_id, source_country_iso3c, country, common_name, feed_report_spp_name, aquaculture, wholefish, trimmings, data_source_feed, data_source_fao_area_country, trash_fish, capture, sciname) 
+  # group_by(source_country_iso3c, country, common_name, aquaculture, wholefish, trimmings, data_source_feed, data_source_fao_area_country, trash_fish, capture, sciname) %>%
+  # summarise(feed_report_spp_name = paste(unique(feed_report_spp_name), collapse = ", "),
+  #           .groups = "drop") %>%
+  # distinct()
 
 # United States of America 
 # salmon 
@@ -771,7 +792,6 @@ fix_usa <- fm_artis_check %>%
       return(NA_character_)
     }
   })) %>%
-  # mutate(feed_report_spp_name = ifelse(str_detect(common_name, "anchov"), "anchovy", feed_report_spp_name)) %>%
   mutate(country = "United States of America") %>% 
   dplyr::select(source_country_iso3c, country, sciname, common_name, feed_report_spp_name) %>%
     full_join(tidy_df %>%
@@ -780,10 +800,11 @@ fix_usa <- fm_artis_check %>%
     mutate(common_name = ifelse(is.na(common_name), feed_report_spp_name, common_name)) %>%
       mutate(sciname = ifelse(is.na(sciname.x) & !is.na(sciname.y), sciname.y, sciname.x)) %>%
   dplyr::select(-sciname.y, -sciname.x) %>%
-  group_by(source_country_iso3c, country, common_name, aquaculture, wholefish, trimmings, data_source_feed, data_source_fao_area_country, trash_fish, capture, sciname) %>%
-  summarise(feed_report_spp_name = paste(unique(feed_report_spp_name), collapse = ", "),
-            .groups = "drop") %>%
-  distinct()
+    dplyr::select(factory_id, source_country_iso3c, country, common_name, feed_report_spp_name, aquaculture, wholefish, trimmings, data_source_feed, data_source_fao_area_country, trash_fish, capture, sciname) 
+  # group_by(source_country_iso3c, country, common_name, aquaculture, wholefish, trimmings, data_source_feed, data_source_fao_area_country, trash_fish, capture, sciname) %>%
+  # summarise(feed_report_spp_name = paste(unique(feed_report_spp_name), collapse = ", "),
+  #           .groups = "drop") %>%
+  # distinct()
 
 # Costa Rica 
 # shrimp 
@@ -832,10 +853,11 @@ fix_cri_1 <- fm_artis_check %>%
     mutate(common_name = ifelse(is.na(common_name), feed_report_spp_name, common_name)) %>%
       mutate(sciname = ifelse(is.na(sciname.x) & !is.na(sciname.y), sciname.y, sciname.x)) %>%
   dplyr::select(-sciname.y, -sciname.x) %>%
-  group_by(source_country_iso3c, country, common_name, aquaculture, wholefish, trimmings, data_source_feed, data_source_fao_area_country, trash_fish, capture, sciname) %>%
-  summarise(feed_report_spp_name = paste(unique(feed_report_spp_name), collapse = ", "),
-            .groups = "drop") %>%
-  distinct()
+    dplyr::select(factory_id, source_country_iso3c, country, common_name, feed_report_spp_name, aquaculture, wholefish, trimmings, data_source_feed, data_source_fao_area_country, trash_fish, capture, sciname) 
+  # group_by(source_country_iso3c, country, common_name, aquaculture, wholefish, trimmings, data_source_feed, data_source_fao_area_country, trash_fish, capture, sciname) %>%
+  # summarise(feed_report_spp_name = paste(unique(feed_report_spp_name), collapse = ", "),
+  #           .groups = "drop") %>%
+  # distinct()
 
 cri_fm <- fm_artis_check %>%
   filter(source_country_iso3c == "CRI", phylum == "chordata")
@@ -862,24 +884,27 @@ costa_rica_rows <- tibble::tibble(
          data_source_fao_area_country = NA,
          feed_report_spp_name = "fish",
          trash_fish = "no",
-         capture = "yes", source_country_iso3c = "CRI")
+         capture = "yes", source_country_iso3c = "CRI") %>%
+  mutate(factory_id = 80)
 
 fix_cri  <- rbind(fix_cri_1, costa_rica_rows)
 
-# stopped here 12:14pm June 24
 
-fix_sciname_df <- rbind(fix_arg, fix_chl, fix_cri, fix_ecu, fix_esp, fix_gbr, fix_idn, fix_ind, fix_irl, fix_irn, fix_kor, fix_mys, fix_mys, fix_omn, fix_png, fix_pol, fix_syc, fix_tha, fix_tur, fix_twn, fix_usa, fix_nor, fix_nzl)
+fix_sciname_df <- rbind(fix_arg, fix_chl, fix_cri, fix_ecu, fix_esp, fix_gbr, fix_idn, fix_ind, fix_irl, fix_irn, fix_kor, fix_mys, fix_omn, fix_png, fix_pol, fix_syc, fix_tha, fix_tur, fix_twn, fix_usa, fix_nor, fix_nzl)
 
-# rm(list = c("fix_arg", "fix_chl", "fix_cri", "fix_ecu", "fix_esp", 
-#             "fix_gbr", "fix_idn", "fix_ind", "fix_irl", "fix_irn", 
-#             "fix_kor", "fix_mys", "fix_omn", "fix_png", "fix_pol", 
-#             "fix_syc", "fix_tha", "fix_tur", "fix_twn", "fix_usa", "fix_nor", "fix_nzl", "fix_cri_1"))
 
 fixed_iso <- unique(fix_sciname_df$source_country_iso3c)
 
 tidy_df_fix <- tidy_df %>% 
   filter(!(source_country_iso3c %in% fixed_iso)) %>%
   rbind(., fix_sciname_df) # want to retain repeats here because this will affect the trim_prop estimates
+
+
+rm(list = c("fix_arg", "fix_chl", "fix_cri", "fix_ecu", "fix_esp",
+            "fix_gbr", "fix_idn", "fix_ind", "fix_irl", "fix_irn",
+            "fix_kor", "fix_mys", "fix_omn", "fix_png", "fix_pol",
+            "fix_syc", "fix_tha", "fix_tur", "fix_twn", "fix_usa", "fix_nor", "fix_nzl", "fix_cri_1"))
+
 
 ```
 
@@ -976,13 +1001,15 @@ matched_all <- rows_to_match %>%
 
 fix_can_tuna <- matched_all %>%
   filter(source_country_iso3c == "CAN", 
-         feed_report_spp_name == "auxis") %>%
+         is.na(factory_id)) %>%
   mutate(trimmings = "yes",
          wholefish = "no",
          capture = "yes",
          trash_fish = "no",
-         aquaculutre = "no",
-         data_source_feed = "Shea et al. 2025") %>%
+         aquaculture = "no",
+         data_source_feed = "Shea et al. 2025", 
+         factory_id = 24,
+         feed_report_spp_name = "auxis") %>%
   dplyr::select(colnames(matched_all))
 
 matched_all_fix <- matched_all %>%

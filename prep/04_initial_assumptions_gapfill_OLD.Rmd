@@ -61,31 +61,14 @@ asia_iso3c <- countries %>%
   filter(owid_region == "Asia") %>%
   pull(iso3c)
 
-artis_comm_sci <- artis_taxa %>%
-  distinct(common_name, sciname)
 ```
 
-Read in FM origins data 
+Join ARTIS data to data compiled from literature review
 
 ```{r}
 fm_origins_df_fin <- read.csv(here("outputs/all_fmfo_material_origins_reports.csv")) %>%
-  dplyr::select(-common_name) %>%
-  group_by(sciname, iso3c, capture) %>%
-  summarise(trim_prop = mean(trim_prop, na.rm = TRUE)) %>%
-  ungroup()
-
-fm_origins_traded <- read.csv(here("outputs/feed_company_fmfo_material_origins_traded.csv")) %>%
-  dplyr::select(-common_name) %>%
-  group_by(sciname, source_country_iso3c, importer_iso3c, capture) %>%
-  summarise(trim_prop = mean(trim_prop, na.rm = TRUE)) %>%
-  ungroup()
-
-ggplot(fm_origins_traded) +
-  geom_histogram(aes(trim_prop)) +
-  theme_bw() +
-  labs(x = "Proportion of fishmeal derived from trimmings",
-       y = "Distinct species and source country count")
-
+ # mutate(method = ifelse(capture == "yes", "capture", "aquaculture")) %>%
+  dplyr::select(-common_name)
 
 # take a look at the distribution of values
 ggplot(fm_origins_df_fin) +
@@ -93,190 +76,76 @@ ggplot(fm_origins_df_fin) +
   theme_bw() +
   labs(x = "Proportion of fishmeal derived from trimmings",
        y = "Distinct species and source country count")
-```
 
-Join feed company traded data to ARTIS data by sciname, origin iso3c, and importer iso3c
-
-```{r}
 artis_trimmings_all <- fm_artis %>%
-  left_join(fm_origins_traded, by = c("sciname", "source_country_iso3c", "exporter_iso3c" = "importer_iso3c")) # match to exporter_iso3c since those are the processing countries, and the "importer_iso3c" represents the factory locations for the feed companies
+ # left_join(artis_taxa) %>%
+  left_join(fm_origins_df_fin, by = c("sciname", "source_country_iso3c" = "iso3c")) %>%
+   left_join(artis_taxa)
 
-# filter for the non-NA info from that join 
-artis_trimmings_info_traded <- artis_trimmings_all %>%
-    filter(!is.na(trim_prop)) %>%
-  mutate(
+artis_trimmings_info <- artis_trimmings_all %>% 
+  filter(!is.na(trimmings)) %>%
+  mutate(method_gf = NA,
+         trimmings_gf = trimmings,
+         wholefish_gf = wholefish,
          trim_prop_gf = trim_prop) %>%
-   ## fix some (rare) instances when method is aquaculture but our info is capture and they are matching. Just make these NA
-  mutate(
+  mutate(trimmings_gf = ifelse(source_country_iso3c == "MEX" & common_name == "yellowfin tuna", "yes", trimmings_gf),
+         wholefish_gf = ifelse(source_country_iso3c == "MEX" & common_name == "yellowfin tuna", "no", wholefish_gf),
+        trim_prop_gf = ifelse(source_country_iso3c == "MEX" & common_name == "yellowfin tuna", 1, trim_prop_gf)) %>%  # fix the mexico yellowfin tuna instance
+  ## fix some (rare) instances when method is aquaculture but our info is capture and they are matching. Just make these NA
+  mutate(trimmings_gf = case_when(
+    method == "aquaculture" & capture == "yes" & !is.na(trim_prop_gf) ~ NA,
+    TRUE ~ trimmings_gf
+  ),
+         wholefish_gf = case_when(
+            method == "aquaculture" & capture == "yes" & !is.na(trim_prop_gf) ~ NA,
+            TRUE ~ wholefish_gf
+         ),
+    trash_fish = case_when(
+     method == "aquaculture" & capture == "yes" & !is.na(trim_prop_gf) ~ "no",
+     TRUE ~ trash_fish),
          trim_prop_gf = case_when(
             method == "aquaculture" & capture == "yes" & !is.na(trim_prop_gf) ~ NA,
+            TRUE ~ trim_prop_gf
+         ),
+        trimmings = case_when(
+            method == "aquaculture" & capture == "yes" & !is.na(trim_prop) ~ NA,
+            TRUE ~ trimmings
+         ),
+        wholefish = case_when(
+            method == "aquaculture" & capture == "yes" & !is.na(trim_prop) ~ NA,
+            TRUE ~ wholefish
+         ),
+           trim_prop = case_when(
+            method == "aquaculture" & capture == "yes" & !is.na(trim_prop) ~ NA,
             TRUE ~ trim_prop_gf
          )
   )
 
+artis_trimmings_info_fix <- artis_trimmings_info %>%
+  filter(!is.na(trim_prop_gf))
 
-summary(artis_trimmings_all_traded)
-
-# 3738281/4075045 # missing 91% of rows. 
-# # how much fishmeal? 
-
-# sum(artis_trimmings_all_traded$product_weight_t)
-# test <- artis_trimmings_all_traded %>%
-#   filter(!is.na(trim_prop)) %>%
-#   pull(product_weight_t) %>%
-#   sum()
-# 
-# test/sum(artis_trimmings_all_traded$product_weight_t) # got about 24% of fishmeal this way! 
-# 
-# # what about just for 2020? 
-# 
-# test <- artis_trimmings_all_traded %>%
-#   filter(!is.na(trim_prop),
-#          year == 2020) %>%
-#   pull(product_weight_t) %>%
-#   sum()
-# 
-# artis_trimmings_all_traded %>%
-#   filter(year == 2020) %>%
-#   pull(product_weight_t) %>%
-#   sum()
-
-# test/6158133 # got about 28% of fishmeal 2020 this way! That's pretty good!  
-
-# since we added some NAs we need to filter for those now
-missing_from_traded_df <- artis_trimmings_info_traded %>%
-  filter(is.na(trim_prop_gf)) 
-
-
-artis_trimmings_info_traded <- artis_trimmings_info_traded %>%
-  filter(!is.na(trim_prop_gf)) # make sure
-
-391731-1977 == nrow(artis_trimmings_info_traded) # TRUE - good
-
-## now we have artis_trimmings_info_traded as one of our final dfs; no gapfilling required for these rows 
-```
-
-
-```{r}
-# now get all of the trim_prop NAs after joining to the feed company trade data 
-
-# filter the original joined data for NA trim prop and join with the other NAs we designated ourselves. 
-# then join with our source information from literature
-artis_trimmings_basic_sources <- artis_trimmings_all %>%
-  filter(is.na(trim_prop)) %>%
-  mutate(trim_prop_gf = trim_prop) %>%  
-  rbind(., missing_from_traded_df) %>% 
-    mutate(method_new = ifelse(method == "aquaculture", "aquaculture", "capture")) %>% 
-  dplyr::select(-trim_prop, -capture, -trim_prop_gf) %>%
-  left_join(fm_origins_df_fin %>% mutate(method_new = ifelse(capture == "yes", "capture", "aquaculture")), by = c("sciname", "source_country_iso3c" = "iso3c", "method_new")) # I'm not sure what is duplicating? 
-
-summary(artis_trimmings_basic_sources)
-
-# filter for non-na trim_prop_gf
-artis_trimmings_info_sources <- artis_trimmings_basic_sources %>% 
-  filter(!is.na(trim_prop)) %>% # filter for non-na
-  mutate(
-         trim_prop_gf = trim_prop) %>%
-  mutate(
-        trim_prop_gf = ifelse(source_country_iso3c == "MEX" & sciname == "thunnus albacares", 1, trim_prop_gf)) %>%  # fix the mexico yellowfin tuna instance
-  ## fix some (rare) instances when method is aquaculture but our info is capture and they are matching. Just make these NA
-  mutate(trim_prop_gf = case_when(
-            method == "aquaculture" & capture == "yes" & !is.na(trim_prop_gf) ~ NA,
-            TRUE ~ trim_prop_gf
-         )) %>%
-  distinct()
-
-missing <- artis_trimmings_info_sources %>% 
-  filter(is.na(trim_prop_gf)) # ok cool none missing 
-
-# now filter for the remainder that we need to fix
-artis_trimmings_info_to_fix <- artis_trimmings_basic_sources %>%
-  mutate(trim_prop_gf = trim_prop) %>%
-  mutate(method_trim_gf = NA) %>%
+artis_trimmings_missing_1 <- artis_trimmings_info %>% 
   filter(is.na(trim_prop_gf)) %>%
-  distinct()
+  dplyr::select(-trim_prop_gf, -trimmings_gf, -wholefish_gf, -method_gf)
 
-nrow(artis_trimmings_info_to_fix) + nrow(artis_trimmings_info_sources) + nrow(artis_trimmings_info_traded) # 4075045 - perfect 
-nrow(fm_artis) # 4075045
+artis_trimmings_missing <- artis_trimmings_all %>% 
+  filter(is.na(trimmings)) %>%
+  rbind(artis_trimmings_missing_1)
 
-artis_trimmings_all_info <- artis_trimmings_info_sources %>%
-  dplyr::select(-method_new) %>%
-  rbind(., artis_trimmings_info_traded) %>%
-  dplyr::select(-trim_prop) %>%
-  mutate(method_trim_gf = "none")
-
-
-artis_trimmings_all_info %>% 
+test_all <- artis_trimmings_all %>%
   filter(year == 2020) %>%
-  pull(product_weight_t) %>%
-  sum()
+  mutate(trim_weight = product_weight_t*trim_prop,
+         whole_weight = product_weight_t*(1-trim_prop))
 
-2212992/fm_artis %>% filter(year == 2020) %>% pull(product_weight_t) %>% sum() # 0.3593609 ~ 36% matching. How does that compare to before? Before was 40%, because we used the average from both the literature and reports. Should we try that now for some gapfilling? 
+sum(test_all$product_weight_t) # 6237031
+sum(test_all$trim_weight, na.rm = TRUE) # 850941.9
+sum(test_all$whole_weight, na.rm = TRUE) # 1683809
 
+1683809/6237031 # 27% from whole fish 
+850941.9/6237031 # 13.6 from trimmings
+0.2699696+0.1364338
+# ok so missing ~59% of fishmeal for 2020
 
-``` 
-
-Now we need to gapfill the missing information 
-
-First we will average the trimmings info from the company reports and the literature and see if we fill anymore. 
-
-```{r}
-mean_reports_literature <- fm_origins_traded %>%
-  group_by(sciname, source_country_iso3c, capture) %>%
-  summarise(trim_prop = mean(trim_prop, na.rm = TRUE)) %>%
-  ungroup() %>%
-  rbind(., fm_origins_df_fin %>%
-          rename(source_country_iso3c = iso3c)) %>%
-  group_by(sciname, source_country_iso3c, capture) %>%
-  summarise(trim_prop = mean(trim_prop, na.rm = TRUE)) %>%
-  ungroup() %>%
-  mutate(method_new = ifelse(capture == "yes", "capture", "aquaculture"))
-
-
-artis_trimmings_info_to_fix_1 <- artis_trimmings_info_to_fix %>%
-  dplyr::select(colnames(fm_artis), method_new) %>%
-  left_join(., mean_reports_literature)
-
-
-artis_trimmings_info_fixed_1 <- artis_trimmings_info_to_fix_1 %>%
-  filter(!is.na(trim_prop)) %>%
-  rename(trim_prop_gf = trim_prop) %>%
-  mutate(method_trim_gf = "Average trimmings proportion of source country and species from literature and reports") 
-
-
-artis_trimmings_all_info_1 <- artis_trimmings_all_info %>%
-  rbind(., artis_trimmings_info_fixed_1 %>% dplyr::select(colnames(artis_trimmings_all_info)))
-
-artis_trimmings_all_info_1 %>% 
-  filter(year == 2020) %>%
-  pull(product_weight_t) %>%
-  sum()/fm_artis %>% filter(year == 2020) %>% pull(product_weight_t) %>% sum() # 0.4012084 ~ 40% matching. Basically the same as before...
-
-
-artis_trimmings_info_to_fix_2 <- artis_trimmings_info_to_fix_1 %>%
-  filter(is.na(trim_prop))
-
- 
-nrow(artis_trimmings_info_to_fix_2) + nrow(artis_trimmings_all_info_1) == nrow(fm_artis) # good 
-
-# some checking
-test_all <- artis_trimmings_all_info_1 %>%
-  filter(year == 2020) %>%
-  mutate(trim_weight = product_weight_t*trim_prop_gf,
-         whole_weight = product_weight_t*(1-trim_prop_gf))
-
-fm_artis %>% filter(year == 2020) %>% pull(product_weight_t) %>% sum() # 6158133
-sum(test_all$trim_weight, na.rm = TRUE) # 784463.1
-sum(test_all$whole_weight, na.rm = TRUE) # 1686232
-
-1686232/6158133 # 27% from whole fish 
-784463.1/6158133 # 12.7 from trimmings
-# if that scales then that is about 60-40 whole fish to trimmings. It won't scale tho. 
-```
-
-Test gapfilling with broad assumptions first 
-
-```{r}
 # Define a helper function for trash fish conditions
 is_asian_trash_fish <- function(common_name, phylum, sciname, source_country_iso3c, method) {
     method != "aquaculture" & 
@@ -286,38 +155,79 @@ is_asian_trash_fish <- function(common_name, phylum, sciname, source_country_iso
     !(sciname %in% c("salmonidae", "salmo", "perciformes"))
 }
 
-artis_info_fixed_2 <- artis_trimmings_info_to_fix_2 %>%
-  left_join(artis_taxa) %>%
-    # Define trim_prop_gf column
-   mutate(trim_prop_gf = case_when(
-        # trash fish assumption from Majluf et al.: https://www.science.org/doi/10.1126/sciadv.adn5650
-      is_asian_trash_fish(common_name, phylum, sciname, source_country_iso3c, method) ~ 0,
-      method != "aquaculture" & sciname %in% c("animalia", "actinopterygii") ~ 0,
+artis_trimmings_gf <- artis_trimmings_missing %>%
+  mutate(
+    # Define trimmings_gf column
+    trimmings_gf = case_when(
+      # trash fish assumption from Majluf et al.: https://www.science.org/doi/10.1126/sciadv.adn5650
+      is_asian_trash_fish(common_name, phylum, sciname, source_country_iso3c, method) ~ "no", 
       # finfish aquaculture = trimmings: skretting report, Ytrestroyl et al. 2015, Xu and Ming 2018, Penarubia et al. 2023
-      method == "aquaculture" & phylum == "chordata" ~ 1,
+      method == "aquaculture" & phylum == "chordata" ~ "yes",
       # wild caught tuna and salmon in IFFO report and from leadbitter conversation
-      family == "salmonidae" & method != "aquaculture" ~ 1,
-      sciname == "salmoninae" & method != "aquaculture" ~ 1,
-      str_detect(common_name, "tuna|Tuna|albacore|Albacore") & method != "aquaculture" ~ 1,
-      # krill have to be whole fish 
-      str_detect(common_name, "krill") ~ 0,
+      str_detect(common_name, "tuna|Tuna|albacore|Albacore") & method != "aquaculture" ~ "yes",
+      family == "salmonidae" & method != "aquaculture" ~ "yes",
+      sciname == "salmoninae" & method != "aquaculture" ~ "yes",
       # From https://link.springer.com/book/10.1007/978-94-011-4018-8; IFFO report
-      isscaap == "Squids, cuttlefishes, octopuses" ~ 1,
+      isscaap == "Squids, cuttlefishes, octopuses" ~ "yes",
+      # duh
+      str_detect(common_name, "krill") ~ "no",
+      # not sure
+      str_detect(common_name, "barnacle") ~ "no",
+      # same assumption as majluf et al...
+      method != "aquaculture" & sciname %in% c("animalia", "actinopterygii") ~ "no",
       # IFFO report; https://link.springer.com/book/10.1007/978-94-011-4018-8
       isscaap %in% c("Shrimps, prawns", "Lobsters, spiny-rock lobsters", "King crabs, squat-lobsters") | 
         common_name %in% c("squillids nei", "stomatopods nei", "west african geryon") | 
         str_detect(common_name, "crab|abalone|shrimp|squillid") | 
+        genus %in% c("geryon", "scylla") ~ "yes",
+      #  assume mollusc meal is whole fish: https://link.springer.com/book/10.1007/978-94-011-4018-8
+      isscaap %in% c("Abalones, winkles, conchs", "Clams, cockles, arkshells", "Multiple ISSCAAP groups", "Mussels", "Oysters", "Scallops, pectens") & 
+        phylum == "mollusca" & !str_detect(common_name, "abalone|barnacle") ~ "no",
+      TRUE ~ trimmings
+    ),
+    
+    # Define wholefish_gf column
+    wholefish_gf = case_when(
+      is_asian_trash_fish(common_name, phylum, sciname, source_country_iso3c, method) ~ "yes",
+      method != "aquaculture" & sciname %in% c("animalia", "actinopterygii") ~ "yes",
+      method == "aquaculture" & phylum == "chordata" ~ "no",
+      family == "salmonidae" & method != "aquaculture" ~ "no",
+      sciname == "salmoninae" & method != "aquaculture" ~ "no",
+      str_detect(common_name, "tuna|Tuna|albacore|Albacore") & method != "aquaculture" ~ "no",
+      str_detect(common_name, "krill") ~ "yes",
+      isscaap == "Squids, cuttlefishes, octopuses" ~ "no",
+      isscaap %in% c("Shrimps, prawns", "Lobsters, spiny-rock lobsters", "King crabs, squat-lobsters") | 
+        common_name %in% c("squillids nei", "stomatopods nei", "west african geryon") | 
+        str_detect(common_name, "crab|abalone|shrimp|squillid") | 
+        genus %in% c("geryon", "scylla") ~ "no",
+      isscaap %in% c("Abalones, winkles, conchs", "Clams, cockles, arkshells", "Multiple ISSCAAP groups", "Mussels", "Oysters", "Scallops, pectens") & 
+        phylum == "mollusca" & !str_detect(common_name, "abalone|barnacle") ~ "yes",
+      str_detect(common_name, "barnacle") ~ "yes",
+      TRUE ~ wholefish
+    ),
+    
+    # Define trim_prop_gf column
+    trim_prop_gf = case_when(
+      is_asian_trash_fish(common_name, phylum, sciname, source_country_iso3c, method) ~ 0,
+      method != "aquaculture" & sciname %in% c("animalia", "actinopterygii") ~ 0,
+      method == "aquaculture" & phylum == "chordata" ~ 1,
+      family == "salmonidae" & method != "aquaculture" ~ 1,
+      sciname == "salmoninae" & method != "aquaculture" ~ 1,
+      str_detect(common_name, "tuna|Tuna|albacore|Albacore") & method != "aquaculture" ~ 1,
+      str_detect(common_name, "krill") ~ 0,
+      isscaap == "Squids, cuttlefishes, octopuses" ~ 1,
+      isscaap %in% c("Shrimps, prawns", "Lobsters, spiny-rock lobsters", "King crabs, squat-lobsters") | 
+        common_name %in% c("squillids nei", "stomatopods nei", "west african geryon") | 
+        str_detect(common_name, "crab|abalone|shrimp|squillid") | 
         genus %in% c("geryon", "scylla") ~ 1,
-        #  assume mollusc meal is whole fish: https://link.springer.com/book/10.1007/978-94-011-4018-8; we're excluding from final data anyways 
       isscaap %in% c("Abalones, winkles, conchs", "Clams, cockles, arkshells", "Multiple ISSCAAP groups", "Mussels", "Oysters", "Scallops, pectens") & 
         phylum == "mollusca" & !str_detect(common_name, "abalone|barnacle") ~ 0,
-      # barnacle is a weird one, but assuming it has to be whole fish. Also we will not be reporting this anyways. 
       str_detect(common_name, "barnacle") ~ 0,
       TRUE ~ trim_prop
     ),
     
         # Define methd_gf column
-    method_trim_gf = case_when(
+    method_gf = case_when(
       is_asian_trash_fish(common_name, phylum, sciname, source_country_iso3c, method) ~ "Asian trash fish assumption",
       method != "aquaculture" & sciname %in% c("animalia", "actinopterygii") ~ "unknown species, assume wholefish",
       method == "aquaculture" & phylum == "chordata" ~ "aquaculture trimmings",
@@ -337,20 +247,33 @@ artis_info_fixed_2 <- artis_trimmings_info_to_fix_2 %>%
     )
   ) %>%
   
+  # add trash fish column
+  mutate(
+    trash_fish = case_when(
+      is_asian_trash_fish(common_name, phylum, sciname, source_country_iso3c, method) ~ "yes",
+      method != "aquaculture" & sciname %in% c("animalia", "actinopterygii") ~ "yes",
+      TRUE ~ trash_fish
+    )
+    ) %>%
+  
   # Leadbitter report suggests that pangasius are always trimmings in vietnam
   mutate(
+    trimmings_gf = ifelse(str_detect(sciname, "pangasi") & source_country_iso3c == "VNM", "yes", trimmings_gf),
+    wholefish_gf = ifelse(str_detect(sciname, "pangasi") & source_country_iso3c == "VNM", "no", wholefish_gf),
     trim_prop_gf = ifelse(str_detect(sciname, "pangasi") & source_country_iso3c == "VNM", 1, trim_prop_gf),
-    method_trim_gf = ifelse(str_detect(sciname, "pangasi") & source_country_iso3c == "VNM", "Leadbitter report pangasius", method_trim_gf)
+    method_gf = ifelse(str_detect(sciname, "pangasi") & source_country_iso3c == "VNM", "Leadbitter report pangasius", method_gf)
   ) %>%
   distinct()
 
-summary(artis_info_fixed_2)
 
 
-artis_trimmings_all_gf <- artis_info_fixed_2 %>%
-  dplyr::select(colnames(artis_trimmings_all_info_1)) %>%
-  rbind(., artis_trimmings_all_info_1) %>%
+## rbind back together after prelimnary gapfilling
+setdiff(colnames(artis_trimmings_info_fix), colnames(artis_trimmings_gf))
+
+artis_trimmings_all_gf <- artis_trimmings_info_fix %>%
+  rbind(., artis_trimmings_gf) %>%
   distinct() %>%
+  dplyr::select(-wholefish, -trimmings, -trim_prop) %>%
 mutate(trim_liveweight = trim_prop_gf*live_weight_t,
     trim_product = trim_prop_gf*product_weight_t, 
     wholefish_liveweight = (1-trim_prop_gf)*live_weight_t,
@@ -375,7 +298,7 @@ trim_gf <- qs::qread(file.path(artis_dir, "artis_exchange/artis_fishmeal_trimmin
 
 summary <- trim_gf %>%
   filter(year == 2020) %>%
-  group_by(method_trim_gf) %>%
+  group_by(method_gf) %>%
   summarise(tonnes_prod_gf = sum(product_weight_t, na.rm = TRUE),
             spp = n_distinct(sciname),
             iso3c = n_distinct(source_country_iso3c)) %>%
@@ -386,25 +309,20 @@ summary <- trim_gf %>%
 test_all <- trim_gf %>%
   filter(year == 2020) 
 
-sum(test_all$product_weight_t) # 6158133
-sum(test_all$trim_product, na.rm = TRUE) + sum(test_all$wholefish_product, na.rm = TRUE) # 5696824
+sum(test_all$product_weight_t) # 6237031
+sum(test_all$trim_product, na.rm = TRUE) + sum(test_all$wholefish_product, na.rm = TRUE)
 
-5696824/6158133
-# only missing ~7.5% now 
+5765249/6237031
+# only missing ~8% now 
 ```
-
-What if we gapfilled using continental and species averages first? 
-Then species averages globally? 
-Then genus? 
-Then last resort we use the assumptions and then prices 
 
 
 ```{r}
-test_sal_tuna <- trim_gf %>%
-  left_join(artis_comm_sci) %>%
+test_sal_tuna <- artis_trimmings_all_gf %>%
   filter(year == "2020",
          str_detect(common_name, "tuna|almonids nei"),
-         method == "capture") 
+         method == "capture",
+         trash_fish == "yes") # should be 0 
 
 test_trash <- artis_trimmings_all_gf %>%
   filter(trash_fish == "yes") %>%
@@ -744,5 +662,3 @@ https://www.marketsandmarkets.com/Market-Reports/aquafeeds-market-1151.html
   - Cargill had net income of 4.93 billion, revenue is 165 billion
   - biomar revenue 2.6 billion, net income??
   - Skretting had 2.68 billion USD revenue
-
-
