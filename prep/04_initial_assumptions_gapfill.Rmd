@@ -26,40 +26,22 @@ source(here("R/directories.R"))
 
 full_artis <- qs::qread(file.path(artis_dir, "full_artis_fm_fillet.qs"))
 
-artis_version <- "new" # set version you want to run (old or new data from Jessica - this is temporary until we get more details on the new data from Jessica)
-
-
 fillet_artis <- full_artis %>%
   filter(hs6 != 230120) %>%
   dplyr::select(-hs_version) %>% # don't need this
   rename(consumer_iso3c = importer_iso3c) # just to make things consistent
-
-if(artis_version == "old"){
-fm_artis <- full_artis %>%
-  filter(hs6 == 230120) %>%
-    rename(consumer_iso3c = importer_iso3c) %>%
-  dplyr::select(-hs_version)
-
-  
-}else{
 
 fm_artis <- qs::qread(file.path(artis_dir, "full_artis_fm_2024_09_19.qs")) %>%
   mutate(hs6 = 230120,
          dom_source = ifelse(dom_source == "", consumption_type, dom_source)) %>%
   dplyr::select(year, source_country_iso3c, exporter_iso3c, consumer_iso3c, dom_source, hs6, sciname, habitat, method, product_weight_t, live_weight_t = consumption_t_capped) %>%
   mutate(exporter_iso3c = ifelse(source_country_iso3c == consumer_iso3c, source_country_iso3c, exporter_iso3c))
-}
 
 setdiff(colnames(fillet_artis), colnames(fm_artis))
 setdiff(colnames(fm_artis), colnames(fillet_artis)) # 0 good
 
-
 artis_taxa <- read.csv(file.path(artis_dir, "artis_full_data/data/attribute tables/sciname.csv")) ## read in attribute table with common names
 countries <- read.csv(here("data/countries.csv")) ## artis countries with info
-
-asia_iso3c <- countries %>% 
-  filter(owid_region == "Asia") %>%
-  pull(iso3c)
 
 artis_comm_sci <- artis_taxa %>%
   distinct(common_name, sciname)
@@ -93,6 +75,20 @@ ggplot(fm_origins_df_fin) +
   theme_bw() +
   labs(x = "Proportion of fishmeal derived from trimmings",
        y = "Distinct species and source country count")
+
+
+fm_origins_df_test <- read.csv(here("outputs/all_fmfo_material_origins_reports.csv")) %>%
+  dplyr::select(-common_name) %>%
+  group_by(sciname, capture) %>%
+  summarise(trim_prop = mean(trim_prop, na.rm = TRUE)) %>%
+  ungroup()
+
+# take a look at the distribution of values
+ggplot(fm_origins_df_test) +
+  geom_histogram(aes(trim_prop)) +
+  theme_bw() +
+  labs(x = "Proportion of fishmeal derived from trimmings",
+       y = "Distinct species and source country count") # greater species diversity in trimmings, makes sense
 ```
 
 Join feed company traded data to ARTIS data by sciname, origin iso3c, and importer iso3c
@@ -148,12 +144,12 @@ missing_from_traded_df <- artis_trimmings_info_traded %>%
   filter(is.na(trim_prop_gf)) 
 
 
-artis_trimmings_info_traded <- artis_trimmings_info_traded %>%
+artis_trimmings_info_traded_fin <- artis_trimmings_info_traded %>%
   filter(!is.na(trim_prop_gf)) # make sure
 
-391731-1977 == nrow(artis_trimmings_info_traded) # TRUE - good
+nrow(artis_trimmings_info_traded)-nrow(missing_from_traded_df) == nrow(artis_trimmings_info_traded_fin) # TRUE - good
 
-## now we have artis_trimmings_info_traded as one of our final dfs; no gapfilling required for these rows 
+## now we have artis_trimmings_info_traded_fin as one of our final dfs; no gapfilling required for these rows 
 ```
 
 
@@ -196,22 +192,21 @@ artis_trimmings_info_to_fix <- artis_trimmings_basic_sources %>%
   filter(is.na(trim_prop_gf)) %>%
   distinct()
 
-nrow(artis_trimmings_info_to_fix) + nrow(artis_trimmings_info_sources) + nrow(artis_trimmings_info_traded) # 4075045 - perfect 
-nrow(fm_artis) # 4075045
+nrow(artis_trimmings_info_to_fix) + nrow(artis_trimmings_info_sources) + nrow(artis_trimmings_info_traded_fin) == nrow(fm_artis) # TRUE
 
 artis_trimmings_all_info <- artis_trimmings_info_sources %>%
   dplyr::select(-method_new) %>%
-  rbind(., artis_trimmings_info_traded) %>%
+  rbind(., artis_trimmings_info_traded_fin) %>%
   dplyr::select(-trim_prop) %>%
-  mutate(method_trim_gf = "none")
+  mutate(method_trim_gf = "none") # ok this is all the non-gapfilled data from our literature review
 
 
-artis_trimmings_all_info %>% 
+tonnes_lit <- artis_trimmings_all_info %>% 
   filter(year == 2020) %>%
   pull(product_weight_t) %>%
   sum()
 
-2212992/fm_artis %>% filter(year == 2020) %>% pull(product_weight_t) %>% sum() # 0.3593609 ~ 36% matching. How does that compare to before? Before was 40%, because we used the average from both the literature and reports. Should we try that now for some gapfilling? 
+tonnes_lit/fm_artis %>% filter(year == 2020) %>% pull(product_weight_t) %>% sum() # 0.3593609 ~ 36% matching. How does that compare to before? Before was 40%, because we used the average from both the literature and reports. Should we try that now for some gapfilling? 
 
 
 ``` 
@@ -241,7 +236,7 @@ artis_trimmings_info_to_fix_1 <- artis_trimmings_info_to_fix %>%
 artis_trimmings_info_fixed_1 <- artis_trimmings_info_to_fix_1 %>%
   filter(!is.na(trim_prop)) %>%
   rename(trim_prop_gf = trim_prop) %>%
-  mutate(method_trim_gf = "Average trimmings proportion of source country and species from literature and reports") 
+  mutate(method_trim_gf = "Average trimmings proportion of source country and species from literature and reports")
 
 
 artis_trimmings_all_info_1 <- artis_trimmings_all_info %>%
@@ -250,14 +245,12 @@ artis_trimmings_all_info_1 <- artis_trimmings_all_info %>%
 artis_trimmings_all_info_1 %>% 
   filter(year == 2020) %>%
   pull(product_weight_t) %>%
-  sum()/fm_artis %>% filter(year == 2020) %>% pull(product_weight_t) %>% sum() # 0.4012084 ~ 40% matching. Basically the same as before...
-
+  sum()/fm_artis %>% filter(year == 2020) %>% pull(product_weight_t) %>% sum() # 0.4012084 ~ 40% matching. Cool, the mean gapfilling fills ~4% for 2020
 
 artis_trimmings_info_to_fix_2 <- artis_trimmings_info_to_fix_1 %>%
   filter(is.na(trim_prop))
-
  
-nrow(artis_trimmings_info_to_fix_2) + nrow(artis_trimmings_all_info_1) == nrow(fm_artis) # good 
+nrow(artis_trimmings_info_to_fix_2) + nrow(artis_trimmings_all_info_1) == nrow(fm_artis) # TRUE good 
 
 # some checking
 test_all <- artis_trimmings_all_info_1 %>%
@@ -265,108 +258,297 @@ test_all <- artis_trimmings_all_info_1 %>%
   mutate(trim_weight = product_weight_t*trim_prop_gf,
          whole_weight = product_weight_t*(1-trim_prop_gf))
 
-fm_artis %>% filter(year == 2020) %>% pull(product_weight_t) %>% sum() # 6158133
-sum(test_all$trim_weight, na.rm = TRUE) # 784463.1
-sum(test_all$whole_weight, na.rm = TRUE) # 1686232
+test_weight_2020 <- fm_artis %>% filter(year == 2020) %>% pull(product_weight_t) %>% sum() # 6158133
+test_trim <- sum(test_all$trim_weight, na.rm = TRUE) # 784463.1
+test_whole <- sum(test_all$whole_weight, na.rm = TRUE) # 1686232
 
-1686232/6158133 # 27% from whole fish 
-784463.1/6158133 # 12.7 from trimmings
+test_whole/test_weight_2020 # 27% from whole fish 
+test_trim/test_weight_2020 # 12.7% from trimmings
 # if that scales then that is about 60-40 whole fish to trimmings. It won't scale tho. 
 ```
 
-Test gapfilling with broad assumptions first 
+Next we need to gapfill the rest. I propose:
+ - first we will assume any aquaculture is trimmings, based on information from Shea et al. and general common sense...
+ - matching trade flows with fillets. If a fillet has the same sciname, source country, and exporter/processing country as fishmeal, then we will assume it is trimmings. 
+ - Then we will do sciname level averages 
+ - Then we will do general assumptions (see below)
+ - Then we will do price gapfilling 
+ 
+ 
+ Assume that any aquaculture is trimmings
+  - RESULT: This fills ~33% of fishmeal without info for 2020 (mostly shrimp aquaculture)
 
 ```{r}
-# Define a helper function for trash fish conditions
-is_asian_trash_fish <- function(common_name, phylum, sciname, source_country_iso3c, method) {
-    method != "aquaculture" & 
-    str_detect(common_name, "nei|ray-finned fishes") & 
-    phylum == "chordata" & 
-    source_country_iso3c %in% asia_iso3c & 
-    !(sciname %in% c("salmonidae", "salmo", "perciformes"))
-}
-
-artis_info_fixed_2 <- artis_trimmings_info_to_fix_2 %>%
-  left_join(artis_taxa) %>%
-    # Define trim_prop_gf column
-   mutate(trim_prop_gf = case_when(
-        # trash fish assumption from Majluf et al.: https://www.science.org/doi/10.1126/sciadv.adn5650
-      is_asian_trash_fish(common_name, phylum, sciname, source_country_iso3c, method) ~ 0,
-      method != "aquaculture" & sciname %in% c("animalia", "actinopterygii") ~ 0,
-      # finfish aquaculture = trimmings: skretting report, Ytrestroyl et al. 2015, Xu and Ming 2018, Penarubia et al. 2023
-      method == "aquaculture" & phylum == "chordata" ~ 1,
-      # wild caught tuna and salmon in IFFO report and from leadbitter conversation
-      family == "salmonidae" & method != "aquaculture" ~ 1,
-      sciname == "salmoninae" & method != "aquaculture" ~ 1,
-      str_detect(common_name, "tuna|Tuna|albacore|Albacore") & method != "aquaculture" ~ 1,
-      # krill have to be whole fish 
-      str_detect(common_name, "krill") ~ 0,
-      # From https://link.springer.com/book/10.1007/978-94-011-4018-8; IFFO report
-      isscaap == "Squids, cuttlefishes, octopuses" ~ 1,
-      # IFFO report; https://link.springer.com/book/10.1007/978-94-011-4018-8
-      isscaap %in% c("Shrimps, prawns", "Lobsters, spiny-rock lobsters", "King crabs, squat-lobsters") | 
-        common_name %in% c("squillids nei", "stomatopods nei", "west african geryon") | 
-        str_detect(common_name, "crab|abalone|shrimp|squillid") | 
-        genus %in% c("geryon", "scylla") ~ 1,
-        #  assume mollusc meal is whole fish: https://link.springer.com/book/10.1007/978-94-011-4018-8; we're excluding from final data anyways 
-      isscaap %in% c("Abalones, winkles, conchs", "Clams, cockles, arkshells", "Multiple ISSCAAP groups", "Mussels", "Oysters", "Scallops, pectens") & 
-        phylum == "mollusca" & !str_detect(common_name, "abalone|barnacle") ~ 0,
-      # barnacle is a weird one, but assuming it has to be whole fish. Also we will not be reporting this anyways. 
-      str_detect(common_name, "barnacle") ~ 0,
-      TRUE ~ trim_prop
-    ),
-    
-        # Define methd_gf column
-    method_trim_gf = case_when(
-      is_asian_trash_fish(common_name, phylum, sciname, source_country_iso3c, method) ~ "Asian trash fish assumption",
-      method != "aquaculture" & sciname %in% c("animalia", "actinopterygii") ~ "unknown species, assume wholefish",
-      method == "aquaculture" & phylum == "chordata" ~ "aquaculture trimmings",
-      family == "salmonidae" & method != "aquaculture" ~ "wild caught salmon trimmings",
-      sciname == "salmoninae" & method != "aquaculture" ~ "wild caught salmon trimmings",
-      str_detect(common_name, "tuna|Tuna|albacore|Albacore") & method != "aquaculture" ~ "wild caught tuna trimmings",
-      str_detect(common_name, "krill") ~ "krill meal",
-      isscaap == "Squids, cuttlefishes, octopuses" ~ "squid, cuttlefish, or octopus trimmings",
-      isscaap %in% c("Shrimps, prawns", "Lobsters, spiny-rock lobsters", "King crabs, squat-lobsters") | 
-        common_name %in% c("squillids nei", "stomatopods nei", "west african geryon") | 
-        str_detect(common_name, "crab|abalone|shrimp|squillid") | 
-        genus %in% c("geryon", "scylla") ~ "Shrimp, prawns, lobster, crab, or abalone trimmings",
-      isscaap %in% c("Abalones, winkles, conchs", "Clams, cockles, arkshells", "Multiple ISSCAAP groups", "Mussels", "Oysters", "Scallops, pectens") & 
-        phylum == "mollusca" & !str_detect(common_name, "abalone|barnacle") ~ "mollusc meat",
-      str_detect(common_name, "barnacle") ~ "barnacle",
-      TRUE ~ NA
-    )
-  ) %>%
-  
-  # Leadbitter report suggests that pangasius are always trimmings in vietnam
-  mutate(
-    trim_prop_gf = ifelse(str_detect(sciname, "pangasi") & source_country_iso3c == "VNM", 1, trim_prop_gf),
-    method_trim_gf = ifelse(str_detect(sciname, "pangasi") & source_country_iso3c == "VNM", "Leadbitter report pangasius", method_trim_gf)
-  ) %>%
-  distinct()
-
-summary(artis_info_fixed_2)
+# read in shea et al raw data
+fmfo_factory_data <- read.csv(here("data/shea_et_al_FMFO/adr6921_Suppl_Excel_v2.csv")) %>%
+filter(!is.na(factory_id)) %>%
+  mutate(country = stri_replace_all_fixed(country, "\u00A0", " ")) %>%
+  filter(str_detect(material_type, "aquaculture"))
+unique(fmfo_factory_data$material_type_simple)
+# ok so any materials with aquaculutre in the name are by products. 
+## additionally backed up for finfish by these sources:   # finfish aquaculture = trimmings: skretting report, Ytrestroyl et al. 2015, Xu and Ming 2018, Penarubia et al. 2023
+## farmed shrimp backed up by this :       # IFFO report; https://link.springer.com/book/10.1007/978-94-011-4018-8
+# From https://www.iffo.com/by-product; "[2] In this analysis we are not including the large volume of farmed shrimp waste, which does not yield any oil but only meal."
 
 
-artis_trimmings_all_gf <- artis_info_fixed_2 %>%
-  dplyr::select(colnames(artis_trimmings_all_info_1)) %>%
-  rbind(., artis_trimmings_all_info_1) %>%
-  distinct() %>%
-mutate(trim_liveweight = trim_prop_gf*live_weight_t,
-    trim_product = trim_prop_gf*product_weight_t, 
-    wholefish_liveweight = (1-trim_prop_gf)*live_weight_t,
-    wholefish_product = (1-trim_prop_gf)*product_weight_t) ## allocate with what info we have first for testing
-## ok looks like all gapfilling went good
+
+artis_trimmings_aquaculture <- artis_trimmings_info_to_fix_2 %>%
+  mutate(trim_prop_gf = ifelse(is.na(trim_prop) & method == "aquaculture", 1, trim_prop))
+
+nrow(artis_trimmings_aquaculture) == nrow(artis_trimmings_info_to_fix_2)
+
+  artis_trimmings_aquaculture_gf <- artis_trimmings_aquaculture %>%
+    filter(!is.na(trim_prop_gf)) %>%
+     mutate(method_trim_gf = "Assuming trimmings because production method is aquaculture") 
 
 
-## lets save this to RDSI
-if(artis_version == "old"){
-qs::qsave(artis_trimmings_all_gf, file.path(artis_dir, "artis_exchange/artis_fishmeal_trimmings_simple_gf_traded.qs"))
-}else{
-  qs::qsave(artis_trimmings_all_gf, file.path(artis_dir, "artis_exchange/artis_fishmeal_trimmings_simple_gf_traded_consumption.qs"))
+artis_trimmings_info_to_fix_3 <- artis_trimmings_aquaculture %>%
+  filter(is.na(trim_prop_gf))
 
-}
+nrow(artis_trimmings_info_to_fix_3) + nrow(artis_trimmings_aquaculture_gf) + nrow(artis_trimmings_all_info_1) == nrow(artis_trimmings_all) # TRUE good
+
+artis_trimmings_all_info_2 <- artis_trimmings_all_info_1 %>%
+  rbind(., artis_trimmings_aquaculture_gf %>% dplyr::select(colnames(artis_trimmings_all_info)))
+
+# how much did that fill in?
+artis_trimmings_aquaculture_gf %>% 
+  filter(year == 2020) %>%
+  pull(product_weight_t) %>%
+  sum()/fm_artis %>% filter(year == 2020) %>% pull(product_weight_t) %>% sum() # 0.3302463; gapfilling with aquaculture filled in ~1/3 of fishmeal for 2020! Pretty good! So now we are up to 40+33 = 73% filled in
 
 ```
+ 
+
+Let's see how much info we fill by gapfilling with species level means 
+ - RESULT: This fills ~8% of fishmeal without info for 2020
+ 
+Let's apply this one first
+
+```{r}
+fm_origins_sciname <- read.csv(here("outputs/all_fmfo_material_origins_reports.csv")) %>%
+  dplyr::select(-common_name) %>%
+  group_by(sciname, capture) %>%
+  summarise(trim_prop = mean(trim_prop, na.rm = TRUE)) %>%
+  ungroup()
+
+mean_reports_lit_sciname <- fm_origins_traded %>%
+  group_by(sciname, capture) %>%
+  summarise(trim_prop = mean(trim_prop, na.rm = TRUE)) %>%
+  ungroup() %>%
+  rbind(., fm_origins_sciname) %>%
+  group_by(sciname, capture) %>%
+  summarise(trim_prop_sciname_gf = mean(trim_prop, na.rm = TRUE)) %>%
+  ungroup() %>%
+  mutate(method_new = ifelse(capture == "yes", "capture", "aquaculture")) %>%
+  dplyr::select(-capture)
+
+artis_trimmings_sciname_joined <- artis_trimmings_info_to_fix_3 %>%
+  left_join(mean_reports_lit_sciname)
+
+
+artis_trimmings_sciname_gf <- artis_trimmings_sciname_joined %>%
+  mutate(trim_prop_gf = ifelse(is.na(trim_prop), trim_prop_sciname_gf, trim_prop)) %>%
+  filter(!is.na(trim_prop_gf)) %>%
+  mutate(method_trim_gf = "Average trimmings proportion of species from literature and reports") 
+
+
+artis_trimmings_info_to_fix_4 <- artis_trimmings_sciname_joined %>%
+  filter(is.na(trim_prop_sciname_gf))
+
+nrow(artis_trimmings_info_to_fix_4) + nrow(artis_trimmings_sciname_gf) + nrow(artis_trimmings_all_info_2) == nrow(artis_trimmings_all) # TRUE good
+
+artis_trimmings_all_info_3 <- artis_trimmings_all_info_2 %>%
+  rbind(., artis_trimmings_sciname_gf %>% dplyr::select(colnames(artis_trimmings_all_info)))
+
+
+# fills around 30% of the rows
+artis_trimmings_all_info_3 %>% 
+  filter(year == 2020) %>%
+  pull(product_weight_t) %>%
+  sum()/fm_artis %>% filter(year == 2020) %>% pull(product_weight_t) %>% sum() # 0.8147685 now we are at 81% filled, meaning the species level means filled 81-73 = ~8% approximately of fishmeal in 2020
+
+```
+
+ 
+Let's see how much we gapfill by matching the trade flows of fillets 
+We gapfill based on any species that is filleted and share the same source country AND exporter country (we assume source and exporter, so that we know that the fish would be processed in the same place, and in theory, this could be the same fish) and year, and calculate the proportion of the fishmeal which is trimmings, based on the amount of trimmings derived from the fillets (for species that don't already have info). I.e., we calculate the leftover trimmings (and convert to fishmeal weight), and divide that by the fishmeal weight reported in ARTIS, to get the proportion of the fishmeal with that combination of year, source country, exporter, and sciname that is trimmings (trim_prop).
+
+ - RESULT: This fills ~9% of fishmeal without info for 2020
+
+```{r}
+fillet_data <- fillet_artis %>% 
+  group_by(year, source_country_iso3c, exporter_iso3c, sciname, method, habitat) %>%
+  summarise(fillet_tonnes_lw = sum(live_weight_t, na.rm = TRUE),
+            fillet_tonnes_pw = sum(product_weight_t, na.rm = TRUE)) %>%
+  ungroup() %>%
+  mutate(filleted = "yes",
+         conversion = fillet_tonnes_pw/fillet_tonnes_lw,
+         potential_trimmings_lw_t = fillet_tonnes_lw - fillet_tonnes_pw) %>%
+  mutate(potential_trimmings_pw_t = (potential_trimmings_lw_t/2.975)*0.96)## account for processing and blood loss of weight??
+
+trimmings_for_fillet_gf <- artis_trimmings_info_to_fix_4 %>%
+  group_by(year, source_country_iso3c, exporter_iso3c, sciname, method, habitat) %>%
+    summarise(fm_tonnes_lw = sum(live_weight_t, na.rm = TRUE),
+            fm_tonnes_pw = sum(product_weight_t, na.rm = TRUE)) %>%
+  ungroup() %>%
+  left_join(fillet_data) %>%
+  filter(!is.na(filleted)) %>%
+  mutate(trim_prop_fillet = potential_trimmings_pw_t/fm_tonnes_pw) %>%
+  mutate(trim_prop_fillet = ifelse(trim_prop_fillet > 1, 1, trim_prop_fillet)) %>%
+  dplyr::select(year, source_country_iso3c, exporter_iso3c, sciname, method, habitat, trim_prop_fillet)
+  
+# join data
+artis_trimmings_fillet_join <- artis_trimmings_info_to_fix_4 %>%
+ left_join(trimmings_for_fillet_gf) # join by year, source, exporter, sciname, method, habitat
+
+nrow(artis_trimmings_fillet_join) == nrow(artis_trimmings_info_to_fix_4) # TRUE
+
+artis_trimmings_fillet_fix <- artis_trimmings_fillet_join %>%
+    mutate(trim_prop_gf = ifelse(!is.na(trim_prop_fillet), trim_prop_fillet, trim_prop)) %>%
+  filter(!is.na(trim_prop_gf)) %>%
+  mutate(method_trim_gf = "Used fillet data to determine proportion of fishmeal which is trimmings") %>%
+  dplyr::select(colnames(artis_trimmings_all_info))
+  
+artis_trimmings_fillet_fix %>% 
+  filter(year == 2020) %>%
+  pull(product_weight_t) %>%
+  sum()/fm_artis %>% filter(year == 2020) %>% pull(product_weight_t) %>% sum() # 0.08993586; Would fill in ~9% of fishmeal data for 2020
+  # so that would add up to 81+9 = 90% filled in
+
+artis_trimmings_info_to_fix_5 <- artis_trimmings_fillet_join %>%
+  filter(is.na(trim_prop_fillet)) %>%
+  mutate(method_trim_gf = NA) %>%
+  dplyr::select(colnames(artis_trimmings_all_info))
+
+
+artis_trimmings_all_info_4 <- artis_trimmings_all_info_3 %>%
+  rbind(., artis_trimmings_fillet_fix %>% dplyr::select(colnames(artis_trimmings_all_info)))
+
+
+## take a look at this
+  test <- artis_trimmings_fillet_fix %>%
+    filter(method == "aquaculture") # 0 good.
+  
+  test <- artis_trimmings_fillet_fix %>% 
+      mutate(trimmings_pw = trim_prop_gf*product_weight_t,
+         wholefish_pw = (1-trim_prop_gf)*product_weight_t)
+
+# take a look at the distribution of values
+ggplot(artis_trimmings_fillet_fix) +
+  geom_histogram(aes(trim_prop_gf)) +
+  theme_bw() +
+  labs(x = "Proportion of fishmeal derived from trimmings",
+       y = "Distinct species and source country count") # ok good, most of it is close to 1
+
+
+# Reshape to long format
+test_long <- test %>%
+  filter(year == 2020) %>%
+  select(trimmings_pw, wholefish_pw) %>%
+  pivot_longer(cols = everything(),
+               names_to = "source",
+               values_to = "tonnage") %>%
+  mutate(source = ifelse(source == "trimmings_pw", "Trimmings", "Whole fish"))
+
+# Plot
+ggplot(test_long, aes(x = source, y = tonnage, fill = source)) +
+  geom_bar(stat = "summary", fun = sum) +
+  labs(x = "Source", y = "Total Tonnage (t)", title = "Tonnage by Source Type") +
+  scale_fill_manual(values = c("Trimmings" = "#46A440", "Whole fish" = "#781211")) +
+  theme_minimal() # oof ok... we're saying most of the filleted fish species are actually wholefish using this gapfilling... interesting.
+
+
+## I wanna plot this with fill by genus or family to see what we are working with. Eye test actually seems to make a lot of sense. Most species are nei or actinopterii larger genus's from Asia, which matches up with assumptions we would make anyways. 
+
+test_long <- artis_trimmings_fillet_fix %>%
+  left_join(artis_taxa) %>%
+  mutate(trimmings_pw = product_weight_t * trim_prop_gf,
+         wholefish_pw = product_weight_t * (1 - trim_prop_gf)) %>%
+  select(isscaap, trimmings_pw, wholefish_pw) %>%
+  pivot_longer(cols = c(trimmings_pw, wholefish_pw),
+               names_to = "source",
+               values_to = "tonnage") %>%
+  mutate(source = ifelse(source == "trimmings_pw", "Trimmings", "Whole fish")) %>%
+  mutate(isscaap = case_when(
+    str_detect(isscaap, "Miscellaneous|Multiple")  ~ "NEI",
+    TRUE ~ isscaap
+  ))
+
+# Step 2: Plot, grouped by family
+ggplot(test_long, aes(x = source, y = tonnage, fill = isscaap)) +
+  geom_bar(stat = "summary", fun = sum, position = "stack") +
+  labs(x = "Source", y = "Total Tonnage (t)", title = "Tonnage by Source Type and Family") +
+  theme_minimal() +
+  scale_y_continuous(labels = scales::comma) +
+  theme(legend.position = "right") # cool, mostly NEI species, which makes sense.
+
+```
+
+Gapfill any capture shrimp to be trimmings
+
+```{r}
+fmfo_factory_data <- read.csv(here("data/shea_et_al_FMFO/adr6921_Suppl_Excel_v2.csv")) %>%
+filter(!is.na(factory_id)) %>%
+  mutate(country = stri_replace_all_fixed(country, "\u00A0", " ")) %>%
+  filter(str_detect(comm_name, "shrimp"))
+ # probably safe to assume any shrimp is trimmings...
+
+# what happens if we do that? 
+
+shrimp_prawn_species <- artis_taxa %>%
+  filter(isscaap == "Shrimps, prawns"|genus %in% c("acetes", "penaeus", "rhynchocinetes", "stenopus", "solenocera", "plesionika", "parapenaeopsis", "pandalus", "nematocarcinus", "haliporoides", "heterocarpus", "lysmata")|family %in% c("squillidae", "penaeidae")|common_name == "marine crabs, shrimps, lobsters nei")
+
+artis_trimmings_shrimp <- artis_trimmings_info_to_fix_5 %>%
+  left_join(artis_taxa) %>%
+  mutate(trim_prop_gf = ifelse(is.na(trim_prop_gf) & sciname %in% c(unique(shrimp_prawn_species$sciname)), 1, trim_prop_gf)) %>%
+  dplyr::select(colnames(artis_trimmings_info_to_fix_5))
+
+nrow(artis_trimmings_shrimp) == nrow(artis_trimmings_info_to_fix_5)
+
+  artis_trimmings_shrimp_gf <- artis_trimmings_shrimp %>%
+    filter(!is.na(trim_prop_gf)) %>%
+     mutate(method_trim_gf = "Assuming trimmings because these are shrimp or prawn") 
+
+
+artis_trimmings_info_to_fix_6 <- artis_trimmings_shrimp %>%
+  filter(is.na(trim_prop_gf)) %>%
+  dplyr::select(colnames(artis_trimmings_all_info))
+
+nrow(artis_trimmings_info_to_fix_6) + nrow(artis_trimmings_shrimp_gf) + nrow(artis_trimmings_all_info_4) == nrow(artis_trimmings_all) # TRUE good
+
+artis_trimmings_all_info_5 <- artis_trimmings_all_info_4 %>%
+  rbind(., artis_trimmings_shrimp_gf %>% dplyr::select(colnames(artis_trimmings_all_info)))
+
+# how much did that fill in?
+artis_trimmings_shrimp_gf %>% 
+  filter(year == 2020) %>%
+  pull(product_weight_t) %>%
+  sum()/fm_artis %>% filter(year == 2020) %>% pull(product_weight_t) %>% sum() # 0.0305813; gapfilling with aquaculture filled in 3% of fishmeal for 2020! So now we are up to 93% filled in
+
+
+```
+
+Ok, from here we will save what we have gapfilled so far (93% of fishmeal for 2020), then gapfill with price information. If any are still missing after gapfilling with prices, we will do a genus level gapfill. 
+
+Save the data we have gapfilled so far
+
+```{r}
+
+artis_trimmings_all_gf <- artis_trimmings_all_info_5 %>%
+  rbind(artis_trimmings_info_to_fix_6)
+
+nrow(artis_trimmings_all_gf) == nrow(artis_trimmings_all) # TRUE
+
+qs::qsave(artis_trimmings_all_gf, file.path(artis_dir, "artis_exchange/artis_fishmeal_trimmings_simple_gf_traded_consumption.qs"))
+
+```
+
+```{r}
+test <- artis_trimmings_info_to_fix_7 %>%
+  filter(phylum != "mollusca")
+```
+
+
 
 Some testing to make sure things ran ok 
 
@@ -393,37 +575,6 @@ sum(test_all$trim_product, na.rm = TRUE) + sum(test_all$wholefish_product, na.rm
 # only missing ~7.5% now 
 ```
 
-What if we gapfilled using continental and species averages first? 
-Then species averages globally? 
-Then genus? 
-Then last resort we use the assumptions and then prices 
-
-
-```{r}
-test_sal_tuna <- trim_gf %>%
-  left_join(artis_comm_sci) %>%
-  filter(year == "2020",
-         str_detect(common_name, "tuna|almonids nei"),
-         method == "capture") 
-
-test_trash <- artis_trimmings_all_gf %>%
-  filter(trash_fish == "yes") %>%
-  distinct(sciname, common_name, method) # should be no aquaculture here
-
-test <- artis_trimmings_all_gf %>%
-  filter(sciname %in% c("larimichthys crocea", "lateolabrax japonicus", "oreochromis"),
-         method == "aquaculture", 
-         year == 2020,
-         trash_fish == "yes") # good 0 
-
-
-test <- artis_trimmings_info %>%
-  filter(
-         method == "aquaculture", 
-         year == 2020,
-         trim_prop_gf  <1 & trim_prop_gf > 0) # cool these are all as defined in the sustainability reports
-
-```
 
 
 ```{r}
@@ -479,270 +630,4 @@ unique(test$common_name)
 
 
 ```
-
-
-Data checking and exploration
-
-Let's look at just finfish species and see how much is missing. We believe that IFFO might only report finfish destined for human consumption, which would explain why our trimmings numbers are larger.
-
-
-```{r}
-
-artis_trimmings_all_gf <- qs::qread(file.path(artis_dir, "artis_exchange/artis_fishmeal_trimmings_not_gf_traded_consumption.qs"))
-
-colnames(artis_trimmings_all_gf)
-
-
-```
-
-Make some more pretty plots
-
-```{r}
-
-artis_all_2020 <- artis_trimmings_all_gf %>%
-  filter(year == 2020) %>%
-  left_join(countries, by = c("source_country_iso3c" = "iso3c")) %>%
-  mutate(owid_region = ifelse(is.na(owid_region), "unknown", owid_region))
-
-total_product_weight <- sum(artis_all_2020$product_weight_t, na.rm = TRUE) 
-# 3507032
-# 6233093 using new data with domestic consumption!? Not sure if that is right... FAO SOFIA says there is ~5 million tonnes
-
-test <- artis_all_2020 %>%
-  mutate(fm_consumed_source = ifelse(source_country_iso3c != consumer_iso3c, "domestic", "foreign")) %>%
-  mutate(fm_consumed_source = ifelse(dom_source == "error", "error", fm_consumed_source)) %>%
-  group_by(fm_consumed_source) %>%
-  summarise(sum_t = sum(product_weight_t, na.rm = TRUE)) # interesting... claims about the same comes from domestic as foreign.. not sure that makes sense. 
-
-## Let's make a bar plot and have x axis be the type of fish meal, y axis the proportion it represents, and fill by continent
-
-no_info_df <- artis_all_2020 %>%
-  filter(is.na(trimmings_gf)) %>%
-  mutate(fishmeal_type = "Not sure") %>%
-  group_by(fishmeal_type, continent) %>%
-  summarise(total = sum(product_weight_t)) %>%
-  ungroup()
-
-bar_plot_df <- artis_all_2020 %>% 
-  filter(!is.na(trimmings_gf)) %>%
-  pivot_longer(names_to = "fishmeal_type",
-               cols = c("wholefish_product", "trim_product")) %>%
-  mutate(fishmeal_type = ifelse(fishmeal_type == "trim_product", "Trimmings", "Whole fish")) %>%
-  # mutate(fishmeal_type = ifelse(trash_fish == "yes", "Biomass fishery (trash fish)", 
-   #                              ifelse(is.na(trash_fish)|trash_fish == "no", fishmeal_type, fishmeal_type))) %>%
-  group_by(fishmeal_type, continent) %>%
-  summarise(total = sum(value, na.rm = TRUE)) %>%
-  ungroup() %>%
-  rbind(., no_info_df) %>%
-  mutate(total_product_t = total_product_weight) %>%
-  mutate(prop = total/total_product_t) %>%
-  mutate(perc = prop * 100) %>% # Convert to percentage
-  mutate(label = paste0(round(perc, 1), "%")) %>%
-  arrange(desc(fishmeal_type))  %>%
-  filter(prop > 0) %>%
-  arrange(-prop) 
-
-## oceania: #9F6144
-## Africa: #A660A1
-## Asia: #3F8D87
-## South America: #8F464E
-## North America: #E47669
-## Europe: #5E74A1
-## unknown: #808080
-  
-ggplot(bar_plot_df, aes(x = reorder(fishmeal_type, -prop), y = prop, fill = continent)) +
-  geom_bar(stat = "identity", color = "white") + 
- scale_fill_manual(values = c("#A660A1", "#3F8D87", "#5E74A1", "#E47669", "#9F6144", "#8F464E", "#808080")) +
-  theme_classic() +
-  labs(fill = "", y = "Proportion of global trade", x = "Fishmeal type", title = "Global fishmeal 2020") + 
-    scale_x_discrete(expand = c(0,0)) +
-  scale_y_continuous(expand = c(0,0)) # oh gosh... with the new data now ~50% from trimmings WITHOUT gapfilling...
-
-
-
-no_info_df <- artis_all_2020 %>%
-  filter(is.na(trimmings_gf)) %>%
-  mutate(fishmeal_type = "Not sure") %>%
-  group_by(fishmeal_type, phylum) %>%
-  summarise(total = sum(product_weight_t)) %>%
-  ungroup()
-
-bar_plot_df <- artis_all_2020 %>% 
-  filter(!is.na(trimmings_gf)) %>%
-  pivot_longer(names_to = "fishmeal_type",
-               cols = c("wholefish_product", "trim_product")) %>%
-  mutate(fishmeal_type = ifelse(fishmeal_type == "trim_product", "Trimmings", "Whole fish")) %>%
-  # mutate(fishmeal_type = ifelse(trash_fish == "yes", "Biomass fishery (trash fish)", 
-   #                              ifelse(is.na(trash_fish)|trash_fish == "no", fishmeal_type, fishmeal_type))) %>%
-  group_by(fishmeal_type, phylum) %>%
-  summarise(total = sum(value, na.rm = TRUE)) %>%
-  ungroup() %>%
-  rbind(., no_info_df) %>%
-  mutate(total_product_t = total_product_weight) %>%
-  mutate(prop = total/total_product_t) %>%
-  mutate(perc = prop * 100) %>% # Convert to percentage
-  mutate(label = paste0(round(perc, 1), "%")) %>%
-  arrange(desc(fishmeal_type))  %>%
-  filter(prop > 0) %>%
-  arrange(-prop) 
-
-  
-ggplot(bar_plot_df, aes(x = reorder(fishmeal_type, -prop), y = prop, fill = phylum)) +
-  geom_bar(stat = "identity", color = "white") + 
-# scale_fill_manual(values = c("#A660A1", "#3F8D87", "#5E74A1", "#E47669", "#9F6144", "#8F464E", "#808080")) +
-  theme_classic() +
-  labs(fill = "", y = "Proportion of global trade", x = "Fishmeal type", title = "Global fishmeal 2020") + 
-    scale_x_discrete(expand = c(0,0)) +
-  scale_y_continuous(expand = c(0,0)) # oh gosh... with the new data now ~50% from trimmings WITHOUT gapfilling...
-
-test <- artis_all_2020 %>%
-  filter(phylum == "chordata",
-         is.na(trim_prop_gf)) %>%
-  group_by(common_name) %>%
-  summarise(tonnes = sum(product_weight_t))
-
-```
-
-
-Look at finfish only 
-
-```{r}
-artis_finfish <- artis_trimmings_all_gf %>%
-  filter(year == 2020) %>% 
-  filter(phylum %in% c("chordata", NA)) %>% # ok only finfish (or NA)
-  filter(!(common_name %in% c("sea urchins", "saltwater mussels", "sea lamprey", "lampreys nei"))) %>%
-    left_join(countries, by = c("source_country_iso3c" = "iso3c"))
-
-
-test <- artis_finfish %>%
-  filter(is.na(trim_prop_gf))
-
-sum(test$product_weight_t) # 331945.7 missing total
-
-## look at countries with trimmings:
-
-test <- artis_finfish %>%
-  filter(trimmings_gf == "yes") %>%
-  group_by(source_country_iso3c) %>%
-  summarise(total_trim_iso3c = sum(trim_product)) %>%
-  ungroup() %>%
-  mutate(total_trim_prop = total_trim_iso3c/sum(artis_finfish$trim_product, na.rm = TRUE)) %>%
-  ungroup()
-  
-## look at countries with most missing
-
-test <- artis_finfish %>%
-  filter(is.na(trim_prop_gf)) %>%
-  group_by(source_country_iso3c) %>%
-  summarise(total_product = sum(product_weight_t)) %>%
-  ungroup() 
-
-unique(test$source_country_iso3c) # lots of countries here 
-
-total_product_weight <- artis_finfish %>% 
-  pull(product_weight_t) %>%
-  sum() # 2996927
-
-no_info_df <- artis_finfish %>%
-  filter(is.na(trimmings_gf)) %>%
-  mutate(fishmeal_type = "not sure") %>%
-  group_by(fishmeal_type, continent) %>%
-  summarise(total = sum(product_weight_t)) %>%
-  ungroup()
-
-bar_plot_df <- artis_finfish %>% 
-  filter(!is.na(trimmings_gf)) %>%
-  pivot_longer(names_to = "fishmeal_type",
-               cols = c("wholefish_product", "trim_product")) %>%
-  mutate(fishmeal_type = ifelse(fishmeal_type == "trim_product", "Trimmings", "Whole fish")) %>%
-  group_by(fishmeal_type, continent) %>%
-  summarise(total = sum(value, na.rm = TRUE)) %>%
-  ungroup() %>%
-  rbind(., no_info_df) %>%
-  mutate(total_product_t = total_product_weight) %>%
-  mutate(prop = total/total_product_t) %>%
-  mutate(perc = prop * 100) %>% # Convert to percentage
-  mutate(label = paste0(round(perc, 1), "%")) %>%
-  arrange(desc(fishmeal_type))  %>%
-  filter(prop > 0) %>%
-  arrange(-prop) 
-
-## oceania: #9F6144
-## Africa: #A660A1
-## Asia: #3F8D87
-## South America: #8F464E
-## North America: #E47669
-## Europe: #5E74A1
-## unknown: #808080
-  
-ggplot(bar_plot_df, aes(x = reorder(fishmeal_type, -prop), y = prop, fill = continent)) +
-  geom_bar(stat = "identity", color = "white") + 
- scale_fill_manual(values = c("#A660A1", "#3F8D87", "#5E74A1", "#E47669", "#9F6144", "#8F464E", "#808080")) +
-  theme_classic() +
-  labs(fill = "", y = "Proportion of global trade", x = "Fishmeal type", title = "Global fishmeal 2020") + 
-    scale_x_discrete(expand = c(0,0)) +
-  scale_y_continuous(expand = c(0,0)) # oh gosh... with the new data now ~50% from trimmings WITHOUT gapfilling...
-
-
-## seems a bit more reasonable/matching to IFFO looking only at finfish...
-```
-
-
-Cao et al 2015
- - Around 40% of China's domestically produced fish meal is from processing waste 
- - European Union forbids use of farmed fish by-products in finfish feeds but allows them to be used in crustacean diets or vice versa. 
-
-
-Let's look at just China and see if trimmings represents 40% of its finfish fishmeal
-
-```{r}
-
-artis_chn <- artis_all_2020 %>%
-  filter(source_country_iso3c == "CHN",
-         phylum == "chordata") 
-
-
-no_info_df <- artis_chn %>%
-  filter(is.na(trimmings_gf)) %>%
-  mutate(fishmeal_type = "not sure") %>%
-  group_by(fishmeal_type, phylum) %>%
-  summarise(total = sum(product_weight_t)) %>%
-  ungroup()
-
-
-bar_plot_df <- artis_chn %>% 
-  filter(!is.na(trimmings_gf)) %>%
-  pivot_longer(names_to = "fishmeal_type",
-               cols = c("wholefish_product", "trim_product")) %>%
-  mutate(fishmeal_type = ifelse(fishmeal_type == "trim_product", "trimmings", "wholefish")) %>%
-  group_by(fishmeal_type, phylum) %>%
-  summarise(total = sum(value, na.rm = TRUE)) %>%
-  ungroup() %>%
-     rbind(., no_info_df) %>%
-  mutate(total_product_t = sum(total, na.rm = TRUE)) %>%
-  mutate(prop = total/total_product_t) %>%
-  mutate(perc = prop * 100) %>% # Convert to percentage
-  mutate(label = paste0(round(perc, 1), "%"))
-
-ggplot(bar_plot_df, aes(x = reorder(fishmeal_type, -prop), y = prop, fill = phylum)) +
-  geom_bar(stat = "identity", color = "white") + 
-  theme_classic() +
-  labs(fill = "", y = "Proportion of global trade", x = "Fishmeal type", title = "Global finfish fishmeal 2020") + 
-    scale_x_discrete(expand = c(0,0)) +
-  scale_y_continuous(expand = c(0,0)) 
-
-
-## Awesome! ~40% of fm in china is trimmings. Cao et al suggests 40% in 2015. There is still around 18% missing, so that number might go up a bit, which seems reasonable given the time difference
-
-```
-
-Random notes: 
-
-https://www.marketsandmarkets.com/Market-Reports/aquafeeds-market-1151.html 
-  - https://www.fortunebusinessinsights.com/industry-reports/aquafeed-market-100698 says that the aquafeed industry is worth USD 59 billion in 2024
-  - https://www.fortunebusinessinsights.com/industry-reports/aquafeed-market-100698 says aquafeed industry is 64.06 billion USD
-  - Cargill had net income of 4.93 billion, revenue is 165 billion
-  - biomar revenue 2.6 billion, net income??
-  - Skretting had 2.68 billion USD revenue
-
 

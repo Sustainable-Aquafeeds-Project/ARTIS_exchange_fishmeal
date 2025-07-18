@@ -99,7 +99,7 @@ Summary of potential data prep:
 Other notes: 
   - conversion factor
   - method (if it is trimmings or whole fish)
-  - sciname (any real standouts not included that should be trimmings; if this is the case, may need to adjust some of the raw data; jessica problem )
+  - sciname (any real standouts not included that should be trimmings; if this is the case, may need to adjust some of the raw data; jessica problem)
  - species likely to be trimmings that we can identify (e.g., bluefin tuna, albacore, yellowfin would almost always be trimmings if that FM)
  
 
