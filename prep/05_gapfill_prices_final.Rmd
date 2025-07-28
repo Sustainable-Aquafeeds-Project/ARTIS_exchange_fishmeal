@@ -347,6 +347,8 @@ artis_trimmings_all_info_FINAL %>%
   pull(product_weight_t) %>%
   sum()/fm_artis %>% filter(year == 2020) %>% pull(product_weight_t) %>% sum() # 1 - fully gapfilled! 
 
+## need to refill any oysters, clams, etc here to be whole fish. Even though we don't use them in the final analysis, I think this is an appropriate assumption and should override any price, fillet, or country level information. 
+
 ```
 
 
