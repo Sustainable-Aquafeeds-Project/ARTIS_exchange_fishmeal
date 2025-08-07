@@ -1,0 +1,143 @@
+---
+title: "Explore scenario analysis"
+output: html_document
+date: "2024-11-25"
+editor_options: 
+  chunk_output_type: console
+---
+
+## Summary
+
+## Setup
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(here)
+library(tidyverse)
+library(glue)
+library(sf)
+library(devtools)
+library(janitor)
+library(countrycode)
+library(qs)
+library(scales)
+library(viridis)
+library(dplyr)
+library(exploreARTIS)
+library(patchwork)
+library(ggsankey)
+library(stringr)
+
+
+source(here("R/directories.R"))
+
+fm_data_adjusted <-   qs::qread(file.path(artis_dir, "artis_exchange/artis_fishmeal_trimmings_traded_consumption_gf_final.qs"))
+
+```
+
+
+
+Save SI Tables
+
+```{r}
+codes <- read.csv(file.path(artis_dir, "artis_full_data/data/attribute tables/products.csv"))
+
+fillet_codes <- codes %>% 
+  filter(presentation == "fillet") %>%
+      mutate(hs6 = as.character(hs6)) %>%
+    mutate(hs6 = case_when(
+      str_length(hs6) == 5 ~ paste("0", hs6, sep = ""),
+      TRUE ~ hs6
+    )) %>%
+  distinct(hs6, description)
+
+write.csv(fillet_codes, here("outputs/SI_table_fillets.csv"), row.names = FALSE)
+
+
+SI_Table_2 <- read.csv(here("int/material_origins_ALL.csv")) %>%
+  dplyr::select(common_name, sciname, `Species name from report/literature` = feed_report_spp_name, source_country_name, source_country_iso3c, processor_iso3c = importer_iso3c, wholefish, trimmings, `Proportion of production which is trimmings derived` = trim_prop, Source = data_source_feed) %>%
+  mutate(Source = case_when(
+    Source == "skretting" ~ "Skretting 2022", 
+    Source == "cargill" ~ "Cargill 2023", 
+    Source == "biomar" ~ "Biomar 2023", 
+    TRUE ~ Source
+  ))
+
+write.csv(SI_Table_2, here("outputs/SI/SI_Table_2.csv"), row.names = FALSE)
+
+SI_Table_3 <- read.csv(here("int/material_origins_ALL.csv")) %>%
+  filter(data_source_feed %in% c("biomar", "skretting", "cargill")) %>%
+  group_by(common_name, sciname, source_country_iso3c, source_country_name) %>%
+  summarise(trim_prop = mean(trim_prop, na.rm = TRUE)) %>%
+  ungroup() %>%
+  mutate(trimmings = ifelse(trim_prop > 0, "yes", "no")) %>%
+  mutate(whole_fish = ifelse(trim_prop < 1, "yes", "no"))
+  
+
+write.csv(SI_Table_3, here("outputs/SI/SI_Table_3.csv"), row.names = FALSE)
+
+SI_Table_4 <- read.csv(here("int/material_origins_ALL.csv")) %>%
+  filter(!(data_source_feed %in% c("biomar", "skretting", "cargill"))) %>%
+  group_by(common_name, sciname, source_country_iso3c, source_country_name) %>%
+  summarise(trim_prop = mean(trim_prop, na.rm = TRUE)) %>%
+  ungroup() %>%
+  mutate(trimmings = ifelse(trim_prop > 0, "yes", "no")) %>%
+  mutate(whole_fish = ifelse(trim_prop < 1, "yes", "no"))
+  
+
+write.csv(SI_Table_4, here("outputs/SI/SI_Table_4.csv"), row.names = FALSE)
+
+fm_data_adjusted <- qs::qread(here("outputs/top_species_fm_1996_2020.qs"))
+
+total_2020 <- fm_data_adjusted %>%
+  filter(year == 2020) %>%
+  pull(product_weight_t) %>%
+  sum()
+
+si_table_5 <- fm_data_adjusted %>%
+  filter(year == 2020) %>%
+  group_by(`Gapfilling assumption` = method_trim_gf) %>%
+  summarise(`Product accounted for (as percentage of ARTIS total, 2020)` = round((sum(product_weight_t, na.rm = TRUE)/total_2020)*100, 2),
+            `Number of distinct species` = n_distinct(sciname),
+            `Number of distinct countries` = n_distinct(source_country_iso3c)) %>%
+ # filter(!(`Gapfilling assumption` %in% c("wild caught salmon trimmings", "barnacle"))) %>%
+  mutate(Source = 
+           case_when(
+             `Gapfilling assumption` %in% c("Asian trash fish assumption") ~ "Majluf et al. 2024",
+             `Gapfilling assumption` %in% c("Assuming trimmings because production method is aquaculture") ~ "Bachis 2024; Skretting 2022; Xu & Ming 2018; Ytrestøyl et al. 2015, Penarubia et al. 2023",
+             `Gapfilling assumption` %in% c("Assuming trimmings because these are shrimp or prawn") ~ "Bachis 2024; Hertrampf et al. 2000",
+             `Gapfilling assumption` %in% c("Average trimmings proportion of genus from literature and reports") ~ "See SI Tables 2-4",
+             `Gapfilling assumption` %in% c("Average trimmings proportion of source country and species from literature and reports") ~ "See SI Tables 2-3",
+             `Gapfilling assumption` %in% c("Average trimmings proportion of species from literature and reports") ~ "See SI Tables 2-4",
+             `Gapfilling assumption` %in% c("Average trimmings proportion per country from known data") ~ "See SI Tables 2-4",
+             `Gapfilling assumption` %in% c("gapfilled whole fish because average price is lower than 3-year average whole fish price") ~ "Melnychuk et al. 2017",
+             `Gapfilling assumption` %in% c("Lobster, crab, or other crustaceans assumed trimmings") ~ "Bachis 2024; Hertrampf et al. 2000",
+             `Gapfilling assumption` == "Assuming trimmings because these are squids, octopus, or cuttlefish" ~ "Bachis 2024; Hertrampf et al. 2000",
+             `Gapfilling assumption` %in% c("Used fillet data to determine proportion of fishmeal which is trimmings") ~ "Gephart et al. 2024",
+         `Gapfilling assumption` %in% c("wild caught salmon trimmings") ~ "Bachis 2024"
+           )) %>%
+  mutate(Source = ifelse(is.na(Source), "See SI Tables 2-4", Source)) %>%
+  mutate(`Gapfilling step` = 
+           case_when(
+             `Gapfilling assumption` == "none; filled using company reports from source to processing country" ~ 1,
+             `Gapfilling assumption` == "none; filled using values from literature" ~ 2,      
+             `Gapfilling assumption` == "Average trimmings proportion of source country and species from all literature and reports" ~ 3,                
+             `Gapfilling assumption` == "Assuming trimmings because production method is aquaculture" ~ 4,   
+             `Gapfilling assumption` == "Average trimmings proportion of species from literature and reports" ~ 5,          
+             `Gapfilling assumption` == "Used fillet data to determine proportion of fishmeal which is trimmings" ~ 6,          
+             `Gapfilling assumption` == "Assuming trimmings because these are shrimp or prawn" ~ 7,     
+             `Gapfilling assumption` == "Assuming trimmings because these are squids, octopus, or cuttlefish" ~ 8,               
+             `Gapfilling assumption` == "gapfilled whole fish because average price is lower than 3-year average whole fish price" ~ 9,                   `Gapfilling assumption` == "Average trimmings proportion of genus from literature and reports" ~ 10,          
+             `Gapfilling assumption` == "Asian trash fish assumption" ~ 11,               
+             `Gapfilling assumption` == "Lobster, crab, or other crustaceans assumed trimmings" ~ 12,               
+             `Gapfilling assumption` == "wild caught salmon trimmings" ~ 13,               
+             `Gapfilling assumption` == "Average trimmings proportion per country from known data" ~ 14,               
+             )) %>%
+    arrange(`Gapfilling step`)
+
+
+write.csv(si_table_5, here("outputs/SI/SI_Table_5.csv"), row.names = FALSE)
+
+```
+

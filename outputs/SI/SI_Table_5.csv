@@ -1,0 +1,15 @@
+"Gapfilling assumption","Product accounted for (as percentage of ARTIS total, 2020)","Number of distinct species","Number of distinct countries","Source","Gapfilling step"
+"none; filled using company reports from source to processing country",12.59,45,67,"See SI Tables 2-4",1
+"none; filled using values from literature",29.91,78,40,"See SI Tables 2-4",2
+"Average trimmings proportion of source country and species from all literature and reports",4.59,31,53,"See SI Tables 2-4",3
+"Assuming trimmings because production method is aquaculture",30.15,66,84,"Bachis 2024; Skretting 2022; Xu & Ming 2018; Ytrestøyl et al. 2015, Penarubia et al. 2023",4
+"Average trimmings proportion of species from literature and reports",8.33,109,110,"See SI Tables 2-4",5
+"Used fillet data to determine proportion of fishmeal which is trimmings",7.11,183,106,"Gephart et al. 2024",6
+"Assuming trimmings because these are shrimp or prawn",3.5,19,32,"Bachis 2024; Hertrampf et al. 2000",7
+"Assuming trimmings because these are squids, octopus, or cuttlefish",0.77,10,22,"Bachis 2024; Hertrampf et al. 2000",8
+"gapfilled whole fish because average price is lower than 3-year average whole fish price",0.24,126,83,"Melnychuk et al. 2017",9
+"Average trimmings proportion of genus from literature and reports",2.45,38,106,"See SI Tables 2-4",10
+"Asian trash fish assumption",0.01,3,7,"Majluf et al. 2024",11
+"Lobster, crab, or other crustaceans assumed trimmings",0.32,9,14,"Bachis 2024; Hertrampf et al. 2000",12
+"wild caught salmon trimmings",0,1,1,"Bachis 2024",13
+"Average trimmings proportion per country from known data",0.04,46,52,"See SI Tables 2-4",14

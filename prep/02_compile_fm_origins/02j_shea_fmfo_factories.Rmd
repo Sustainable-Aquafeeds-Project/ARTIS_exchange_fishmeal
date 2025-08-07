@@ -1084,6 +1084,8 @@ result <- data %>%
 # Write the filtered result to a new CSV file
 write.csv(result, here("int/material_origins_shea_2025.csv"), row.names = FALSE)
 
+test <- read.csv(here("int/material_origins_shea_2025.csv"))
+
 ```
 
 

@@ -1,0 +1,649 @@
+---
+title: "Final gapfilling with prices"
+output: html_document
+date: "2024-08-01"
+editor_options: 
+  chunk_output_type: console
+---
+
+## Summary
+
+## Setup
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(here)
+library(tidyverse)
+library(glue)
+library(sf)
+library(devtools)
+library(janitor)
+library(countrycode)
+library(qs)
+
+source(here("R/directories.R"))
+
+full_artis <- qs::qread(file.path(artis_dir, "full_artis_fm_fillet.qs"))
+
+fillet_artis <- full_artis %>%
+  filter(hs6 != 230120) %>%
+  dplyr::select(-hs_version) %>% # don't need this
+  rename(consumer_iso3c = importer_iso3c) # just to make things consistent
+
+artis_taxa <- read.csv(file.path(artis_dir, "artis_full_data/data/attribute tables/sciname.csv")) ## read in attribute table with common names
+countries <- read.csv(here("data/countries.csv")) ## artis countries with info
+
+fm_artis <- qs::qread(file.path(artis_dir, "full_artis_fm_2024_09_19.qs")) %>%
+  mutate(hs6 = 230120,
+         dom_source = ifelse(dom_source == "", consumption_type, dom_source)) %>%
+  dplyr::select(year, source_country_iso3c, exporter_iso3c, consumer_iso3c, dom_source, hs6, sciname, habitat, method, product_weight_t, live_weight_t = consumption_t_capped) %>%
+  mutate(exporter_iso3c = ifelse(source_country_iso3c == consumer_iso3c, source_country_iso3c, exporter_iso3c))
+
+```
+
+```{r}
+
+artis_trimmings_all_gf <- qs::qread(file.path(artis_dir, "artis_exchange/artis_fishmeal_trimmings_simple_gf_traded_consumption.qs"))
+
+colnames(artis_trimmings_all_gf)
+
+test <- artis_trimmings_all_gf %>% 
+  filter(is.na(trim_prop_gf))
+```
+
+Join price data with this trimmings info, and get an 3-year rolling average price for whole fish rendered species per year (with a 10% buffer) (any species in data with info and used <50% of the time as trimmings). Any species below that price will be considered all whole fish fish meal. 
+
+```{r}
+prices2 <- read.csv(file.path(rdsi_raw_data_dir, "sea-around-us/ex-vessel-prices/exvessel_price_database_1976_2019.csv")) %>%
+  dplyr::select(-X) %>%
+  clean_names() %>%
+    mutate(sciname = tolower(scientific_name)) %>%
+  dplyr::select(sciname, year, price2010usd_mean = exvessel) %>%
+  filter(!is.na(price2010usd_mean))
+
+expanded_data <- prices2 %>%
+  expand(year = 1976:2020,  sciname)
+
+filled_price_data <- expanded_data %>%
+  # Left join to bring in existing data
+  left_join(prices2, by = c("year", "sciname")) %>%
+  # Step 3: Arrange data by species, and year
+  arrange(sciname, year) %>%
+  # Step 4: Fill `price2010usd_mean` up and down by each country and species combination
+  group_by(sciname) %>%
+  fill(price2010usd_mean, .direction = "downup") %>%  # Fill forward then backward
+  # If needed, fill `price2010usd_ci` in the same way
+  ungroup() %>%
+  filter(!is.na(price2010usd_mean)) %>%
+  distinct() %>%
+  group_by(year, sciname) %>%
+  summarise(price2010usd_mean = mean(price2010usd_mean, na.rm = TRUE)) %>% # there were species with multiple prices for some reason..
+  ungroup() %>%
+  mutate(sciname = ifelse(sciname == "salmonoidei", "salmonidae", sciname))
+
+salmoninae <- filled_price_data %>%
+  filter(sciname == "salmonidae") %>%
+  mutate(sciname = "salmoninae")
+
+filled_price_data <- filled_price_data %>%
+  rbind(., salmoninae)
+
+prices_aggregated <- artis_trimmings_all_gf  %>%
+  right_join(filled_price_data) %>%
+    filter(!is.na(trim_prop_gf)) %>%
+   filter(trim_prop_gf < 0.5) %>% # so we have whole fish species in each country with a price
+  dplyr::select(colnames(filled_price_data), source_country_iso3c) %>%
+  distinct() %>%
+  arrange(year) %>%
+  group_by(year) %>%
+  summarise(avg_price2010usd_mean = mean(price2010usd_mean, na.rm = TRUE)) %>%
+  ungroup()
+
+# Step 2: Calculate the 3-year rolling average
+prices_aggregated <- prices_aggregated %>%
+#  group_by(year) %>%
+  arrange(year) %>%
+  mutate(price_3yr_rolling_mean = zoo::rollapply(avg_price2010usd_mean, 
+                                                 width = 3, 
+                                                 FUN = mean, 
+                                                 align = "right", 
+                                                 fill = NA),
+         # Add ±10% buffer
+         price_3yr_rolling_mean_lower = price_3yr_rolling_mean * 0.90,
+         price_3yr_rolling_mean_upper = price_3yr_rolling_mean * 1.1) %>%
+  ungroup() %>%
+  fill(price_3yr_rolling_mean, price_3yr_rolling_mean_lower, price_3yr_rolling_mean_upper, .direction = "downup") # fill missing first 2 years
+
+price_empty_gf <- artis_trimmings_all_gf %>%
+  filter(is.na(trim_prop_gf)) %>%
+  left_join(prices_aggregated) %>%
+  left_join(filled_price_data) %>%
+    distinct() %>%
+  mutate(trim_prop_gf = ifelse(price2010usd_mean <= price_3yr_rolling_mean_upper, 0, trim_prop_gf),
+         method_trim_gf = ifelse(price2010usd_mean <= price_3yr_rolling_mean_upper, "gapfilled whole fish because average price is lower than 3-year average whole fish price", method_trim_gf)) %>%
+   dplyr::select(colnames(artis_trimmings_all_gf)) 
+
+summary(price_empty_gf) 
+
+tonnes_filled_price <- price_empty_gf %>% 
+  filter(!is.na(trim_prop_gf)) %>%
+  filter(year == 2020) %>%
+  pull(product_weight_t) %>%
+  sum()
+
+tonnes_filled_price/fm_artis %>% filter(year == 2020) %>% pull(product_weight_t) %>% sum() # 0.02666722 ~ 2.6%..
+
+ price_all_gf <- artis_trimmings_all_gf %>%
+  filter(!is.na(trim_prop_gf)) %>%
+  rbind(., price_empty_gf %>% filter(!is.na(trim_prop_gf))) 
+ 
+ data_to_gapfill <- price_empty_gf %>%
+   filter(is.na(trim_prop_gf))
+
+  nrow(price_all_gf) + nrow(data_to_gapfill) == nrow(fm_artis) # TRUE 
+
+ price_all_gf %>% 
+  filter(!is.na(trim_prop_gf)) %>%
+  filter(year == 2020) %>%
+  pull(product_weight_t) %>%
+  sum()/fm_artis %>% filter(year == 2020) %>% pull(product_weight_t) %>% sum() # 96.2% now filled in
+ 
+
+```
+
+We have to fill in ~4% of fishmeal for 2020 now. We will do this by gapfilling by genus: 
+
+Gapfill by genus
+
+```{r}
+
+fm_origins_traded <- read.csv(here("outputs/feed_company_fmfo_material_origins_traded.csv")) %>%
+  dplyr::select(-common_name) %>%
+  group_by(sciname, source_country_iso3c, importer_iso3c, capture) %>%
+  summarise(trim_prop = mean(trim_prop, na.rm = TRUE)) %>%
+  ungroup()
+
+fm_origins_sciname <- read.csv(here("outputs/all_fmfo_material_origins_literature.csv")) %>%
+  dplyr::select(-common_name) %>%
+  group_by(sciname, capture) %>%
+  summarise(trim_prop = mean(trim_prop, na.rm = TRUE)) %>%
+  ungroup()
+
+mean_reports_lit_genus <- fm_origins_traded %>%
+  group_by(sciname, capture) %>%
+  summarise(trim_prop = mean(trim_prop, na.rm = TRUE)) %>%
+  ungroup() %>%
+  rbind(., fm_origins_sciname) %>%
+  left_join(artis_taxa)  %>%
+  group_by(genus, capture) %>%
+  summarise(trim_prop_genus_gf = mean(trim_prop, na.rm = TRUE)) %>%
+  ungroup() %>%
+  mutate(method_new = ifelse(capture == "yes", "capture", "aquaculture")) %>%
+  filter(method_new != "aquaculture") %>%
+  dplyr::select(-capture)
+
+artis_trimmings_genus_joined <- data_to_gapfill %>%
+  left_join(artis_taxa) %>%
+  left_join(mean_reports_lit_genus)
+
+
+artis_trimmings_genus_gf <- artis_trimmings_genus_joined %>%
+  mutate(trim_prop_gf = ifelse(is.na(trim_prop_gf), trim_prop_genus_gf, trim_prop_gf)) %>%
+  filter(!is.na(trim_prop_gf)) %>%
+  mutate(method_trim_gf = "Average trimmings proportion of genus from literature and reports") 
+
+
+artis_trimmings_info_to_fix_fin <- artis_trimmings_genus_joined %>%
+  filter(is.na(trim_prop_genus_gf)) %>%
+  dplyr::select(colnames(price_all_gf))
+
+nrow(artis_trimmings_info_to_fix_fin) + nrow(artis_trimmings_genus_gf) + nrow(price_all_gf) == nrow(fm_artis) # TRUE good
+
+artis_trimmings_all_info_new <- price_all_gf %>%
+  rbind(., artis_trimmings_genus_gf %>% dplyr::select(colnames(price_all_gf)))
+
+
+artis_trimmings_genus_gf %>% 
+  filter(year == 2020) %>%
+  pull(product_weight_t) %>%
+  sum()/fm_artis %>% filter(year == 2020) %>% pull(product_weight_t) %>% sum() # 0.02622238 meaning the genus level means filled ~2.6% of fishmeal in 2020
+
+
+artis_trimmings_all_info_new %>% 
+  filter(year == 2020) %>%
+  pull(product_weight_t) %>%
+  sum()/fm_artis %>% filter(year == 2020) %>% pull(product_weight_t) %>% sum() # ok now we have 98.8% of fishmeal for 2020 covered
+
+```
+
+Finally, we'll fill in the rest using our simple assumptions
+
+gapfilling with broad assumptions first 
+
+```{r}
+countries <- read.csv(here("data/countries.csv")) ## artis countries with info
+
+asia_iso3c <- countries %>% 
+  filter(owid_region == "Asia") %>%
+  pull(iso3c)
+
+# Define a helper function for trash fish conditions
+is_asian_trash_fish <- function(common_name, phylum, sciname, source_country_iso3c, method) {
+    method != "aquaculture" & 
+    str_detect(common_name, "nei|ray-finned fishes") & 
+    phylum == "chordata" & 
+    source_country_iso3c %in% asia_iso3c & 
+    !(sciname %in% c("salmonidae", "salmo", "perciformes"))
+}
+
+artis_info_fixed_fin <- artis_trimmings_info_to_fix_fin %>%
+  left_join(artis_taxa) %>%
+    # Define trim_prop_gf column
+   mutate(trim_prop_gf = case_when(
+        # trash fish assumption from Majluf et al.: https://www.science.org/doi/10.1126/sciadv.adn5650
+      is_asian_trash_fish(common_name, phylum, sciname, source_country_iso3c, method) ~ 0,
+      # wild caught tuna and salmon in IFFO report and from leadbitter conversation
+      family == "salmonidae" & method != "aquaculture" ~ 1,
+      sciname == "salmoninae" & method != "aquaculture" ~ 1,
+      # IFFO report; https://link.springer.com/book/10.1007/978-94-011-4018-8
+      isscaap %in% c("Lobsters, spiny-rock lobsters", "King crabs, squat-lobsters") | 
+        common_name %in% c("squillids nei", "stomatopods nei", "west african geryon") | 
+        str_detect(common_name, "crab|shrimp|squillid") | 
+        genus %in% c("geryon", "scylla") ~ 1,
+      # barnacle is a weird one, but assuming it has to be whole fish. Also we will not be reporting this anyways. 
+      str_detect(common_name, "barnacle") ~ 0,
+      TRUE ~ trim_prop_gf
+    ),
+    
+        # Define methd_gf column
+    method_trim_gf = case_when(
+      is_asian_trash_fish(common_name, phylum, sciname, source_country_iso3c, method) ~ "Asian trash fish assumption",
+      family == "salmonidae" & method != "aquaculture" ~ "wild caught salmon trimmings",
+      sciname == "salmoninae" & method != "aquaculture" ~ "wild caught salmon trimmings",
+      isscaap %in% c("Lobsters, spiny-rock lobsters", "King crabs, squat-lobsters") | 
+        common_name %in% c("squillids nei", "stomatopods nei", "west african geryon") | 
+        str_detect(common_name, "crab|squillid") | 
+        genus %in% c("geryon", "scylla") ~ "Lobster, crab, or other crustaceans assumed trimmings",
+      str_detect(common_name, "barnacle") ~ "barnacle",
+      TRUE ~ NA
+    )
+  ) %>%
+  # Leadbitter report suggests that pangasius are always trimmings in vietnam
+  mutate(
+    trim_prop_gf = ifelse(str_detect(sciname, "pangasi") & source_country_iso3c == "VNM", 1, trim_prop_gf),
+    method_trim_gf = ifelse(str_detect(sciname, "pangasi") & source_country_iso3c == "VNM", "Leadbitter report pangasius", method_trim_gf)
+  ) %>%
+  dplyr::select(colnames(price_all_gf))
+
+summary(artis_info_fixed_fin)
+
+
+artis_trimmings_all_gf <- artis_info_fixed_fin %>%
+  rbind(., artis_trimmings_all_info_new) 
+
+
+artis_trimmings_all_gf %>% 
+  filter(
+         !is.na(trim_prop_gf)) %>%
+  pull(product_weight_t) %>%
+  sum()/fm_artis %>% pull(product_weight_t) %>% sum() # 0.9958912; we're missing 0.0041088 for all years
+
+# what did we actually gapfill with that last round? 
+test_gf <- artis_info_fixed_fin %>%
+  filter(!is.na(trim_prop_gf)) %>%
+  group_by(method_trim_gf) %>%
+  summarise(tonnes = sum(product_weight_t, na.rm = TRUE)) %>%
+  ungroup()
+
+
+```
+
+Fill in the remaining missing by taking the mean of the source country? 
+
+```{r}
+# what are we still missing? 
+final_missing_df <- artis_trimmings_all_gf %>% 
+  filter(is.na(trim_prop_gf))
+
+# fm_origins_country <- read.csv(here("int/material_origins_ALL.csv")) %>%
+#   group_by(source_country_iso3c = iso3c) %>%
+#   summarise(trim_prop = mean(trim_prop, na.rm = TRUE)) %>%
+#   ungroup()
+
+fm_origins_country <- artis_trimmings_all_gf %>%
+  group_by(source_country_iso3c) %>%
+  summarise(trim_prop_gf_country = mean(trim_prop_gf, na.rm = TRUE)) %>%
+  ungroup()
+
+artis_trimmings_country_joined <- final_missing_df %>%
+  left_join(fm_origins_country)
+
+artis_trimmings_country_gf <- artis_trimmings_country_joined %>%
+  mutate(trim_prop_gf = ifelse(is.na(trim_prop_gf), trim_prop_gf_country, trim_prop_gf)) %>%
+  filter(!is.na(trim_prop_gf)) %>%
+  mutate(method_trim_gf = "Average trimmings proportion per country from known data") 
+
+artis_trimmings_info_to_fix_fin <- artis_trimmings_country_joined %>%
+  filter(is.na(trim_prop_gf_country)) %>%
+  dplyr::select(colnames(price_all_gf)) # 0 good!
+
+nrow(artis_trimmings_info_to_fix_fin) + nrow(artis_trimmings_country_gf) + nrow(artis_trimmings_all_gf %>% filter(!is.na(trim_prop_gf))) == nrow(fm_artis) # TRUE good
+
+artis_trimmings_all_info_FINAL <- artis_trimmings_all_gf %>% 
+  filter(!is.na(trim_prop_gf)) %>%
+  rbind(., artis_trimmings_country_gf %>% dplyr::select(colnames(price_all_gf)))
+
+
+artis_trimmings_all_info_FINAL %>% 
+  filter(year == 2020) %>%
+  pull(product_weight_t) %>%
+  sum()/fm_artis %>% filter(year == 2020) %>% pull(product_weight_t) %>% sum() # 1 - fully gapfilled! 
+
+
+```
+
+Now overwrite any molluscs (except cephalopoda) to be whole fish mollusc meal. We don't use this in the analysis anyway. 
+
+```{r}
+## now fix any molluscs (non-cephalopoda) to be mollusc meat and "whole fish". Overwrite any other gapfilling we did. We don't use these in the analysis anyways.
+artis_trimmings_all_info_FINAL_FIX <- artis_trimmings_all_info_FINAL %>%
+  left_join(artis_taxa) %>%
+  mutate(trim_prop_gf = 
+           case_when(
+                   isscaap %in% c("Abalones, winkles, conchs", "Clams, cockles, arkshells", "Multiple ISSCAAP groups", "Mussels", "Oysters", "Scallops, pectens") & 
+        phylum == "mollusca" & !str_detect(common_name, "abalone|barnacle") & isscaap != "Squids, cuttlefishes, octopuses" ~ 0,
+        TRUE ~ trim_prop_gf), 
+        method_trim_gf = 
+          case_when(
+      isscaap %in% c("Abalones, winkles, conchs", "Clams, cockles, arkshells", "Multiple ISSCAAP groups", "Mussels", "Oysters", "Scallops, pectens") & 
+        phylum == "mollusca" & !str_detect(common_name, "abalone|barnacle") & isscaap != "Squids, cuttlefishes, octopuses" ~ "mollusc meat",
+      TRUE ~ method_trim_gf
+          )) %>%
+  dplyr::select(colnames(price_all_gf))
+
+        #  assume mollusc meal is whole fish: https://link.springer.com/book/10.1007/978-94-011-4018-8; we're excluding from final data anyways 
+
+
+test <- artis_trimmings_all_info_FINAL_FIX %>%
+  filter(method_trim_gf == "squid, cuttlefish, or octopus trimmings") # 0 good
+
+test <- artis_trimmings_all_info_FINAL_FIX %>%
+  filter(method_trim_gf == "mollusc meat", 
+         year == 2006)
+
+sum(test$product_weight_t) # 2054447 # cool, makes sense. 
+
+
+test <- artis_trimmings_all_info_FINAL_FIX %>%
+  filter(is.na(trim_prop_gf)) # 0 good
+
+```
+
+
+Save the data 
+
+```{r}
+  
+qs::qsave(artis_trimmings_all_info_FINAL_FIX, file.path(artis_dir, "artis_exchange/artis_fishmeal_trimmings_traded_consumption_gf_final.qs"))
+
+```
+
+Testing and plots 
+
+```{r}
+test <- qs::qread(file.path(artis_dir, "artis_exchange/artis_fishmeal_trimmings_traded_consumption_gf_final.qs")) %>% 
+  left_join(artis_taxa) %>%
+  filter(isscaap == "Squids, cuttlefishes, octopuses", year == 2020)
+
+sum(test$product_weight_t)/5006092 # 0.04841891
+
+fillet_price_all_gf <- qs::qread(file.path(artis_dir, "artis_exchange/artis_fishmeal_trimmings_traded_consumption_gf_final.qs")) %>%
+  left_join(artis_taxa) %>%
+  mutate(trimmings = product_weight_t*trim_prop_gf,
+         wholefish = product_weight_t*(1-trim_prop_gf)) %>%
+  dplyr::select(-product_weight_t, -live_weight_t) %>%
+  pivot_longer( 
+    cols = c(trimmings, wholefish),
+    names_to = "fishmeal_type",
+    values_to = "product_weight_t"
+  )
+
+## make bar chart
+bar_plot_df <- fillet_price_all_gf %>%
+  filter(year == 2020, phylum == "chordata") %>% 
+  group_by(fishmeal_type) %>%
+  summarise(total = sum(product_weight_t, na.rm = TRUE)) %>%
+  ungroup() %>%
+  mutate(total_product_t = sum(total)) %>%
+  mutate(prop = total/total_product_t) %>%
+  mutate(perc = prop * 100) # Convert to percentage
+  
+# 63% whole fish and 37% trimmings for finfish 2020. IFFO reports 61 and 39 for finfish 2023! 
+
+ggplot(bar_plot_df, aes(x = reorder(fishmeal_type, -prop), y = prop)) +
+  geom_bar(stat = "identity", color = "white") + 
+  theme_classic() +
+  labs(y = "Proportion of global trade", x = "Fishmeal type", title = "Global finfish fishmeal 2020") + 
+    scale_x_discrete(expand = c(0,0)) +
+  scale_y_continuous(expand = c(0,0)) 
+
+bar_plot_df <- fillet_price_all_gf %>%
+  filter(year == 2020) %>% 
+  group_by(fishmeal_type, phylum) %>%
+  summarise(total = sum(product_weight_t, na.rm = TRUE)) %>%
+  ungroup() %>%
+  mutate(total_product_t = sum(total)) %>%
+  mutate(prop = total/total_product_t) %>%
+  mutate(perc = prop * 100) # Convert to percentage
+  
+
+ggplot(bar_plot_df, aes(x = reorder(fishmeal_type, -prop), y = prop, fill = phylum)) +
+  geom_bar(stat = "identity", color = "white") + 
+  theme_classic() +
+  labs(y = "Proportion of global trade", x = "Fishmeal type", title = "Global fishmeal 2020") + 
+    scale_x_discrete(expand = c(0,0)) +
+  scale_y_continuous(expand = c(0,0)) 
+
+
+## look at proportions over time 
+
+over_time <- fillet_price_all_gf %>%
+  group_by(year, fishmeal_type) %>%
+  summarise(product_t = sum(product_weight_t, na.rm = TRUE)) %>%
+  ungroup() %>%
+  group_by(year) %>%
+  mutate(total_t = sum(product_t)) %>%
+  ungroup() %>%
+  mutate(prop = product_t/total_t)
+
+ggplot(over_time, aes(x = year, y = prop, color = fishmeal_type)) +
+  geom_line() +
+    geom_text(data = over_time, aes(label = round(prop,2)), 
+            vjust = -0.5,
+            size = 3) + 
+  theme_bw() +
+  labs(title = "Global fishmeal production over time (1996-2020)", x = "Year", y = "Proportion of fishmeal", caption = "All species")
+
+
+over_time <- fillet_price_all_gf %>%
+  filter(phylum %in% c("chordata", NA)) %>% # ok only finfish (or NA)
+  filter(!(common_name %in% c("sea urchins", "saltwater mussels", "sea lamprey", "lampreys nei"))) %>%
+  group_by(year, fishmeal_type) %>%
+  summarise(product_t = sum(product_weight_t, na.rm = TRUE)) %>%
+  ungroup() %>%
+  group_by(year) %>%
+  mutate(total_t = sum(product_t)) %>%
+  ungroup() %>%
+  mutate(prop = product_t/total_t)
+
+ggplot(over_time, aes(x = year, y = prop, color = fishmeal_type)) +
+  geom_line() +
+  geom_text(data = over_time, aes(label = round(prop,2)), 
+            # hjust = -0.2, 
+            vjust = -0.5,
+            size = 3) + 
+  theme_bw() +
+  labs(title = "Global fishmeal production over time (1996-2020)", x = "Year", y = "Proportion of fishmeal", caption = "Finfish only")
+
+
+over_time <- fillet_price_all_gf %>%
+  group_by(year, fishmeal_type, phylum) %>%
+  summarise(product_t = sum(product_weight_t, na.rm = TRUE)) %>%
+  ungroup() %>%
+  group_by(year) %>%
+  mutate(total_t = sum(product_t)) %>%
+  ungroup() %>%
+  mutate(prop = product_t/total_t)
+
+ggplot(over_time, aes(x = year, y = product_t, color = fishmeal_type)) +
+  geom_line() +
+  facet_wrap(~phylum) + 
+  theme_bw() +
+  labs(title = "Global fishmeal production over time (1996-2020)", x = "Year", y = "Product weight (tonnes)")
+
+
+over_time <- fillet_price_all_gf %>%
+  filter(phylum %in% c("chordata", NA)) %>% # ok only finfish (or NA)
+  filter(!(common_name %in% c("sea urchins", "saltwater mussels", "sea lamprey", "lampreys nei"))) %>%
+  filter(source_country_iso3c == "CHN") %>%
+  group_by(year, fishmeal_type) %>%
+  summarise(product_t = sum(product_weight_t, na.rm = TRUE)) %>%
+  ungroup() %>%
+  group_by(year) %>%
+  mutate(total_t = sum(product_t)) %>%
+  ungroup() %>%
+  mutate(prop = product_t/total_t)
+
+ggplot(over_time, aes(x = year, y = prop, color = fishmeal_type)) +
+  geom_line() +
+  geom_text(data = over_time, aes(label = round(prop,2)), 
+            # hjust = -0.2, 
+            vjust = -0.5,
+            size = 3) + 
+  theme_bw() +
+  labs(title = "Finfish fishmeal production over time (1996-2020) in China", x = "Year", y = "Proportion of fishmeal", caption = "Finfish only")
+
+over_time <- fillet_price_all_gf %>%
+  group_by(year, fishmeal_type) %>%
+  summarise(product_t = sum(product_weight_t, na.rm = TRUE)) %>%
+  ungroup() %>%
+  group_by(year) %>%
+  mutate(total_t = sum(product_t)) %>%
+  ungroup() %>%
+  mutate(prop = product_t/total_t)
+
+ggplot(over_time, aes(x = year, y = product_t, color = fishmeal_type)) +
+  geom_line() +
+  theme_bw() +
+  labs(title = "Fishmeal production over time (1996-2020)", x = "Year", y = "Product weight (tonnes)")
+
+## Looks good! 
+```
+
+For SI? 
+
+```{r}
+krill_meal <- fillet_price_all_gf %>%
+  filter(year == 2019,
+         method_trim_gf == "krill meal") 
+
+
+sum(krill_meal$product_weight_t) # 19825.16
+unique(krill_meal$sciname)
+unique(krill_meal$source_country_iso3c)
+
+
+all_2020 <- fillet_price_all_gf %>%
+  filter(year == 2020)
+sum(all_2020$product_weight_t) # 6158133
+
+
+sum(krill_meal$product_weight_t)/ 6158133 # 0.003219347
+
+
+unspec_meal <- fillet_price_all_gf %>%
+  filter(year == 2020, 
+         method_trim_gf == "unknown species, assume wholefish",
+         product_weight_t > 0) 
+
+sum(unspec_meal$product_weight_t)/ 6158133 # 0.03199211
+unique(unspec_meal$sciname)
+length(unique(unspec_meal$source_country_iso3c))
+
+
+unspec_meal <- fillet_price_all_gf %>%
+  filter(year == 2020, 
+         method_trim_gf == "Asian trash fish assumption",
+         product_weight_t > 0) 
+
+sum(unspec_meal$product_weight_t)/ 6158133 # 0.06062514
+sum(unspec_meal$live_weight_t) # 1110757 - this is under the value which is estimated in https://www.slideshare.net/slideshow/the-status-of-asian-fisheries-meeting-the-demands-for-food-and-feeds/47356205#4
+
+length(unique(unspec_meal$sciname))
+
+length(unique(unspec_meal$source_country_iso3c))
+
+
+squid_meal <- fillet_price_all_gf %>%
+  filter(year == 2020, 
+         method_trim_gf == "squid, cuttlefish, or octopus trimmings",
+         product_weight_t > 0) 
+
+sum(squid_meal$product_weight_t)/ 6158133 
+
+length(unique(squid_meal$sciname))
+
+length(unique(squid_meal$source_country_iso3c))
+
+
+
+tuna_sal_meal <- fillet_price_all_gf %>%
+  filter(year == 2020, 
+         method_trim_gf %in% c("wild caught tuna trimmings", "wild caught salmon trimmings"),
+         product_weight_t > 0) 
+
+sum(tuna_sal_meal$product_weight_t)/ 6158133 # 0.02536865
+
+length(unique(tuna_sal_meal$sciname))
+
+length(unique(tuna_sal_meal$source_country_iso3c))
+
+
+tuna_sal_meal <- fillet_price_all_gf %>%
+  filter(year == 2019, 
+         method_trim_gf %in% c("wild caught tuna trimmings", "wild caught salmon trimmings"),
+         product_weight_t > 0) 
+
+sum(tuna_sal_meal$product_weight_t)/ 6158133 # 0.02536865
+
+length(unique(tuna_sal_meal$sciname))
+
+length(unique(tuna_sal_meal$source_country_iso3c))
+
+
+si_table_3 <- fillet_price_all_gf %>%
+  filter(product_weight_t > 0) %>%
+  group_by(year, method_trim_gf) %>%
+  summarise(tonnes = sum(product_weight_t, na.rm = TRUE),
+            n_countries = n_distinct(source_country_iso3c), 
+            n_species = n_distinct(sciname)) %>%
+  ungroup() %>%
+  filter(year == 2019) %>%
+  mutate(prop_product = tonnes/6158133)
+
+
+none_gf_meal <- fillet_price_all_gf %>%
+  filter(year == 2019, 
+         method_trim_gf %in% c("none", "Average trimmings proportion of source country and species from literature and reports"),
+         product_weight_t > 0) 
+
+sum(none_gf_meal$product_weight_t)/6005075
+
+length(unique(none_gf_meal$sciname))
+
+length(unique(none_gf_meal$source_country_iso3c))
+
+
+```
+

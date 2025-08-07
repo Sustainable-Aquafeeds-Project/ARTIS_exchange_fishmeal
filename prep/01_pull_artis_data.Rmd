@@ -45,17 +45,6 @@ fillet_codes <- codes %>%
       str_length(hs6) == 5 ~ paste("0", hs6, sep = ""),
       TRUE ~ hs6
     )) %>%
-  distinct(hs6, description)
-
-write.csv(fillet_codes, here("outputs/SI_table_fillets.csv"), row.names = FALSE)
-
-fillet_codes <- codes %>% 
-  filter(presentation == "fillet") %>%
-      mutate(hs6 = as.character(hs6)) %>%
-    mutate(hs6 = case_when(
-      str_length(hs6) == 5 ~ paste("0", hs6, sep = ""),
-      TRUE ~ hs6
-    )) %>%
   pull(hs6) %>%
   unique()
 

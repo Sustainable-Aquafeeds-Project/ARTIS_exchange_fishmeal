@@ -1,0 +1,611 @@
+---
+title: "Explore scenario analysis"
+output: html_document
+date: "2024-11-25"
+editor_options: 
+  chunk_output_type: console
+---
+
+## Summary
+
+## Setup
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(here)
+library(tidyverse)
+library(glue)
+library(janitor)
+library(countrycode)
+library(qs)
+library(dplyr)
+library(stringr)
+
+
+source(here("R/directories.R"))
+
+full_artis <- qs::qread(file.path(artis_dir, "full_artis_fm_fillet.qs"))
+
+fillet_artis <- full_artis %>%
+  filter(hs6 != 230120) %>%
+  dplyr::select(-hs_version) %>% # don't need this
+  rename(consumer_iso3c = importer_iso3c) # just to make things consistent
+
+artis_taxa <- read.csv(file.path(artis_dir, "artis_full_data/data/attribute tables/sciname.csv")) %>% ## read in attribute table with common names
+  mutate(phylum = case_when(
+    common_name %in% c("mackerels, tunas, and bonitos", "salmons and trouts", "herrings", "cartilaginous fishes nei", "flounders", "african lungfishes", "toothfish", "carps, minnows, loaches, etc", "blue whitings") ~ "chordata",
+    TRUE ~ phylum
+  )) # fix phylum mistakes
+
+countries <- read.csv(here("data/countries.csv")) ## artis countries with info
+
+fm_data <-   qs::qread(file.path(artis_dir, "artis_exchange/artis_fishmeal_trimmings_traded_consumption_gf_final.qs")) %>%
+  left_join(artis_taxa)
+
+comm_codes <- read.csv(here("data/FI_Trade_PP_2024.1.0/CL_FI_COMMODITY_ISSCFC.csv")) %>%
+  clean_names()
+
+countries_fao <- read.csv(here("data/FI_Trade_PP_2024.1.0/CL_FI_COUNTRY_GROUPS.csv")) %>%
+  clean_names()
+
+FAO_fm <- read.csv(here("data/FI_Trade_PP_2024.1.0/TRADE_PP_QUANTITY.csv")) %>%
+  clean_names() %>%
+  left_join(comm_codes, by = c("commodity_fao_code" = "code")) %>%
+  left_join(countries_fao, by = c("country_un_code" = "un_code")) %>%
+  filter(sit_cv4 == 81.42) %>%
+  group_by(period) %>%
+  summarise(tonnes_pw = sum(value, na.rm = TRUE)) %>%
+  ungroup()
+
+
+top_species_by_country_2019 <- qs::qread(here("outputs/top_species_fm_2009_2013.qs"))
+
+top_species_by_country_2019 %>% filter(fishmeal_type == "wholefish") %>% pull(product_weight_t) %>% sum() # 2483228
+
+fm_data_adjusted <- qs::qread(here("outputs/top_species_fm_1996_2020.qs"))
+
+``` 
+
+## Compare to Newton & Jackson 2013
+
+ - Look at 2009-2013 numbers and compare to Newton and Jackson 2016: http://rgdoi.net/10.13140/RG.2.2.21237.19687
+
+```{r}
+## Let's  compare to Newton and Jackson from IFFO and see if our numbers generally match
+
+#The database includes fish, crustaceans and cephalopod molluscs but not mammals, other molluscs, reptiles, amphibians or plants as it is assumed that there are no usable by-products, or that they are not readily directed to fishmeal/ fish oil production. All of the usable supply is referred to as seafood henceforth, whether marine or freshwater. 
+
+#The most up-to-date seafood production volume data for the last 5 years (2009-2013), taken from FAO FishStat, was averaged for each country for all species from capture and aquaculture. This was ranked to find the top twenty production species for each region for each of capture fisheries and aquaculture.  
+
+top_species_by_country_2013 <- qs::qread(here("outputs/top_species_fm_2009_2013.qs"))
+  
+
+test <- top_species_by_country_2013 %>% group_by(source_country_iso3c) %>% summarise(n_distinct(sciname)) # seems to have worked
+  
+  ## Newton and Jackson report ~4.639 million total tonnes. Provided I followed the methodology then I should see something similar: 
+  
+  sum(top_species_by_country_2013$product_weight_t) # 4950285; we get ~4.95 million tonnes. They say that the "official IFFO figure is 4.8 million tonnes. So we are within an acceptable range! What does FAO report for 2013? 4.95 million tonnes
+  
+  test <- FAO_fm %>%
+    filter(period == 2013) %>%
+    pull(tonnes_pw) %>%
+    sum() # 4945056
+  
+  ## ok lets look at trimmings vs whole fish amounts: Newton and jackson report 3.131 million tonnes from whole fish and 1.508 million tonnes from trimmings. We see that they are actually nearly equal? I think this difference is because Newton and Jackson did not include crustaceans?
+  
+  top_species_by_country_2013 %>% filter(fishmeal_type == "wholefish") %>% pull(product_weight_t) %>% sum() # 2483228 whole fish
+  top_species_by_country_2013 %>% filter(fishmeal_type == "trimmings") %>% pull(product_weight_t) %>% sum() # 2467057 trimmings
+
+
+  ## lets look at just the chordata and cepholopods 
+top_species_by_country_2013 %>% filter(fishmeal_type == "trimmings", phylum == "chordata"|class == "cephalopoda") %>% pull(product_weight_t) %>% sum() # 1438165 from trimmings 
+
+top_species_by_country_2013 %>% filter(fishmeal_type == "wholefish", phylum == "chordata"|phylum == "cephalopoda") %>% pull(product_weight_t) %>% sum() # 2388895 from whole fish. Ok this is closer to what IFFO reports. Just less fishmeal overall - which is fine. 
+
+top_species_by_country_2013 %>% filter(phylum == "chordata"|class == "cephalopoda") %>% pull(product_weight_t) %>% sum() # 3827060 total products without shrimps/prawns
+
+
+## OK: Results are very similar in the total amount of fishmeal produced compared to IFFO. But when looking at % breakdowns of trimmings vs whole fish, accounting for the same species and methods (arthropoda + chordata, 2009-2013 average). Not sure why this is the case? 
+# For example: Newton and Jackson reports says they include crustaceans, squids/octopus, and finfish. If I apply the same methodology:
+    # We get ~4.9 million tonnes compared to their 4.6 million tonnes total. This is in the range of uncertainty that is acceptable (they report official IFFO estimates of 4.8 million tonnes fishmeal)
+    # We get ~2.5 million tonnes from whole fish vs their 3.1 million tonnes whole fish
+    # We get ~2.4 million tonnes trimmings vs their 1.5 million tonnes trimmings.
+    # So we are over estimating amount to trimmings compared to IFFO OR they are underestimating it? 
+# HOWEVER, if we exclude any shrimp/prawn meal:
+    # We get 3.8 million tonnes total vs their 4.6 million tonnes total. 
+    # We get 2.4 million tonnes whole fish vs their 3.1 million tonnes whole fish
+    # We get 1.4 million tonnes trimmings vs their 1.5 million tonnes trimmings
+    # So excluding shrimp/prawn meal, we underestimate the total and whole fish meal, but are spot on with trimmings fishmeal. 	
+## I wonder if it is because they include molluscs (oysters, clams, etc) and we don't? Presumably those would be mostly whole fish.
+
+top_species_by_country_inc_mollusc <- qread(here("outputs/top_species_fm_2009_2013_inc_molluscs.qs")) %>%
+        mutate(fishmeal_type = ifelse(isscaap %in% c("Abalones, winkles, conchs", "Clams, cockles, arkshells", "Mussels", "Oysters", "Scallops, pectens")| isscaap %in% c("Multiple ISSCAAP groups") & phylum == "mollusca", "wholefish", fishmeal_type ))
+
+  ## lets look at just the chordata and cepholopods 
+top_species_by_country_inc_mollusc %>% filter(fishmeal_type == "trimmings", phylum %in% c("chordata", "mollusca")) %>% pull(product_weight_t) %>% sum() # 1374655 from trimmings 
+
+top_species_by_country_inc_mollusc %>% filter(fishmeal_type == "wholefish", phylum %in% c("chordata", "mollusca")) %>% pull(product_weight_t) %>% sum() # 4392124 from whole fish. Ok this is closer to what IFFO reports. Just less fishmeal overall - which is fine. 
+
+top_species_by_country_inc_mollusc %>% filter(phylum %in% c("chordata", "mollusca")) %>% pull(product_weight_t) %>% sum() # 5766779 total products without shrimps/prawns
+## ok so now we get 1.3 trimmings and 4.3 whole fish. Lines up a bit better this way. Maybe this is what they did? Regardless, we're not presenting this info in the MS...
+# 
+# region_order <- c("Europe", "Asia (exc China)", "China", "Africa", "South America", "North America", "Oceania", "Other nei", "Totals")
+# 
+# 
+# by_continent <- top_species_by_country_2013 %>%
+#   left_join(countries, by = c("source_country_iso3c" = "iso3c")) %>%
+#   mutate(region = case_when(source_country_iso3c == "CHN" ~ "China",
+#                             owid_region == "Asia" & source_country_iso3c != "CHN" ~ "Asia (exc China)", 
+#                             is.na(owid_region) ~ "Other nei", 
+#                             TRUE ~ owid_region)) %>%
+#   group_by(region, fishmeal_type) %>%
+#   summarise(product_weight_t =  sum(product_weight_t, na.rm = TRUE)/1000) %>%
+#   ungroup() %>%
+#   pivot_wider(names_from = fishmeal_type, values_from = product_weight_t) %>%
+#   dplyr::select(region, whole_fish = `wholefish`, trimmings)
+# 
+# 
+# totals_row <- by_continent %>%
+#   summarise(region = "Totals",
+#             across(where(is.numeric), sum, na.rm = TRUE))
+# 
+# 
+# 
+#  by_continent <- bind_rows(by_continent, totals_row) %>%
+#   mutate(total =  whole_fish + trimmings) %>%
+#   mutate(perc_trim = trimmings/total*100) %>%
+#     mutate(region = factor(region, levels = region_order)) %>%
+#     arrange(region)
+ 
+```
+ 
+ 
+## Run high-level scenario of FM replacement with trimmings/divert forage fish to human consumption
+
+To figure out: 
+ - How much trimmings fishmeal could be created if BAU? I.e., we keep whole fish production going, but just utilise fillet trimmings to full extent. Could this extra trimmings FM make up for losses in whole fish reduction? 
+ - How much trimmings fishmeal could be created if we directed all whole fish production FM to human consumption instead? Could this extra trimmings make up for losses in whole fish reduction?
+ - How much extra human food would be created if we stopped whole fish production? Does this extra human food match the production amounts of fed aquaculture? 
+
+
+How much trimmings fishmeal could be created if BAU? I.e., we keep whole fish production going, but just utilise fillet trimmings to full extent. Could this extra trimmings FM make up for losses in whole fish reduction? 
+
+```{r}
+# If a species is filleted and used as trimmings, then we will ultimately need to subtract that from the total we calculate. 
+
+# Look at fillet data, determine how much of each filleted species is waste, assume all of that waste is used for fishmeal. 
+extra_trimmings <- fillet_artis %>%
+  left_join(artis_taxa) %>%
+      mutate(phylum = case_when(is.na(phylum) & sciname %in% c("lampetra fluviatilis", "petromyzontidae", "petromyzon marinus") ~ "chordata",
+                              is.na(phylum) & sciname == "animalia" ~ "animalia",
+                            TRUE ~ phylum)) %>% 
+  mutate(processing_waste_t = live_weight_t - product_weight_t) %>%
+  dplyr::select(-product_weight_t, -live_weight_t, -consumer_iso3c, -hs6) %>% 
+  group_by(year, source_country_iso3c, exporter_iso3c, sciname) %>%
+  summarise(processing_waste_t = sum(processing_waste_t, na.rm = TRUE)) %>%
+  ungroup() %>%
+  mutate(
+    #trimmings_fm_t = processing_waste_t/2.975207, 
+    processing_waste_t = processing_waste_t*0.96, # assuming 2% blood loss weight and 2% losses at primary fish processing stage
+         fishmeal_type = "trimmings")
+
+fillet_trim_2013 <- extra_trimmings %>%
+  filter(year %in% c(2009:2013)) %>%
+      group_by(year, source_country_iso3c, exporter_iso3c, sciname) %>%
+    summarise(
+      processing_waste_t = sum(processing_waste_t, na.rm = TRUE)
+    ) %>%
+    ungroup() %>%
+        group_by(source_country_iso3c, exporter_iso3c, sciname) %>%
+    summarise(
+      processing_waste_t = mean(processing_waste_t, na.rm = TRUE)) %>%
+  group_by(source_country_iso3c, exporter_iso3c, sciname) %>%
+  summarise(processing_waste_t = mean(processing_waste_t, na.rm = TRUE)) %>%
+  ungroup() %>%
+    mutate(trimmings_fm_t = processing_waste_t/2.975207, 
+         fishmeal_type = "trimmings")
+
+sum(fillet_trim_2013$trimmings_fm_t) # 2475850 - 2.48 million tonnes; This is just additional fishmeal. Newton and Jackson say There is ~2.365 million unused by-product tonnes of fishmeal on average from 2009-2013. So we are exceeding them by ~200k tonnes. However, we need to subtract out the trimmings that we already include.
+  
+## do i need to use the top species data set i created? No since this is for yearly volumes.
+
+fm_trim_df <- fm_data_adjusted %>%
+    group_by(year, source_country_iso3c, exporter_iso3c, sciname, fishmeal_type) %>%
+    summarise(
+      product_weight_t = sum(product_weight_t, na.rm = TRUE),
+      live_weight_t = sum(live_weight_t)
+    ) %>%
+  ungroup() %>% 
+  filter(fishmeal_type == "trimmings")
+
+
+extra_trimmings_final <- extra_trimmings %>%
+  left_join(., fm_trim_df) %>%
+  mutate(product_weight_t = ifelse(is.na(product_weight_t), 0, product_weight_t)) %>%
+    mutate(live_weight_t = ifelse(is.na(live_weight_t), 0, live_weight_t)) %>%
+  mutate(unused_trimmings_t_lw = processing_waste_t - live_weight_t) %>%
+mutate(unused_trimmings_t_lw = ifelse(unused_trimmings_t_lw < 0, 0, unused_trimmings_t_lw)) ## there are some negatives here... so we'll make these 0s; these are negatives because we might be overestimating the amount of trimmings from forage fisheries. But we can't have negative fishmeal so we'll just filter it out. 
+  
+
+extra_trimmings_2013 <- extra_trimmings_final %>%
+  filter(year %in% c(2009:2013)) %>%
+    group_by(year, source_country_iso3c, exporter_iso3c, sciname) %>%
+  summarise(unused_trimmings_t_lw = sum(unused_trimmings_t_lw, na.rm = TRUE)) %>%
+  ungroup() %>%
+  group_by(source_country_iso3c, exporter_iso3c, sciname) %>%
+  summarise(unused_trimmings_t_lw = mean(unused_trimmings_t_lw, na.rm = TRUE)) %>%
+  ungroup() %>%
+  mutate(unused_trimmings_t = unused_trimmings_t_lw/2.975)
+
+  
+sum(extra_trimmings_2013$unused_trimmings_t, na.rm = TRUE) # 2176443; pretty close; after accounting for what we already use
+
+```
+
+## Current day (2015 - 2019) scenarios 
+
+```{r}
+############## Look at 2015-2019 period now
+
+extra_trimmings_2019 <- extra_trimmings_final %>% 
+  filter(year %in% c(2015:2019)) %>%
+    group_by(year, source_country_iso3c, exporter_iso3c, sciname) %>%
+  summarise(unused_trimmings_t_lw = sum(unused_trimmings_t_lw, na.rm = TRUE)) %>%
+  ungroup() %>%
+  group_by(source_country_iso3c, exporter_iso3c, sciname) %>%
+  summarise(unused_trimmings_t_lw = mean(unused_trimmings_t_lw, na.rm = TRUE)) %>%
+  ungroup() %>%
+  mutate(unused_trimmings_t = unused_trimmings_t_lw/2.975)
+
+unused_trimmings_total <- sum(extra_trimmings_2019$unused_trimmings_t, na.rm = TRUE) # 1866406
+
+top_species_by_country_2019 %>% filter(fishmeal_type == "wholefish") %>% pull(product_weight_t) %>% sum() # 2483228
+
+unused_trimmings_total/2483228 # if we used fillet trimmings fully, that could cover ~75% of the demand
+
+# If the reduction fisheries were instead re-allocated to human consumption, and their trimmings used for fish meal, AND fillet trimmings used fully, would this make up loss of whole fish-derived fishmeal? 
+
+#### Look at only reductions fisheries for human consumption?
+#### Will need to figure out %s of each fish species which are edible. We can figure this out by looking at the fillet data ARTIS provides.
+
+fillet_conversion <- fillet_artis %>%
+  filter(year %in% c(2015:2019)) %>%
+  group_by(source_country_iso3c, sciname, year) %>%
+  summarise(product_weight_t = sum(product_weight_t),
+            live_weight_t = sum(live_weight_t)) %>%
+  ungroup() %>% 
+    group_by(source_country_iso3c, sciname) %>%
+  summarise(product_weight_t = sum(product_weight_t),
+            live_weight_t = sum(live_weight_t)) %>%
+  ungroup() %>% 
+  mutate(conversion_fillet_mean = live_weight_t/product_weight_t)  %>%
+  dplyr::select(-product_weight_t, -live_weight_t)
+
+# this is the fishmeal that would be made from trimmings from redirecting forage fish to human consumption
+extra_fillet_fishmeal <- top_species_by_country_2019 %>%
+  left_join(fillet_conversion) %>%
+  filter(phylum == "chordata") %>% # only chordata have fillets reported, so we will only gapfill any missing ones
+  group_by(sciname) %>%
+  mutate(global_spp_conversion_mean = mean(conversion_fillet_mean, na.rm = TRUE)) %>%
+  ungroup() %>%
+  mutate(global_conversion = mean(conversion_fillet_mean, na.rm = TRUE)) %>% # get overall global mean in case still missing
+  mutate(conversion_fillet_final = ifelse(is.na(conversion_fillet_mean), global_spp_conversion_mean, conversion_fillet_mean)) %>%
+    mutate(conversion_fillet_final = ifelse(is.na(conversion_fillet_final), global_conversion, conversion_fillet_final)) %>%
+  dplyr::select(1:10, conversion_fillet_final) %>%
+  filter(fishmeal_type != "trimmings") %>% # we only care about extra fm we could create from whole fish 
+  mutate(fillet_weight = live_weight_t/conversion_fillet_final) %>%
+  mutate(live_weight_for_extra_fm = (live_weight_t - fillet_weight)*0.96) %>% # i think we subtract out 4% from blood and processing loss here at the live weight section. Since the processing is at the primary fish processing stage (so liveweight stage). Hence the 0.96 multiplication
+  mutate(extra_fm_weight = live_weight_for_extra_fm/2.975207)
+
+extra_wholefish_fm <- sum(extra_fillet_fishmeal$extra_fm_weight) # 1600552 tonnes of fishmeal if we redirected all whole fish FM to human consumption
+
+extra_wholefish_fm + sum(extra_trimmings_2019$unused_trimmings_t, na.rm = TRUE) # 3466958 total fishmeal from utilising fillets trimmings and redirecting forage fish to fillets and trimmings 
+
+top_species_by_country_2019 %>% filter(fishmeal_type == "wholefish") %>% pull(product_weight_t) %>% sum() # 2483228 # whole fish production
+
+3466958-2483228 # 983730 # produces nearly 1 million more tonnes of fishmeal than what we currently do for whole fish
+
+sum(extra_fillet_fishmeal$fillet_weight) # 2147070 extra fillet tonnes
+
+fillet_artis %>% filter(year %in% c(2015:2019)) %>% group_by(year) %>% summarise(total_tonnes = sum(product_weight_t, na.rm = TRUE)) %>%
+  pull(total_tonnes) %>% mean() # 3859622
+
+2147070/3859622 # 0.5562902
+
+# so if we fully utilised trimmings from fillets AND we redirected finfish whole fish fishmeal to human consumption, and used those trimmings for fishmeal, we could produce 3466958 tonnes of fish meal. This is 3466958 - 2483228 = 983730 more tonnes than is currently demanded of whole fish derived fish meal! Would also produce 2147070 tonnes of fillets for human consumption (56% of current fillet supply).
+
+
+## lets try doing a full accounting now. We want unused trimmings (minus those already accounted for), trimmings produced from redirection to human consumption, and trimmings already produced
+
+## how much fishmeal from non chordata wholefish? 
+non_finfish_fm <- top_species_by_country_2019 %>% 
+  filter(phylum != "chordata", fishmeal_type == "wholefish", product_weight_t > 0)
+non_finfish_fm_total <- sum(non_finfish_fm$product_weight_t) # 94332.54
+
+## fishmeal from trimmings already produced? 
+trimmings_already <- top_species_by_country_2019 %>% filter(fishmeal_type == "trimmings") %>% pull(product_weight_t) %>% sum() # 2467057
+
+# unused trimmings = 1810373
+
+extra_wholefish_fm + unused_trimmings_total + trimmings_already + non_finfish_fm_total # 6103457 NEW TOTAL
+
+sum(top_species_by_country_2019$product_weight_t) # 5000665
+
+6028347 - 5000665 # WOULD BE PRODUCING 1027682 more tonnes than before
+  
+## what about if we fully utilised trimmings from shrimp/prawn aquaculture production? This assumes that all shrimp would be de-headed, de-shelled, and de-tailed. 
+# should we include capture production of shrimp too? 
+aqua_country <- read.csv("/mnt/rdsi/raw_data/fao/FAO_fishstat_2020/aquaculture_production_2024/CL_FI_COUNTRY_GROUPS.csv") %>%
+  clean_names() %>%
+  dplyr::select(country_un_code = un_code, iso3c = iso3_code)
+
+aqua_spp <- read.csv("/mnt/rdsi/raw_data/fao/FAO_fishstat_2020/aquaculture_production_2024/CL_FI_SPECIES_GROUPS.csv") %>%
+  clean_names() %>%
+  dplyr::select(x3a_code, common_name = name_en, isscaap_group_en, major_group, scientific_name)
+
+aqua_prod <- read.csv("/mnt/rdsi/raw_data/fao/FAO_fishstat_2020/aquaculture_production_2024/Aquaculture_Quantity.csv") %>%
+  clean_names() %>%
+  left_join(aqua_country) %>%
+  filter(iso3c != "") %>%
+  left_join(aqua_spp, by = c("species_alpha_3_code" = "x3a_code")) %>%
+  dplyr::select(iso3c, year = period, common_name, scientific_name, isscaap_group_en, major_group, tonnes_lw = value)
+
+shrimp_aqua_prod <- aqua_prod %>%
+  filter(major_group == "CRUSTACEA") %>%
+  filter(isscaap_group_en == "Shrimps, prawns") %>%
+  filter(year %in% c(2015:2019),
+         tonnes_lw > 0) %>%
+  dplyr::select(source_country_iso3c = iso3c, common_name, year, tonnes_lw) %>%
+  mutate(fishmeal_type = "trimmings") %>%
+  mutate(common_name = tolower(common_name))
+
+## we also need to get capture production values for shrimps/prawns
+capture_country <- read.csv("/mnt/rdsi/raw_data/fao/FAO_fishstat_2020/capture_production_2024/CL_FI_COUNTRY_GROUPS.csv") %>%
+  clean_names() %>%
+  dplyr::select(country_un_code = un_code, iso3c = iso3_code)
+
+capture_spp <- read.csv("/mnt/rdsi/raw_data/fao/FAO_fishstat_2020/capture_production_2024/CL_FI_SPECIES_GROUPS.csv") %>%
+  clean_names() %>%
+  dplyr::select(x3a_code, common_name = name_en, isscaap_group_en, major_group, scientific_name)
+
+capture_prod <- read.csv("/mnt/rdsi/raw_data/fao/FAO_fishstat_2020/capture_production_2024/Capture_Quantity.csv") %>%
+  clean_names() %>%
+  left_join(capture_country) %>%
+  filter(iso3c != "") %>%
+  left_join(capture_spp, by = c("species_alpha_3_code" = "x3a_code")) %>%
+  dplyr::select(iso3c, year = period, common_name, scientific_name, isscaap_group_en, major_group, tonnes_lw = value)
+
+shrimp_capture_prod <- capture_prod %>%
+  filter(major_group == "CRUSTACEA") %>%
+  filter(isscaap_group_en == "Shrimps, prawns") %>%
+  filter(year %in% c(2015:2019),
+         tonnes_lw > 0) %>%
+  dplyr::select(source_country_iso3c = iso3c, common_name, year, tonnes_lw) %>%
+  mutate(fishmeal_type = "trimmings") %>%
+  mutate(common_name = tolower(common_name))
+
+all_shrimp_prod_fao <- rbind(shrimp_capture_prod, shrimp_aqua_prod) %>%
+    group_by(source_country_iso3c, common_name, year, fishmeal_type)  %>%
+    summarise(tonnes_lw = sum(tonnes_lw, na.rm = TRUE)) %>%
+  ungroup()
+
+
+fm_data_adjusted <- qs::qread(file.path(artis_dir, "artis_exchange/artis_fishmeal_trimmings_traded_consumption_adjusted_final.qs"))
+
+
+fm_trim_df <- fm_data_adjusted %>%
+    group_by(year, source_country_iso3c, common_name, fishmeal_type) %>%
+    summarise(
+      live_weight_t = sum(live_weight_t)
+    ) %>%
+  ungroup() %>% 
+  filter(fishmeal_type == "trimmings")
+
+
+extra_shrimp_trim <- all_shrimp_prod_fao %>%
+  left_join(., fm_trim_df) %>%
+    mutate(live_weight_t = ifelse(is.na(live_weight_t), 0, live_weight_t)) %>%
+  mutate(unused_t_lw = tonnes_lw - live_weight_t) %>%
+mutate(unused_t_lw = ifelse(unused_t_lw < 0, 0, unused_t_lw)) ## there are some negatives here... so we'll make these 0s; these are negatives because we might be overestimating the amount of trimmings from forage fisheries. But we can't have negative fishmeal so we'll just filter it out. 
+  
+## FAO says that yield of raw meat is ~45%; we'll apply this for now https://www.fao.org/4/x5931e/x5931e01.htm
+## so trimmings yield would be 55% of the live weight
+
+extra_shrimp_trim_2019 <- extra_shrimp_trim %>%
+  filter(year %in% c(2015:2019)) %>%
+    group_by(year, source_country_iso3c, common_name) %>%
+  summarise(unused_t_lw = sum(unused_t_lw, na.rm = TRUE)) %>%
+  ungroup() %>%
+  group_by(source_country_iso3c, common_name) %>%
+  summarise(unused_t_lw = mean(unused_t_lw, na.rm = TRUE)) %>%
+  ungroup() %>%
+  mutate(unused_trimmings_t_lw = unused_t_lw*0.55*0.98) %>% # 55% yield of trimmings from the live weight and 2% loss from processing
+  mutate(unused_trimmings_pw_t = unused_trimmings_t_lw/2.975) # conversion factor of ~34% (really should be around 30% according to FAO)
+
+extra_shrimp_prod <- sum(extra_shrimp_trim_2019$unused_trimmings_pw_t) # 999370
+
+extra_shrimp_prod + extra_wholefish_fm + unused_trimmings_total + trimmings_already # 6933385 NEW TOTAL
+
+
+6933385 - 5000665 # WOULD BE PRODUCING 2027052 more tonnes than before
+
+## so our potential production is ~2.5 million tonnes less than other estimates.
+
+# I think they are including ALL capture production and of finfish in their estimates, whereas we are just including whole fish redirected and fillets fully used. Let's a take a look a finfish from capture and aquaculutre production and calculate using their methodologies 
+
+finfish_capture <- capture_prod %>%
+  filter(major_group %in% c("PISCES")) %>%
+  mutate(fm_byproduct = tonnes_lw*.415*0.98*0.98*0.2) %>% # this is the conversion to FM used in sandstrom et al. 
+  filter(year %in% 2015:2019) %>%
+  group_by(year, iso3c, common_name) %>%
+  summarise(fm_byproduct = sum(fm_byproduct, na.rm = TRUE)) %>%
+  ungroup() %>%
+  group_by(iso3c, common_name) %>%
+  summarise(fm_byproduct = mean(fm_byproduct, na.rm = TRUE)) %>%
+  ungroup() 
+
+
+finfish_aquaculture <- aqua_prod %>%
+ filter(major_group %in% c("PISCES")) %>%
+  mutate(fm_byproduct = tonnes_lw*.415*0.98*0.98*0.2) %>% # this is the conversion to FM used in sandstrom et al. 
+  filter(year %in% 2015:2019) %>%
+  group_by(year, iso3c, common_name) %>%
+  summarise(fm_byproduct = sum(fm_byproduct, na.rm = TRUE)) %>%
+  ungroup() %>%
+  group_by(iso3c, common_name) %>%
+  summarise(fm_byproduct = mean(fm_byproduct, na.rm = TRUE)) %>%
+  ungroup() 
+
+
+sum(finfish_capture$fm_byproduct) + sum(finfish_aquaculture$fm_byproduct) # 10603450
+# ok if we subtract their estimate (1.9 million tonnes):
+10603450 - 1900000 # 8703450 # low end
+10603450 - 1400000 # 9203450 # high end
+
+# ok so the discrepancy is likely that they are using ALL finfish capture and aquaculture production whereas we just look at what is plausible (i.e. unused fillets and redirection of whole fish species to fillets)
+
+# if we do it, then we get 
+10654228 - 2755549 # 7898679 # subtract out our estimate of trimmings and we should get ~7.9 million EXTRA tonnes of fm
+# so that means using the same methods we would get ~10.6 million tonnes. This probably makes sense given that we have a higher estimate of trimmings derived fishmeal than previously reported.
+
+# what if we at just finfish trimmings meal? 
+top_species_by_country_2019 %>% filter(phylum == "chordata", fishmeal_type == "trimmings") %>% pull(product_weight_t) %>% sum() 
+
+
+10654228 - 1014467 # 9639761; looking at only finfish, we get ~9.6 million tonnes. 
+```
+
+Now we should combine all of the new trimmings fishmeal data, and see what regions could benefit the most
+
+```{r}
+extra_shrimp_trimmings <- extra_shrimp_trim_2019 %>%
+  dplyr::select(source_country_iso3c, common_name, live_weight_t = unused_trimmings_t_lw, product_weight_t = unused_trimmings_pw_t) %>%
+  mutate(extra_fillet_t = 0)
+
+extra_fillet_forage_trimmings <- extra_fillet_fishmeal %>% 
+  dplyr::select(source_country_iso3c, common_name, live_weight_t = live_weight_for_extra_fm, product_weight_t = extra_fm_weight, extra_fillet_t = fillet_weight)
+
+unused_fillet_trimmings <- extra_trimmings_2019 %>%
+  left_join(artis_taxa) %>% 
+  dplyr::select(source_country_iso3c, common_name, live_weight_t = unused_trimmings_t_lw, product_weight_t = unused_trimmings_t) %>%
+  mutate(extra_fillet_t = 0)
+
+
+## add in current fillet sums per country?
+
+current_fillet <- fillet_artis %>%
+  left_join(artis_taxa) %>%
+  filter(year %in% c(2015:2019)) %>%
+  group_by(source_country_iso3c, year) %>%
+  summarise(product_weight_t = sum(product_weight_t),
+            live_weight_t = sum(live_weight_t)) %>%
+  ungroup() %>% 
+    group_by(source_country_iso3c) %>%
+  summarise(current_fillet_tonnes = mean(product_weight_t)) %>%
+  ungroup() 
+
+
+current_fm <- top_species_by_country_2019 %>%
+  dplyr::group_by(source_country_iso3c, fishmeal_type) %>%
+  summarise(product_weight_t = sum(product_weight_t, na.rm = TRUE)) %>%
+  ungroup() %>%
+  pivot_wider(names_from = fishmeal_type, values_from = product_weight_t) %>%
+  rename(current_trimmings_fm = trimmings, current_wholefish_fm = wholefish)
+
+
+all_extra_trimmings_scen <- rbind(extra_shrimp_trimmings, extra_fillet_forage_trimmings, unused_fillet_trimmings) %>%
+  dplyr::group_by(source_country_iso3c) %>%
+  summarise(extra_fm_live_weight_t = sum(live_weight_t, na.rm = TRUE),
+            extra_fm_product_weight_t = sum(product_weight_t, na.rm = TRUE),
+            extra_fillet_t = sum(extra_fillet_t, na.rm = TRUE)) %>%
+  ungroup() %>%
+  mutate(fishmeal_type = "trimmings") %>%
+  left_join(current_fillet, by = c("source_country_iso3c")) %>%
+  mutate(ratio_extra_current = extra_fillet_t/current_fillet_tonnes) %>%
+ left_join(countries, by = c("source_country_iso3c" = "iso3c")) %>%
+   # left_join(regions, by = c("source_country_iso3c" = "iso3c")) %>%
+  left_join(current_fm) %>%
+  filter(source_country_iso3c != "NEI") %>%
+  filter(source_country_iso3c != "unknown") %>%
+  mutate(eez_region_world_bank_7 = countrycode::countrycode(source_country_iso3c,"iso3c","region"))
+
+
+summary(all_extra_trimmings_scen)
+
+# Filter to avoid divide-by-zero or NA values
+df_plot <- all_extra_trimmings_scen %>%
+  filter(!is.na(ratio_extra_current), !is.na(current_fillet_tonnes))
+
+# Define countries to label
+label_countries <- c("Benin", "Liberia", "Congo - Kinshasa", "Peru", "Nigeria",
+                     "Bangladesh", "Morocco", "India", "Philippines", "St. Kitts & Nevis")
+
+
+library(ggrepel)
+
+ggplot(df_plot, aes(
+  x = current_fillet_tonnes,
+  y = ratio_extra_current,
+  color = eez_region_world_bank_7,
+  size = current_wholefish_fm
+)) +
+  geom_point(alpha = 0.7) +
+geom_text_repel(
+  data = df_plot %>% filter(country_name %in% label_countries),
+  aes(label = country_name),
+  color = "black",
+  size = 3,
+  max.overlaps = Inf,
+  box.padding = 0.5,
+  point.padding = 0.8,       # increase space between label and point
+  nudge_y = 0.2,             # optional: vertical nudge
+  segment.color = "grey40",
+  segment.size = 0.4,
+  segment.curvature = 0.1    # optional: slight curve to avoid overlap
+) + 
+  geom_hline(yintercept = 1, linetype = "dashed", color = "black") +  # ratio = 1 line
+  #  geom_hline(yintercept = 2, linetype = "dashed", color = "black") +  # ratio = 1 line
+  scale_y_continuous(trans = "log10") +  # optional: log scale for clearer spread
+  scale_x_continuous(trans = "log10") +  # optional: log scale if wide x range
+  scale_size_continuous(range = c(2, 10), guide = "none") +
+  scale_color_brewer(palette = "Set2", name = "") +
+  labs(
+    x = "Current Fillet Tonnes (log scale)",
+    y = "Ratio: Extra / Current Fillet",
+  ) +
+  theme_minimal() +
+  theme(legend.position = "right")
+
+
+test <- df_plot %>% 
+  filter(ratio_extra_current > 1) %>%
+  group_by(eez_region_world_bank_7) %>%
+  summarise(n())
+
+test <- all_extra_trimmings_scen %>%
+  mutate(diff_fm = current_wholefish_fm - extra_fm_product_weight_t)
+```
+
+```{r}
+ggplot(all_extra_trimmings_scen, aes(
+  x = current_fillet_tonnes,
+  y = extra_fillet_t,
+  color = owid_region,
+  size = current_wholefish_fm
+)) +
+  facet_wrap(~owid_region, scales = "free") +
+  geom_point(alpha = 0.7) +
+  scale_size_continuous(range = c(2, 10), guide = "none") +  # no size legend
+  scale_color_brewer(palette = "Set2", name = "") +
+  labs(
+    x = "Current fillet tonnes",
+    y = "Extra fillet tonnes from whole fish redirection"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "right") +
+    geom_abline(intercept = 0, slope = 1, linetype = "dashed", color = "black")  # y = x line
+
+```
+
+

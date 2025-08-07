@@ -116,7 +116,7 @@ int_dfs_feed_companies <- rbind(biomar_int, cargill_int, skretting_int) %>%
          common_name = tolower(common_name)) %>%
   mutate(capture = ifelse(iso3c == "MEX" & common_name == "yellowfin tuna", "no", capture))
 
-write.csv(int_dfs_feed_companies, here("int/material_origins_feed_compaies_trade.csv"), row.names = FALSE)
+write.csv(int_dfs_feed_companies, here("int/material_origins_feed_companies_trade.csv"), row.names = FALSE)
 
 
 int_dfs_summary <- int_dfs_feed_companies %>%
@@ -217,24 +217,6 @@ skretting_int <- read.csv(here("int/material_origins_skretting_global.csv")) %>%
     mutate(trash_fish = "no")
 
 
-
-int_dfs_summary <- int_dfs_feed_companies %>%
-  group_by(sciname, common_name, iso3c, importer_iso3c, capture, trash_fish) %>%
-  summarise(
-            trim_prop_mean = mean(trim_prop, na.rm = TRUE)) %>%
-  ungroup() %>%
-  dplyr::select(sciname, common_name, source_country_iso3c = iso3c, importer_iso3c, capture, trash_fish, trim_prop = trim_prop_mean) %>%
-  mutate(trimmings = case_when(
-    trim_prop == 1 ~ "yes",
-    trim_prop > 0 & trim_prop < 1 ~ "yes",
-    trim_prop == 0 ~ "no"
-  ),
-  wholefish = case_when(
-    trim_prop == 1 ~ "no",
-        trim_prop > 0 & trim_prop < 1 ~ "yes",
-    trim_prop == 0 ~ "yes"
-  )) 
-
 cao_int <- read.csv(here("int/material_origins_cao_chn.csv")) %>%
   dplyr::select(1:11, common_name) %>%
       mutate(trimmings_tonnes = NA, wholefish_tonnes = NA)
@@ -296,7 +278,7 @@ all_int_dfs <- rbind(skretting_int, cargill_int, biomar_int, cao_int, chiu_int, 
          common_name = tolower(common_name)) %>%
   mutate(capture = ifelse(iso3c == "MEX" & common_name == "yellowfin tuna", "no", capture)) # make sure mexico is listed as aquaculture. Oman also lists wholefish reduction, however, oman doesnt have any tuna aquaculture
 
-write.csv(all_int_dfs, here("int/material_origins_ALL.csv"), row.names = FALSE)
+# write.csv(all_int_dfs, here("int/material_origins_ALL.csv"), row.names = FALSE)
 
 ```
 
@@ -309,11 +291,11 @@ Now lets summarise so that we don't have any duplicate countries and species.
 
 int_dfs_summary <- all_int_dfs %>%
   filter(!(data_source_feed %in% c("biomar", "skretting", "cargill"))) %>% # filter this out for now. Might add back in later depending on what things look like. I'm just wary of including these in the mean because these companies only represent a small proportion of fishmeal use and are likely reporting their most sustainable information. 
-  group_by(sciname, common_name, iso3c, capture, trash_fish) %>%
+  group_by(sciname, common_name, iso3c, capture) %>%
   summarise(
             trim_prop_mean = mean(trim_prop, na.rm = TRUE)) %>%
   ungroup() %>%
-  dplyr::select(sciname, common_name, iso3c, capture, trash_fish, trim_prop = trim_prop_mean) %>%
+  dplyr::select(sciname, common_name, iso3c, capture, trim_prop = trim_prop_mean) %>%
   mutate(trimmings = case_when(
     trim_prop == 1 ~ "yes",
     trim_prop > 0 & trim_prop < 1 ~ "yes",
@@ -325,10 +307,20 @@ int_dfs_summary <- all_int_dfs %>%
     trim_prop == 0 ~ "yes"
   )) 
 
-write.csv(int_dfs_summary, here("outputs/all_fmfo_material_origins_reports.csv"), row.names = FALSE)
-
-test_3 <- read.csv(here("outputs/all_fmfo_material_origins_reports.csv"))
+write.csv(int_dfs_summary, here("outputs/all_fmfo_material_origins_literature.csv"), row.names = FALSE)
 
 ```
+ 
+Make data for SI:
+
+```{r}
+all_df <- int_dfs_feed_companies %>%
+  rbind(all_int_dfs %>%   filter(!(data_source_feed %in% c("biomar", "skretting", "cargill"))) %>%
+              mutate(importer_iso3c = NA)) %>%
+  dplyr::select(source_country_iso3c = iso3c, source_country_name = country, importer_iso3c, sciname, common_name, wholefish, trimmings, trim_prop, data_source_feed, feed_report_spp_name)
+
+write.csv(all_df, here("int/material_origins_ALL.csv"), row.names = FALSE)
+```
+
  
 

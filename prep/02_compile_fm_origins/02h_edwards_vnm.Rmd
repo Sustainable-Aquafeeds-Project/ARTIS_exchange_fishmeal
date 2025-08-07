@@ -57,7 +57,9 @@ species_vnm_edwards <- read.csv(here("data/edwards_trash_vietnam.csv")) %>%
          common_name = tolower(common_name)) %>%
   mutate(trash_fish = "yes") %>%
   dplyr::select(-vietnamese_name) %>%
-    distinct() 
+    distinct()  %>%
+    filter(sciname != "loligo spp") # filter this one out. ARTIS does not report ANY squid fishmeal for vietnam
+
 
 ## there are a lot of species with "spp" or "sp" in the scientific names. Let's try to fix these to match the ARTIS taxa. Also there are some colloquial names used that I fix here. 
 
