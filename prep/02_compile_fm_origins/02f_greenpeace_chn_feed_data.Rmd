@@ -21,8 +21,9 @@ library(qs)
 
 source(here("R/directories.R"))
 
-artis_taxa <- read.csv(file.path(artis_dir, "artis_full_data/data/attribute tables/sciname.csv")) ## read in attribute table with common names
-
+artis_taxa <- read.csv(file.path(artis_dir, "ARTIS_1.1.0_FAO_2025_08_02/attribute-tables/sciname_metadata.csv")) %>%
+  clean_names() %>%
+  dplyr::select(-aquarium, -fresh01, -brack01, -saltwater01)
 ```
 
 ### Data Sources
@@ -66,11 +67,11 @@ trash_species_chn <- read.csv(here("data/greenpeace_trashfish_spp.csv")) %>%
   mutate(common_name = ifelse(is.na(common_name.y), common_name.x, common_name.y)) %>%
   dplyr::select(-common_name.x, -common_name.y)
 
-missing_spp <- trash_species_chn %>%
-  filter(is.na(common_name.y)) # missing 182 spp when joining by sciname; missing 224 when joining by common_name. We will join by sciname. These will just be missing. They just aren't reported in the ARTIS data, which is OK. 
+# missing_spp <- trash_species_chn %>%
+#   filter(is.na(common_name.y)) # missing 182 spp when joining by sciname; missing 224 when joining by common_name. We will join by sciname. These will just be missing. They just aren't reported in the ARTIS data, which is OK. 
 
-non_missing_spp <- trash_species_chn %>%
-  filter(!is.na(common_name.y))
+# non_missing_spp <- trash_species_chn %>%
+#   filter(!is.na(common_name.y))
 
 
 write.csv(trash_species_chn, here("int/material_origins_greenpeace_chn.csv"), row.names = FALSE)

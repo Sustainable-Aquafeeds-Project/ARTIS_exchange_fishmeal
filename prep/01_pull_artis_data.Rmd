@@ -24,13 +24,13 @@ library(sf)
 library(devtools)
 library(janitor)
 library(qs)
+library(arrow)
 
 rdsi_dir <- file.path("/mnt/rdsi/raw_data")
 
 artis_dir <- file.path(rdsi_dir, "ARTIS")
 
 codes <- read.csv(file.path(artis_dir, "artis_full_data/data/attribute tables/products.csv"))
-
 ```
 
 First, we save ARTIS data from KNB
@@ -51,7 +51,7 @@ fillet_codes <- codes %>%
 
 # Set data directory where artis data is loaded
 datadir <- file.path(artis_dir, "artis_full_data/data/trade") 
-  
+
 intdir <- "int"
 
 # List files in folder
@@ -266,4 +266,135 @@ test <- old_fm %>%
 
 
 ```
+
+
+
+I've received an updated version of the database directly from Jessica Gephart, which contains the domestic production and consumption of fish meal. We will use this instead of the above so that we can incorporate domestic production and consumption fish meal (e.g., how much fish meal does China produce DOMESTICALLY and consume, or not trade).
+
+
+```{r}
+artis_ds <- open_dataset(file.path(artis_dir, "ARTIS_1.1.0_FAO_2025_08_02/datasets/ARTIS_consumption_v1.1.0_FAO_mid_2025-08-02.parquet"))
+
+glimpse(artis_ds)
+names(artis_ds)
+
+artis_filtered <- artis_ds %>% 
+    filter(
+    (hs_version == "HS96" & year <= 2003) |
+    (hs_version == "HS02" & year >= 2004 & year <= 2009) |
+    (hs_version == "HS07" & year >= 2010 & year <= 2012) |
+    (hs_version == "HS12" & year >= 2013 & year <= 2020)
+  )
+
+full_artis_new <- artis_filtered %>%
+  collect()
+
+# lets explore the new data a bit
+test <- artis_filtered %>% 
+  filter(year == 2020, 
+         end_use %in% c("fishmeal", "other"),
+         source_country_iso3c != consumer_iso3c) %>%
+  mutate(product_weight = consumption_live_t/2.975207) %>%
+  collect()
+
+sum(test$consumption_live_t) # 4957410
+sum(test$product_weight) # 1666240 - really low
+
+test <- artis_filtered %>% 
+  filter(year == 2020, 
+         end_use %in% c("fishmeal", "other")) %>%
+  mutate(product_weight = consumption_live_t/2.975207,
+         live_weight = consumption_live_t*2.975207) %>%
+  collect()
+
+sum(test$consumption_live_t) # 5069555
+sum(test$product_weight) # 1703934 - really low - what is happening? Should be ~5 million tonnes product weight for 2020 
+sum(test$live_weight) # 1703934 - really low - what is happening? Should be ~5 million tonnes product weight for 2020 
+
+test <- artis_filtered %>% 
+  filter(year == 2020, 
+         end_use %in% c("fishmeal", "other"), 
+                  source_country_iso3c == consumer_iso3c) %>%
+  mutate(product_weight = consumption_live_t/2.975207,
+         live_weight = consumption_live_t*2.975207) %>%
+  collect()
+sum(test$consumption_live_t) # 112145 - hmmmm 
+
+
+test <- full_artis_new %>%
+  filter(end_use == "fishmeal")
+
+old_fm <- qs::qread(file.path(artis_dir, "full_artis_fm_fillet.qs")) %>%
+  filter(year == 2020, hs6 == 230120, hs_version == "HS12")
+
+test2 <- old_fm %>% filter(source_country_iso3c == importer_iso3c)
+sum(test2$live_weight_t) # 155710.8
+
+sum(old_fm$live_weight_t) # 10397265
+sum(old_fm$product_weight_t) # 3494636
+
+## ok this makes me think the new data is tonnes product weight? Which is fine. I think Jessica just applies a basic 2.975207x multiplier for the conversion. 
+
+## lets just save the fishmeal part of this 
+
+full_data_fm <- full_artis_new %>%
+  filter(end_use %in% c("fishmeal", "other")) %>% 
+  mutate(live_weight_t = consumption_live_t*2.975207) %>%
+  rename(product_weight_t = consumption_live_t) %>%
+  dplyr::select(-consumption_source, -consumption_live_t_capped, -consumption_percap_live_kg, -consumption_percap_live_kg_capped)
+
+# old_fm <- qs::qread(file.path(artis_dir, "full_artis_fm_fillet.qs")) %>%
+#   filter(hs6 == 230120) # compare; new data has ~4.1 million rows, old data has 3.8 million rows.. makes sense there would be more rows in the new data, given there is domestic production and consumption included here 
+
+test <- full_data_fm %>% filter(sciname == "salmo salar")
+
+qs::qsave(full_data_fm, file.path(artis_dir, "full_artis_fm_2025_08_12.qs"))
+
+full_data_fm_old  <- qs::qread(file.path(artis_dir, "full_artis_fm_2024_09_19.qs")) # the old data had a lot more rows, meaning probably had a bigger diversity of species.... our results will probably change quite a bit. 
+
+```
+
+Now we need to prep new fillet data. We will use the trade data for this, instead of the consumption, as it should contain actual hs codes. 
+
+```{r}
+artis_ds <- open_dataset(file.path(artis_dir, "ARTIS_1.1.0_FAO_2025_08_02/datasets/ARTIS_trade_v1.1.0_FAO_mid_2025-08-02.parquet"))
+
+glimpse(artis_ds)
+names(artis_ds)
+
+artis_filtered <- artis_ds %>% 
+    filter(
+    (hs_version == "HS96" & year <= 2003) |
+    (hs_version == "HS02" & year >= 2004 & year <= 2009) |
+    (hs_version == "HS07" & year >= 2010 & year <= 2012) |
+    (hs_version == "HS12" & year >= 2013 & year <= 2020)
+  )
+
+full_artis_new <- artis_filtered %>%
+  collect()
+
+
+fillet_codes <- codes %>% 
+  filter(presentation == "fillet") %>%
+      mutate(hs6 = as.character(hs6)) %>%
+    mutate(hs6 = case_when(
+      str_length(hs6) == 5 ~ paste("0", hs6, sep = ""),
+      TRUE ~ hs6
+    )) %>%
+  pull(hs6) %>%
+  unique()
+
+
+full_artis_fillet <- full_artis_new %>% 
+  filter(hs6 %in% c(fillet_codes))
+
+old_fillet_data <- qs::qread(file.path(artis_dir, "full_artis_fm_fillet.qs")) %>%
+  filter(hs6 %in% c(fillet_codes))
+test <- old_fillet_data %>%
+  filter(source_country_iso3c == importer_iso3c)
+
+qs::qsave(full_artis_fillet, file.path(artis_dir, "full_artis_fillet_08_12_2025.qs"))
+
+```
+
 

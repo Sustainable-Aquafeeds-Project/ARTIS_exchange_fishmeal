@@ -21,8 +21,10 @@ library(qs)
 
 source(here("R/directories.R"))
 
-artis_taxa <- read.csv(file.path(artis_dir, "artis_full_data/data/attribute tables/sciname.csv")) ## read in attribute table with common names
 
+artis_taxa <- read.csv(file.path(artis_dir, "ARTIS_1.1.0_FAO_2025_08_02/attribute-tables/sciname_metadata.csv")) %>%
+  clean_names() %>%
+  dplyr::select(-aquarium, -fresh01, -brack01, -saltwater01)
 ```
 
 ### Data Sources

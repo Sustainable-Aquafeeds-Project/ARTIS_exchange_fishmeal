@@ -12,17 +12,15 @@ knitr::opts_chunk$set(echo = TRUE)
 library(here)
 library(tidyverse)
 library(glue)
-library(sf)
-library(devtools)
 library(janitor)
 library(countrycode)
-library(taxize)
 library(qs)
 
 source(here("R/directories.R"))
 
-artis_taxa <- read.csv(file.path(artis_dir, "artis_full_data/data/attribute tables/sciname.csv")) ## read in attribute table with common names
-
+artis_taxa <- read.csv(file.path(artis_dir, "ARTIS_1.1.0_FAO_2025_08_02/attribute-tables/sciname_metadata.csv")) %>%
+  clean_names() %>%
+  dplyr::select(-aquarium, -fresh01, -brack01, -saltwater01)
 ```
 
 ## Summary
@@ -89,9 +87,7 @@ all_feed_species_chn <- rbind(trash_species_chn, feed_species_chn, chn_tilapia) 
   mutate(common_name = ifelse(is.na(common_name.y), common_name.x, common_name.y)) %>%
   dplyr::select(-common_name.y, -common_name.x)
 
-test <- all_feed_species_chn %>% filter(common_name.x != common_name.y) #these are all fine
-
-test <- all_feed_species_chn %>% filter(is.na(sciname.y)) ## missing 53 when joining by sciname; missing 60 when joining by sciname. Will use sciname and save like that. It just happens some of the species listed here are not included in the ARTIS data, which is fine! 
+# It just happens some of the species listed here are not included in the ARTIS data, which is fine! 
 
 write.csv(all_feed_species_chn, here("int/material_origins_cao_chn.csv"), row.names = FALSE)
 

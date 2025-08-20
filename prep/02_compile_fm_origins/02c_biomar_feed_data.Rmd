@@ -722,7 +722,6 @@ Clean the data:
 
  - Split "Channel Islands" into GGY and JEY; 2 separate rows 
  - remove any duplicates 
- - fix mismatched or missing scientific names of higher level taxon names by matching to ARTIS lookup table on `common_name`: `ARTIS/artis_full_data/data/attribute tables/sciname.csv`
 
  
 ```{r}

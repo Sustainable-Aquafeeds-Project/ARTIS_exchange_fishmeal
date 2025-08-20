@@ -21,9 +21,12 @@ library(qs)
 
 source(here("R/directories.R"))
 
-artis_taxa <- read.csv(file.path(artis_dir, "artis_full_data/data/attribute tables/sciname.csv")) ## read in attribute table with common names
 
-artis_data <- qs::qread(file.path(artis_dir, "full_artis_fm_fillet.qs"))
+artis_taxa <- read.csv(file.path(artis_dir, "ARTIS_1.1.0_FAO_2025_08_02/attribute-tables/sciname_metadata.csv")) %>%
+  clean_names() %>%
+  dplyr::select(-aquarium, -fresh01, -brack01, -saltwater01)
+
+artis_data <- qs::qread(file.path(artis_dir, "full_artis_fm_2025_08_12.qs"))
 
 ```
 
@@ -35,8 +38,6 @@ Take data from Chiu et al. 2013 regarding species used for fish meal in China. T
 ### Data Sources
 
 **Reference**: Chiu, et al. Feed and fishmeal use in the production of carp and tilapia in China https://doi.org/10.1016/j.aquaculture.2013.07.049
-
-
 
 Notes from the paper: 
 
@@ -56,7 +57,8 @@ Notes from the paper:
 chn_anchovy <- artis_data %>% 
   left_join(artis_taxa) %>%
   filter(source_country_iso3c %in% c("CHN"),
-         str_detect(common_name, "anchovy|Anchovy")) %>% # assume any anchovy caught in China that ends up at FM is whoel fish rendered. 
+         str_detect(common_name, "anchovy|Anchovy")|
+           sciname == "benthosema pterotum") %>% # assume any anchovy caught in China that ends up at FM is whole fish rendered. 
   distinct(iso3c = source_country_iso3c, sciname, common_name) %>%
       mutate(
          wholefish = "yes",
@@ -74,16 +76,3 @@ chn_anchovy <- artis_data %>%
 write.csv(chn_anchovy, here("int/material_origins_chiu_chn.csv"), row.names = FALSE)
 
 ```
-
-
-```{r}
-test <- artis_data %>%
-  left_join(artis_taxa) %>%
-  filter(source_country_iso3c == "EGY")
-
-
-```
-
-
-
-
