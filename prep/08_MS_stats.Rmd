@@ -1,5 +1,5 @@
 ---
-title: "Explore scenario analysis"
+title: "Stats for manuscript"
 output: html_document
 date: "2024-11-25"
 editor_options: 
@@ -77,7 +77,7 @@ finfish_fm <- fm_data_1996_2020 %>%
   summarise(sum(product_weight_t)) %>%
   ungroup()
 
-3144729.7 - 2099142.2 # 1045588 - lost about 1 million tonnes of whole fish finfish fm
+3143617.4 - 2150621.3 # 992996.1 - lost about 1 million tonnes of whole fish finfish fm
 
 ```
 
@@ -162,33 +162,33 @@ Lets look at China numbers
 ```{r}
 ##  China production and consumption
 ### Total
-(chn_cons <- trade_flows_consumption %>% filter(importer_iso3c == "CHN") %>% pull(product_weight_t) %>% sum()) # 2201332
+(chn_cons <- trade_flows_consumption %>% filter(importer_iso3c == "CHN") %>% pull(product_weight_t) %>% sum()) # 2205506
 chn_cons/total_tonnes # 0.4403772
 
 ### Trimmings vs whole 
-trade_flows_consumption %>% filter(importer_iso3c == "CHN") %>% group_by(fishmeal_type) %>% summarise(product = sum(product_weight_t)) %>% mutate(prop = product/2201332)
+trade_flows_consumption %>% filter(importer_iso3c == "CHN") %>% group_by(fishmeal_type) %>% summarise(product = sum(product_weight_t)) %>% mutate(prop = product/2205506)
 
-# # A tibble: 2 × 3
+# A tibble: 2 × 3
 #   fishmeal_type  product  prop
 #   <chr>            <dbl> <dbl>
-# 1 trimmings     1138593. 0.517
-# 2 wholefish     1062739. 0.483
+# 1 trimmings     1118863. 0.507
+# 2 wholefish     1086643. 0.493
 
 trade_flows_production %>% filter(source_country_iso3c == "CHN") %>% group_by(fishmeal_type) %>% summarise(product = sum(product_weight_t)) %>% mutate(prop = product/total_tonnes)
 
-# # A tibble: 2 × 3
+# A tibble: 2 × 3
 #   fishmeal_type product   prop
 #   <chr>           <dbl>  <dbl>
-# 1 trimmings     822442. 0.165 
-# 2 wholefish     199588. 0.0399
+# 1 trimmings     821528. 0.164 
+# 2 wholefish     203654. 0.0406
 
 trade_flows_imports %>% filter(importer_iso3c == "CHN") %>% group_by(fishmeal_type) %>% summarise(product = sum(product_weight_t)) %>% mutate(prop = product/total_tonnes)
 
-# # A tibble: 2 × 3
+# A tibble: 2 × 3
 #   fishmeal_type product   prop
 #   <chr>           <dbl>  <dbl>
-# 1 trimmings     321140. 0.0642
-# 2 wholefish     876143. 0.175 
+# 1 trimmings     302028. 0.0602
+# 2 wholefish     896289. 0.179 
 
 # what does china export? 
 trade_flows_exports %>% filter(exporter_iso3c == "CHN") %>% group_by(fishmeal_type) %>% summarise(product = sum(product_weight_t)) %>% mutate(prop = product/total_tonnes)
@@ -196,8 +196,8 @@ trade_flows_exports %>% filter(exporter_iso3c == "CHN") %>% group_by(fishmeal_ty
 # # A tibble: 2 × 3
 #   fishmeal_type product     prop
 #   <chr>           <dbl>    <dbl>
-# 1 trimmings       3863. 0.000773
-# 2 wholefish       2847. 0.000570
+# 1 trimmings       3861. 0.000770
+# 2 wholefish       2851. 0.000568
 
 ## lets look at how much aquaculture china produces vs how much live weight they use for feed
 
@@ -210,102 +210,98 @@ chn_aquaculture_finfish_shrimp <- aqua_prod %>%
     summarise(
             live_weight_t = mean(tonnes_lw, na.rm = TRUE)
     ) %>%
-    ungroup()
+    ungroup() 
 
 sum(chn_aquaculture_finfish_shrimp$live_weight_t) # 45322007
 
-## Majluf et al. 2024 reports that 40% (19 million tonnes) of chinese aquaculture is fed in 2020: 
+## Majluf et al. 2024 reports that 40% (20 million tonnes) of chinese aquaculture is fed in 2020: 
 45322007*0.4 # 18128803 ~ 18 million tonnes for 2015-2019
 
+chn_aquaculture_finfish_shrimp <- aqua_prod %>%
+  filter(year %in% c(2020),
+         iso3c == "CHN") %>%
+  filter(!(isscaap_group_en %in% c("Brown seaweeds", "Red seaweeds", "Green seaweeds", "Miscellaneous aquatic plants"))) %>% # filter out any algae/seaweeds
+      group_by(iso3c, scientific_name, common_name, major_group) %>%
+    summarise(
+            live_weight_t = sum(tonnes_lw, na.rm = TRUE)
+    ) %>%
+    ungroup() 
+
+sum(chn_aquaculture_finfish_shrimp$live_weight_t) # 49620605
+
+## Majluf et al. 2024 reports that 40% (20 million tonnes) of non-algae chinese aquaculture is fed in 2020: 
+49620605*0.4 # 19848242 ~ 19.8 million tonnes for 2020; pretty spot on from their estimates. Can we filter out bivalves to get this number? 
+
+all_aquaculture_fed <- aqua_prod %>%
+  filter(year %in% c(2015:2019)) %>%
+  filter(!(isscaap_group_en %in% c("Brown seaweeds", "Red seaweeds", "Green seaweeds", "Miscellaneous aquatic plants", "Freshwater molluscs", "Abalones, winkles, conchs", "Oysters", "Mussels", "Scallops, pectens",                "Clams, cockles, arkshells", "Miscellaneous marine molluscs", "Sea-urchins and other echinoderms", "Miscellaneous aquatic invertebrates", "Pearls, mother-of-pearl, shells"))) %>% # filter out any algae/seaweeds
+   filter(!str_detect(common_name, "carp")) %>%
+      group_by(iso3c, year) %>%
+    summarise(
+            live_weight_t = sum(tonnes_lw, na.rm = TRUE)
+
+    ) %>%
+    ungroup() %>%
+  filter(live_weight_t > 0)
+
+iso3c_aqua_fed <- all_aquaculture_fed %>%
+  group_by(iso3c) %>%
+  summarise(live_weight_t_farmed = mean(live_weight_t, na.rm = TRUE)) %>%
+  ungroup() %>%
+  filter(iso3c == "CHN")
+
+sum(iso3c_aqua_fed$live_weight_t_farmed) # 15845529
+
 
 fm_data_2019 %>% filter(importer_iso3c == "CHN") %>%
-  pull(live_weight_t) %>% sum() # 6549419
+  pull(live_weight_t) %>% sum() # 6655218
 
 fm_data_2019 %>% filter(importer_iso3c == "CHN") %>%
-  pull(product_weight_t) %>% sum() # 2201332
+  pull(product_weight_t) %>% sum() # 2205506
 
-18128803/6549419 # 2.768002 pretty efficient... 
+15845529/6655218 # 2.380918 pretty efficient... 
 
 ```
 
 ```{r}
-## look at imports vs production: 
-domestic_production <- fm_data_2019 %>%
-  filter(source_country_iso3c == importer_iso3c) %>%
-    group_by(source_country_iso3c, fishmeal_type) %>%
+
+fm_share <- fm_data_2019 %>%
+  mutate(
+    is_import = importer_iso3c != source_country_iso3c
+  ) %>%
+  group_by(importer_iso3c) %>%
+  summarise(
+    total_consumed = sum(product_weight_t, na.rm = TRUE),
+    imported = sum(product_weight_t[is_import], na.rm = TRUE),
+    domestic = sum(product_weight_t[!is_import], na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    prop_imported = imported / total_consumed,
+    prop_domestic = domestic / total_consumed
+  )
+
+
+all_aquaculture_fed <- aqua_prod %>%
+  filter(year %in% c(2015:2019)) %>%
+  filter(!(isscaap_group_en %in% c("Brown seaweeds", "Red seaweeds", "Green seaweeds", "Miscellaneous aquatic plants", "Freshwater molluscs", "Abalones, winkles, conchs", "Oysters", "Mussels", "Scallops, pectens",                "Clams, cockles, arkshells", "Miscellaneous marine molluscs", "Sea-urchins and other echinoderms", "Miscellaneous aquatic invertebrates", "Pearls, mother-of-pearl, shells"))) %>% # filter out any algae/seaweeds
+   filter(!str_detect(common_name, "carp")) %>% # filter out carps, seaweeds, and bivalve molluscs
+      group_by(iso3c, year) %>%
     summarise(
-      product_weight_t = sum(product_weight_t, na.rm = TRUE),
-            live_weight_t = sum(live_weight_t, na.rm = TRUE)
+            live_weight_t = sum(tonnes_lw, na.rm = TRUE)
 
     ) %>%
-    arrange(desc(product_weight_t)) %>%
-    filter(product_weight_t > 0) %>%
     ungroup() %>%
-    mutate(prop = product_weight_t/total_tonnes)
+  filter(live_weight_t > 0)
 
-imports_prod <- trade_flows_production %>%
-  dplyr::select(iso3c = source_country_iso3c, fishmeal_type, production_product = product_weight_t) %>%
-  left_join(trade_flows_imports %>%
-  dplyr::select(iso3c = importer_iso3c, fishmeal_type, imported_product = product_weight_t)) %>%
+iso3c_aqua_fed <- all_aquaculture_fed %>%
   group_by(iso3c) %>%
-  summarise(total_production = sum(production_product, na.rm = TRUE), 
-            total_imports = sum(imported_product, na.rm = TRUE)) %>%
-  mutate(ratio = total_imports/total_production)
-
-
-aqua_countries <- aqua_prod %>% 
-  filter(year == 2019) %>%
-  group_by(iso3c, year) %>%
-  summarise(tonnes_lw = sum(tonnes_lw)) %>%
+  summarise(live_weight_t_farmed = mean(live_weight_t, na.rm = TRUE)) %>%
   ungroup()
 
 
-test <- fm_data_2019 %>%
-  group_by(source_country_iso3c, exporter_iso3c, importer_iso3c) %>%
-  summarise(tonnes_pw = sum(product_weight_t))
-
-```
-
-Species summary 
-
-```{r}
-  
-  # Species summary
-  species_summary <- fm_data_2019 %>%
-    group_by(sciname, common_name, source_country_iso3c, fishmeal_type) %>%
-    summarise(
-      total_product_weight = sum(product_weight_t, na.rm = TRUE)
-    ) %>%
-    arrange(desc(total_product_weight))
-
-  species_summary_spp <- fm_data_2019 %>%
-    group_by(sciname, common_name, fishmeal_type) %>%
-    summarise(
-      total_product_weight = sum(product_weight_t, na.rm = TRUE)
-    ) %>%
-    arrange(desc(total_product_weight))
-
-species_summary %>% filter(fishmeal_type == "wholefish", sciname == "engraulis ringens") %>% pull(total_product_weight) %>% sum()
-
-species_summary %>% filter(fishmeal_type == "wholefish", sciname == "micromesistius poutassou") %>% pull(total_product_weight) %>% sum()
-
-species_summary %>% filter(fishmeal_type == "wholefish", sciname == "sardina pilchardus") %>% pull(total_product_weight) %>% sum()
-
-test <- fm_data_2019 %>% filter(common_name == "sardinellas nei")
-
-```
-
-```{r}
-trade_flows_consumption_spp <- fm_data_2019 %>%
-    group_by(importer_iso3c, fishmeal_type, common_name) %>%
-    summarise(
-      product_weight_t = sum(product_weight_t, na.rm = TRUE),
-            live_weight_t = sum(live_weight_t, na.rm = TRUE)
-
-    ) %>%
-    arrange(desc(product_weight_t)) %>%
-    filter(product_weight_t > 0) %>%
-    ungroup()
+fm_aqua_share <- fm_share %>%
+  left_join(iso3c_aqua_fed, by = c("importer_iso3c" = "iso3c"))
 
 
 ```
@@ -318,7 +314,7 @@ To explore:
 global_trim_imports <- trade_flows_imports %>% filter(fishmeal_type == "trimmings") %>% pull(product_weight_t) %>% sum()
 global_imports <- trade_flows_imports %>% pull(product_weight_t) %>% sum()
 
-import_trim_prop <- global_trim_imports/global_imports # 38% of imports are trimmings
+import_trim_prop <- global_trim_imports/global_imports # 36% of imports are trimmings
 
 country_trim <- trade_flows_imports %>%
   group_by(importer_iso3c) %>% 
@@ -413,6 +409,65 @@ country_trim_2 <- trade_flows_imports %>%
          diff_from_global = proportion_trimmings - import_trim_prop,
          ratio_to_global = proportion_trimmings/import_trim_prop) %>%
   dplyr::select(-live_weight_t, -fishmeal_type)
+
+```
+
+
+Species summary 
+
+```{r}
+  
+  # Species summary
+  species_summary <- fm_data_2019 %>%
+    group_by(sciname, common_name, source_country_iso3c, fishmeal_type) %>%
+    summarise(
+      total_product_weight = sum(product_weight_t, na.rm = TRUE)
+    ) %>%
+    arrange(desc(total_product_weight))
+
+  species_summary_spp <- fm_data_2019 %>%
+    group_by(sciname, common_name, fishmeal_type) %>%
+    summarise(
+      total_product_weight = sum(product_weight_t, na.rm = TRUE)
+    ) %>%
+    arrange(desc(total_product_weight))
+
+species_summary %>% filter(fishmeal_type == "wholefish", sciname == "engraulis ringens") %>% pull(total_product_weight) %>% sum()
+
+species_summary %>% filter(fishmeal_type == "wholefish", sciname == "micromesistius poutassou") %>% pull(total_product_weight) %>% sum()
+
+species_summary %>% filter(fishmeal_type == "wholefish", sciname == "sardina pilchardus") %>% pull(total_product_weight) %>% sum()
+
+test <- fm_data_2019 %>% filter(common_name == "sardinellas nei")
+
+```
+
+```{r}
+trade_flows_consumption_spp <- fm_data_2019 %>%
+    group_by(importer_iso3c, fishmeal_type, common_name) %>%
+    summarise(
+      product_weight_t = sum(product_weight_t, na.rm = TRUE),
+            live_weight_t = sum(live_weight_t, na.rm = TRUE)
+
+    ) %>%
+    arrange(desc(product_weight_t)) %>%
+    filter(product_weight_t > 0) %>%
+    ungroup()
+
+
+```
+
+
+How much fishmeal is from NEI species? 
+
+```{r}
+nei_spp <- fm_data_2019 %>%
+  filter(str_detect(common_name, "nei")|sciname == "actinopterygii")
+
+sum(nei_spp$product_weight_t)/sum(fm_data_2019$product_weight_t) # 0.1737719
+
+test <- fm_data_2019 %>%
+  filter(str_detect(sciname, "animalia"))
 
 ```
 
@@ -512,29 +567,20 @@ finfish_time <- fm_data_1996_2020 %>%
 
 
 all_aquaculture_fed <- aqua_prod %>%
-  filter(year %in% c(2015:2019),
-         !(isscaap_group_en %in% c("Freshwater molluscs", "Abalones, winkles, conchs", "Oysters", "Mussels", "Scallops, pectens",                "Clams, cockles, arkshells", "Miscellaneous marine molluscs", "Sea-urchins and other echinoderms", "Miscellaneous aquatic invertebrates", "Pearls, mother-of-pearl, shells", "Brown seaweeds", "Red seaweeds", "Green seaweeds", "Miscellaneous aquatic plants"))  ) %>%
-    filter(!str_detect(common_name, "Carp|carp"), # filter out carp since they are omnivores
-           major_group != "AMPHIBIA, REPTILIA", 
-         !(scientific_name %in% c("Carassius spp", "Cyprinidae", "Labeo rohita")),
-         common_name != "Catla",) %>%
- # distinct(common_name, scientific_name, isscaap_group_en, major_group)
-      group_by(iso3c, scientific_name, common_name, major_group) %>%
+  filter(year %in% c(2015:2019)) %>%
+  filter(!(isscaap_group_en %in% c("Brown seaweeds", "Red seaweeds", "Green seaweeds", "Miscellaneous aquatic plants", "Freshwater molluscs", "Abalones, winkles, conchs", "Oysters", "Mussels", "Scallops, pectens",                "Clams, cockles, arkshells", "Miscellaneous marine molluscs", "Sea-urchins and other echinoderms", "Miscellaneous aquatic invertebrates", "Pearls, mother-of-pearl, shells"))) %>% # filter out any algae/seaweeds
+   filter(!str_detect(common_name, "carp")) %>%
+      group_by(iso3c, year) %>%
     summarise(
             live_weight_t = sum(tonnes_lw, na.rm = TRUE)
 
-    ) %>%
-    ungroup() %>%
-      group_by(iso3c, scientific_name, common_name, major_group) %>%
-    summarise(
-            live_weight_t = mean(live_weight_t, na.rm = TRUE)
     ) %>%
     ungroup() %>%
   filter(live_weight_t > 0)
 
 iso3c_aqua_fed <- all_aquaculture_fed %>%
   group_by(iso3c) %>%
-  summarise(live_weight_t_farmed = sum(live_weight_t, na.rm = TRUE)) %>%
+  summarise(live_weight_t_farmed = mean(live_weight_t, na.rm = TRUE)) %>%
   ungroup()
 
 iso3c_fm_used <- fm_data_2019 %>%

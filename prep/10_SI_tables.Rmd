@@ -34,6 +34,11 @@ source(here("R/directories.R"))
 
 fm_data_adjusted <-   qs::qread(file.path(artis_dir, "artis_exchange/artis_fishmeal_trimmings_traded_consumption_gf_final.qs"))
 
+artis_taxa <- read.csv(file.path(artis_dir, "artis_full_data/data/attribute tables/sciname.csv")) %>% ## read in attribute table with common names
+  mutate(phylum = case_when(
+    common_name %in% c("mackerels, tunas, and bonitos", "salmons and trouts", "herrings", "cartilaginous fishes nei", "flounders", "african lungfishes", "toothfish", "carps, minnows, loaches, etc", "blue whitings") ~ "chordata",
+    TRUE ~ phylum
+  )) # fix phylum mistakes
 ```
 
 
@@ -138,6 +143,172 @@ si_table_5 <- fm_data_adjusted %>%
 
 
 write.csv(si_table_5, here("outputs/SI/SI_Table_5.csv"), row.names = FALSE)
+
+```
+
+```{r}
+library(openxlsx)
+
+# Create a new workbook
+wb <- createWorkbook()
+
+# Add each CSV as a worksheet
+addWorksheet(wb, "SI_Table_1")
+writeData(wb, "SI_Table_1", read.csv(here("outputs/SI_table_fillets.csv")))
+
+addWorksheet(wb, "SI_Table_2")
+writeData(wb, "SI_Table_2", read.csv(here("outputs/SI/SI_Table_2.csv")))
+
+addWorksheet(wb, "SI_Table_3")
+writeData(wb, "SI_Table_3", read.csv(here("outputs/SI/SI_Table_3.csv")))
+
+addWorksheet(wb, "SI_Table_4")
+writeData(wb, "SI_Table_4", read.csv(here("outputs/SI/SI_Table_4.csv")))
+
+addWorksheet(wb, "SI_Table_5")
+writeData(wb, "SI_Table_5", read.csv(here("outputs/SI/SI_Table_5.csv")))
+
+# Save the workbook
+saveWorkbook(wb, here("outputs/SI/Extended data.xlsx"), overwrite = TRUE)
+
+
+```
+
+
+Make an SI plot with non-gapfilled data
+
+```{r}
+non_gf <- qs::qread(here("int/non_gapfilled_fishmeal_matched.qs"))
+
+fm_data_adjusted <- non_gf %>%
+  left_join(artis_taxa) %>%
+      mutate(phylum = case_when(is.na(phylum) & sciname %in% c("lampetra fluviatilis", "petromyzontidae", "petromyzon marinus") ~ "chordata",
+                              is.na(phylum) & sciname == "animalia" ~ "animalia",
+                            TRUE ~ phylum)) %>% 
+    filter(phylum %in% c("chordata", "arthropoda") | phylum == "mollusca" & class == "cephalopoda") %>%
+    mutate(trimmings = live_weight_t*trim_prop_gf,
+         wholefish = live_weight_t*(1-trim_prop_gf)) %>%
+  dplyr::select(-product_weight_t, -live_weight_t, -capture) %>%
+  pivot_longer( 
+    cols = c(trimmings, wholefish),
+    names_to = "fishmeal_type",
+    values_to = "live_weight_t"
+  ) %>%
+  mutate(product_weight_t =
+           case_when(
+             phylum == "arthropoda" & fishmeal_type == "trimmings" ~ (live_weight_t*0.98)/2.975207,
+             phylum %in% c("mollusca", "chordata") & fishmeal_type == "trimmings" ~ (live_weight_t*0.96)/2.975207,
+             TRUE ~ live_weight_t/2.975207
+           )) 
+
+## now save every year of data 1996-2020 with only top 20 species
+# fm_data_top_spp <- fm_data_adjusted %>%
+#     group_by(year, source_country_iso3c, exporter_iso3c, importer_iso3c = consumer_iso3c, sciname, common_name, fishmeal_type, phylum) %>%
+#     summarise(
+#       product_weight_t = sum(product_weight_t, na.rm = TRUE),
+#             live_weight_t = sum(live_weight_t, na.rm = TRUE)
+# 
+#     ) %>%
+#     ungroup() %>%
+#   group_by(source_country_iso3c, sciname) %>% 
+#   summarise(total_product_weight = sum(product_weight_t, na.rm = TRUE), .groups = "drop") %>%
+#   arrange(source_country_iso3c, desc(total_product_weight)) %>%
+#   group_by(source_country_iso3c) %>%
+#   slice_head(n = 20) %>% # take the top 20 species for each source country (and year?)
+#   ungroup() %>%
+#   right_join(fm_data_adjusted, by = c("source_country_iso3c", "sciname")) %>%
+#     filter(!is.na(total_product_weight)) %>%
+#     left_join(artis_taxa) # this takes awhile to run
+
+all_spp_time <- fm_data_adjusted %>%
+  group_by(year, fishmeal_type) %>%
+  summarise(product_t = sum(product_weight_t, na.rm = TRUE)) %>%
+  ungroup() %>%
+  group_by(year) %>%
+  mutate(total_t = sum(product_t)) %>%
+  ungroup() %>%
+  mutate(prop = product_t/total_t) %>%
+  mutate(data_type = "All species")
+
+finfish_time <- fm_data_adjusted %>%
+  filter(phylum == "chordata") %>%
+  group_by(year, fishmeal_type) %>%
+  summarise(product_t = sum(product_weight_t, na.rm = TRUE)) %>%
+  ungroup() %>%
+  group_by(year) %>%
+  mutate(total_t = sum(product_t)) %>%
+  ungroup() %>%
+  mutate(prop = product_t/total_t) %>%
+  mutate(data_type = "Finfish") 
+
+crust_time <- fm_data_adjusted %>%
+  filter(phylum == "arthropoda") %>%
+  group_by(year, fishmeal_type) %>%
+  summarise(product_t = sum(product_weight_t, na.rm = TRUE)) %>%
+  ungroup() %>%
+  group_by(year) %>%
+  mutate(total_t = sum(product_t)) %>%
+  ungroup() %>%
+  mutate(prop = product_t/total_t) %>%
+  mutate(data_type = "Crustaceans") 
+
+mollusc_time <- fm_data_adjusted %>%
+  filter(phylum == "mollusca") %>%
+  group_by(year, fishmeal_type) %>%
+  summarise(product_t = sum(product_weight_t, na.rm = TRUE)) %>%
+  ungroup() %>%
+  group_by(year) %>%
+  mutate(total_t = sum(product_t)) %>%
+  ungroup() %>%
+  mutate(prop = product_t/total_t) %>%
+  mutate(data_type = "Cephalopoda")  %>%
+  filter(product_t != 0)
+
+overtime_all <- rbind(all_spp_time, finfish_time, crust_time, mollusc_time) %>%
+  mutate(perc = scales::percent(round(prop, 2), accuracy = 1))
+
+artis_palette(length(unique(overtime_all$fishmeal_type)))
+
+ggplot(overtime_all, aes(x = year, y = product_t, color = fishmeal_type)) +
+  geom_line() +
+  theme_bw() +
+  facet_wrap(~data_type, scales = "free_x") + 
+  labs(x = "Year", y = "Fishmeal product (million tonnes)", color = "Fishmeal type") + 
+    scale_color_manual(values = c("trimmings" = "#741A32", "wholefish" = "#114F59"), 
+                     labels = c("Trimmings-derived", "Whole fish-derived")) + 
+  scale_x_continuous(limits = c(1994.5, 2021.5), breaks = c(1996, 2002, 2008, 2014, 2020), 
+                     labels = c(1996, 2002, 2008, 2014, 2020)) +
+  theme(legend.position = "bottom") +
+  scale_y_continuous(labels = function(x) x/1e6,
+                   name = "Fishmeal product (million tonnes)") + 
+    geom_text(data = filter(overtime_all, year == 2020, fishmeal_type == "trimmings", !(data_type %in% c("Cephalopoda", "Crustaceans"))),
+            aes(x = year, y = product_t, label = perc),
+            vjust = 0, hjust = -0.1, show.legend = FALSE, size = 3) +
+      geom_text(data = filter(overtime_all, year == 2020, fishmeal_type == "wholefish", data_type != "Cephalopoda"),
+            aes(x = year, y = product_t, label = perc),
+            vjust = 0, hjust = -0.1, show.legend = FALSE, size = 3) +
+      geom_text(data = filter(overtime_all, year == 1996, fishmeal_type == "trimmings", data_type %in% c("All species", "Finfish")),
+            aes(x = year, y = product_t, label = perc),
+            vjust = 0, hjust = 1, show.legend = FALSE, size = 3) +
+      geom_text(data = filter(overtime_all, year == 1996, fishmeal_type == "wholefish", data_type != "Crustaceans"),
+            aes(x = year, y = product_t, label = perc),
+            vjust = 0.2, hjust = 1, show.legend = FALSE, size = 3) +
+        geom_text(data = filter(overtime_all, year == 1996, fishmeal_type == "trimmings", data_type == "Crustaceans"),
+            aes(x = year, y = product_t, label = perc),
+            vjust = 0, hjust = 1, show.legend = FALSE, size = 3) +
+      # geom_text(data = filter(overtime_all, year == 1996, fishmeal_type == "wholefish", data_type == "Crustaceans"),
+      #       aes(x = year, y = product_t, label = perc),
+      #       vjust = 0.5, hjust = 1, show.legend = FALSE, size = 3)  + 
+      geom_text(data = filter(overtime_all, year == 2020, fishmeal_type == "trimmings", data_type == "Cephalopoda"),
+            aes(x = year, y = product_t, label = perc),
+            vjust = -0.5, hjust = 0.2, show.legend = FALSE, size = 3)  + 
+      geom_text(data = filter(overtime_all, year == 1996, fishmeal_type == "trimmings", data_type == "Cephalopoda"),
+            aes(x = year, y = product_t, label = perc),
+            vjust = -0.6, hjust = 0.8, show.legend = FALSE, size = 3) 
+
+ 
+ggsave(here("outputs/figs/SI/SI_fig_2.png"), width = 180, height =180 , units = "mm", bg = "white", dpi =300)
+
 
 ```
 

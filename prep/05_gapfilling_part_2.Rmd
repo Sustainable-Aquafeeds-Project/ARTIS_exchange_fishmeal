@@ -31,6 +31,10 @@ fillet_artis <- full_artis %>%
   dplyr::select(-hs_version) %>% # don't need this
   rename(consumer_iso3c = importer_iso3c) # just to make things consistent
 
+test <- fillet_artis %>% 
+  filter(source_country_iso3c == consumer_iso3c) %>%
+  filter(source_country_iso3c == exporter_iso3c) # ok so there is not domestic production in this? Or at least there is not any non-traded production
+
 artis_taxa <- read.csv(file.path(artis_dir, "artis_full_data/data/attribute tables/sciname.csv")) ## read in attribute table with common names
 countries <- read.csv(here("data/countries.csv")) ## artis countries with info
 
@@ -38,8 +42,13 @@ fm_artis <- qs::qread(file.path(artis_dir, "full_artis_fm_2024_09_19.qs")) %>%
   mutate(hs6 = 230120,
          dom_source = ifelse(dom_source == "", consumption_type, dom_source)) %>%
   dplyr::select(year, source_country_iso3c, exporter_iso3c, consumer_iso3c, dom_source, hs6, sciname, habitat, method, product_weight_t, live_weight_t = consumption_t_capped) %>%
-  mutate(exporter_iso3c = ifelse(source_country_iso3c == consumer_iso3c, source_country_iso3c, exporter_iso3c))
+  mutate(exporter_iso3c = ifelse(exporter_iso3c == "" & source_country_iso3c == consumer_iso3c, source_country_iso3c, exporter_iso3c))
 
+test <- fm_artis %>%
+  filter(source_country_iso3c == consumer_iso3c)
+
+test <- fm_artis %>%
+  filter(exporter_iso3c == "") 
 ```
 
 ```{r}
@@ -147,8 +156,7 @@ tonnes_filled_price/fm_artis %>% filter(year == 2020) %>% pull(product_weight_t)
   filter(!is.na(trim_prop_gf)) %>%
   filter(year == 2020) %>%
   pull(product_weight_t) %>%
-  sum()/fm_artis %>% filter(year == 2020) %>% pull(product_weight_t) %>% sum() # 96.2% now filled in
- 
+  sum()/fm_artis %>% filter(year == 2020) %>% pull(product_weight_t) %>% sum() # 96.6% now filled in
 
 ```
 
@@ -213,7 +221,8 @@ artis_trimmings_genus_gf %>%
 artis_trimmings_all_info_new %>% 
   filter(year == 2020) %>%
   pull(product_weight_t) %>%
-  sum()/fm_artis %>% filter(year == 2020) %>% pull(product_weight_t) %>% sum() # ok now we have 98.8% of fishmeal for 2020 covered
+  sum()/fm_artis %>% filter(year == 2020) %>% pull(product_weight_t) %>% sum() # ok now we have 98.9% of fishmeal for 2020 covered
+
 
 ```
 
@@ -287,7 +296,7 @@ artis_trimmings_all_gf %>%
   filter(
          !is.na(trim_prop_gf)) %>%
   pull(product_weight_t) %>%
-  sum()/fm_artis %>% pull(product_weight_t) %>% sum() # 0.9958912; we're missing 0.0041088 for all years
+  sum()/fm_artis %>% pull(product_weight_t) %>% sum() # 0.9901832
 
 # what did we actually gapfill with that last round? 
 test_gf <- artis_info_fixed_fin %>%
@@ -295,7 +304,6 @@ test_gf <- artis_info_fixed_fin %>%
   group_by(method_trim_gf) %>%
   summarise(tonnes = sum(product_weight_t, na.rm = TRUE)) %>%
   ungroup()
-
 
 ```
 
@@ -540,110 +548,3 @@ ggplot(over_time, aes(x = year, y = product_t, color = fishmeal_type)) +
 
 ## Looks good! 
 ```
-
-For SI? 
-
-```{r}
-krill_meal <- fillet_price_all_gf %>%
-  filter(year == 2019,
-         method_trim_gf == "krill meal") 
-
-
-sum(krill_meal$product_weight_t) # 19825.16
-unique(krill_meal$sciname)
-unique(krill_meal$source_country_iso3c)
-
-
-all_2020 <- fillet_price_all_gf %>%
-  filter(year == 2020)
-sum(all_2020$product_weight_t) # 6158133
-
-
-sum(krill_meal$product_weight_t)/ 6158133 # 0.003219347
-
-
-unspec_meal <- fillet_price_all_gf %>%
-  filter(year == 2020, 
-         method_trim_gf == "unknown species, assume wholefish",
-         product_weight_t > 0) 
-
-sum(unspec_meal$product_weight_t)/ 6158133 # 0.03199211
-unique(unspec_meal$sciname)
-length(unique(unspec_meal$source_country_iso3c))
-
-
-unspec_meal <- fillet_price_all_gf %>%
-  filter(year == 2020, 
-         method_trim_gf == "Asian trash fish assumption",
-         product_weight_t > 0) 
-
-sum(unspec_meal$product_weight_t)/ 6158133 # 0.06062514
-sum(unspec_meal$live_weight_t) # 1110757 - this is under the value which is estimated in https://www.slideshare.net/slideshow/the-status-of-asian-fisheries-meeting-the-demands-for-food-and-feeds/47356205#4
-
-length(unique(unspec_meal$sciname))
-
-length(unique(unspec_meal$source_country_iso3c))
-
-
-squid_meal <- fillet_price_all_gf %>%
-  filter(year == 2020, 
-         method_trim_gf == "squid, cuttlefish, or octopus trimmings",
-         product_weight_t > 0) 
-
-sum(squid_meal$product_weight_t)/ 6158133 
-
-length(unique(squid_meal$sciname))
-
-length(unique(squid_meal$source_country_iso3c))
-
-
-
-tuna_sal_meal <- fillet_price_all_gf %>%
-  filter(year == 2020, 
-         method_trim_gf %in% c("wild caught tuna trimmings", "wild caught salmon trimmings"),
-         product_weight_t > 0) 
-
-sum(tuna_sal_meal$product_weight_t)/ 6158133 # 0.02536865
-
-length(unique(tuna_sal_meal$sciname))
-
-length(unique(tuna_sal_meal$source_country_iso3c))
-
-
-tuna_sal_meal <- fillet_price_all_gf %>%
-  filter(year == 2019, 
-         method_trim_gf %in% c("wild caught tuna trimmings", "wild caught salmon trimmings"),
-         product_weight_t > 0) 
-
-sum(tuna_sal_meal$product_weight_t)/ 6158133 # 0.02536865
-
-length(unique(tuna_sal_meal$sciname))
-
-length(unique(tuna_sal_meal$source_country_iso3c))
-
-
-si_table_3 <- fillet_price_all_gf %>%
-  filter(product_weight_t > 0) %>%
-  group_by(year, method_trim_gf) %>%
-  summarise(tonnes = sum(product_weight_t, na.rm = TRUE),
-            n_countries = n_distinct(source_country_iso3c), 
-            n_species = n_distinct(sciname)) %>%
-  ungroup() %>%
-  filter(year == 2019) %>%
-  mutate(prop_product = tonnes/6158133)
-
-
-none_gf_meal <- fillet_price_all_gf %>%
-  filter(year == 2019, 
-         method_trim_gf %in% c("none", "Average trimmings proportion of source country and species from literature and reports"),
-         product_weight_t > 0) 
-
-sum(none_gf_meal$product_weight_t)/6005075
-
-length(unique(none_gf_meal$sciname))
-
-length(unique(none_gf_meal$source_country_iso3c))
-
-
-```
-

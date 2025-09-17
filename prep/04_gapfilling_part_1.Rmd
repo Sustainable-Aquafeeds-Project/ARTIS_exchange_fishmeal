@@ -35,7 +35,7 @@ fm_artis <- qs::qread(file.path(artis_dir, "full_artis_fm_2024_09_19.qs")) %>%
   mutate(hs6 = 230120,
          dom_source = ifelse(dom_source == "", consumption_type, dom_source)) %>%
   dplyr::select(year, source_country_iso3c, exporter_iso3c, consumer_iso3c, dom_source, hs6, sciname, habitat, method, product_weight_t, live_weight_t = consumption_t_capped) %>%
-  mutate(exporter_iso3c = ifelse(source_country_iso3c == consumer_iso3c, source_country_iso3c, exporter_iso3c))
+  mutate(exporter_iso3c = ifelse(exporter_iso3c == "" & source_country_iso3c == consumer_iso3c, source_country_iso3c, exporter_iso3c))
 
 setdiff(colnames(fillet_artis), colnames(fm_artis))
 setdiff(colnames(fm_artis), colnames(fillet_artis)) # 0 good
@@ -112,6 +112,15 @@ artis_trimmings_info_traded <- artis_trimmings_all %>%
 
 summary(artis_trimmings_info_traded)
 
+test <- artis_trimmings_info_traded %>%
+  filter(year == 2020, sciname == "sardinella") %>%
+  mutate(trim_fm = product_weight_t*trim_prop_gf,
+         whole_fm = product_weight_t*(1-trim_prop_gf))
+
+sum(test$trim_fm) # 1708.212
+sum(test$whole_fm) # 612.5822
+612.5822/(612.5822+1708.212) # year, 26% from whole fish. It should probably be the other way around. 
+
 # since we added some NAs we need to filter for those now
 missing_from_traded_df <- artis_trimmings_info_traded %>%
   filter(is.na(trim_prop_gf)) 
@@ -139,7 +148,7 @@ artis_trimmings_all %>%
   pull(product_weight_t) %>%
   sum()
 
-test/6158133 # got about 11% of fishmeal 2020 this way! That's pretty good!  
+test/6158133 # 0.1051275 got about 11% of fishmeal 2020 this way! That's pretty good!  
 ```
 
 
@@ -179,6 +188,16 @@ artis_trimmings_info_sources <- artis_trimmings_basic_sources %>%
          method_trim_gf = "none; filled using values from literature") %>%
   distinct()
 
+test <- artis_trimmings_info_sources %>% 
+  filter(year == 2020, sciname == "sardinella") %>%
+    mutate(trim_fm = product_weight_t*trim_prop_gf,
+         whole_fm = product_weight_t*(1-trim_prop_gf))
+
+sum(test$trim_fm) # 10167.98
+sum(test$whole_fm) # 56710.42
+56710.42/(56710.42+10167.98) # ok cool, 85% from whole fish for sardinella, this makes sense! 
+
+
 missing <- artis_trimmings_info_sources %>% 
   filter(is.na(trim_prop_gf)) # ok cool none missing 
 
@@ -202,7 +221,7 @@ tonnes_lit <- artis_trimmings_all_info %>%
   pull(product_weight_t) %>%
   sum()
 
-tonnes_lit/fm_artis %>% filter(year == 2020) %>% pull(product_weight_t) %>% sum() # 0.3593609 ~ 36% matching. How does that compare to before? Before was 40%, because we used the average from both the literature and reports. Should we try that now for some gapfilling? 
+tonnes_lit/fm_artis %>% filter(year == 2020) %>% pull(product_weight_t) %>% sum() # 0.3564168 ~ 36% matching. How does that compare to before? Before was 40%, because we used the average from both the literature and reports. Should we try that now for some gapfilling? 
 
 
 
@@ -211,7 +230,9 @@ tonnes_lit <- artis_trimmings_info_sources %>%
   pull(product_weight_t) %>%
   sum()
 
-tonnes_lit/fm_artis %>% filter(year == 2020) %>% pull(product_weight_t) %>% sum() # 0.2531985 ~ 25% matching.
+tonnes_lit/fm_artis %>% filter(year == 2020) %>% pull(product_weight_t) %>% sum() # 0.2512893 ~ 25% matching.
+
+qs::qsave(artis_trimmings_all_info, here("int/non_gapfilled_fishmeal_matched.qs"))
 
 ``` 
 
@@ -246,10 +267,16 @@ artis_trimmings_info_fixed_1 <- artis_trimmings_info_to_fix_1 %>%
 artis_trimmings_all_info_1 <- artis_trimmings_all_info %>%
   rbind(., artis_trimmings_info_fixed_1 %>% dplyr::select(colnames(artis_trimmings_all_info)))
 
+test <- artis_trimmings_all_info_1 %>% 
+  filter(year == 2020, sciname == "sardinella") %>%
+    mutate(trim_fm = product_weight_t*trim_prop_gf,
+         whole_fm = product_weight_t*(1-trim_prop_gf))
+
+
 artis_trimmings_all_info_1 %>% 
   filter(year == 2020) %>%
   pull(product_weight_t) %>%
-  sum()/fm_artis %>% filter(year == 2020) %>% pull(product_weight_t) %>% sum() # 0.4012084 ~ 40% matching. Cool, the mean gapfilling fills ~4% for 2020
+  sum()/fm_artis %>% filter(year == 2020) %>% pull(product_weight_t) %>% sum() # 0.4012207 ~ 40% matching. Cool, the mean gapfilling fills ~4% for 2020
 
 artis_trimmings_info_to_fix_2 <- artis_trimmings_info_to_fix_1 %>%
   filter(is.na(trim_prop))
@@ -263,11 +290,11 @@ test_all <- artis_trimmings_all_info_1 %>%
          whole_weight = product_weight_t*(1-trim_prop_gf))
 
 test_weight_2020 <- fm_artis %>% filter(year == 2020) %>% pull(product_weight_t) %>% sum() # 6158133
-test_trim <- sum(test_all$trim_weight, na.rm = TRUE) # 784463.1
-test_whole <- sum(test_all$whole_weight, na.rm = TRUE) # 1686232
+test_trim <- sum(test_all$trim_weight, na.rm = TRUE) # 731538.3
+test_whole <- sum(test_all$whole_weight, na.rm = TRUE) # 1739232
 
-test_whole/test_weight_2020 # 27% from whole fish 
-test_trim/test_weight_2020 # 12.7% from trimmings
+test_whole/test_weight_2020 # 28% from whole fish 
+test_trim/test_weight_2020 # 12% from trimmings
 # if that scales then that is about 60-40 whole fish to trimmings. It won't scale tho. 
 ```
 
@@ -371,6 +398,14 @@ artis_trimmings_all_info_3 %>%
   pull(product_weight_t) %>%
   sum()/fm_artis %>% filter(year == 2020) %>% pull(product_weight_t) %>% sum() # 0.8147685 now we are at 81% filled, meaning the species level means filled 81-73 = ~8% approximately of fishmeal in 2020
 
+test <- artis_trimmings_all_info_3 %>% 
+  filter(year == 2020, sciname == "sardinella") %>%
+    mutate(trim_fm = product_weight_t*trim_prop_gf,
+         whole_fm = product_weight_t*(1-trim_prop_gf))
+
+sum(test$trim_fm) # 18818.44
+sum(test$whole_fm) # 65044.68 # good! 
+
 ```
 
  
@@ -389,6 +424,16 @@ fillet_data <- fillet_artis %>%
          conversion = fillet_tonnes_pw/fillet_tonnes_lw,
          potential_trimmings_lw_t = fillet_tonnes_lw - fillet_tonnes_pw) %>%
   mutate(potential_trimmings_pw_t = (potential_trimmings_lw_t/2.975)*0.96)## account for processing and blood loss of weight??
+
+conversions <- fillet_artis %>% 
+  group_by(year, source_country_iso3c, sciname, method, habitat) %>%
+  summarise(fillet_tonnes_lw = sum(live_weight_t, na.rm = TRUE),
+            fillet_tonnes_pw = sum(product_weight_t, na.rm = TRUE)) %>%
+  ungroup() %>%
+  mutate(filleted = "yes",
+         conversion = fillet_tonnes_pw/fillet_tonnes_lw)
+qs::qsave(conversions, here("int/fillet_conversions.qs"))
+
 
 trimmings_for_fillet_gf <- artis_trimmings_info_to_fix_4 %>%
   group_by(year, source_country_iso3c, exporter_iso3c, sciname, method, habitat) %>%
@@ -486,6 +531,7 @@ ggplot(test_long, aes(x = source, y = tonnage, fill = isscaap)) +
   scale_y_continuous(labels = scales::comma) +
   theme(legend.position = "right") # cool, mostly NEI species, which actually makes sense.
 
+
 ```
 
 Gapfill any capture shrimp to be trimmings
@@ -534,6 +580,9 @@ artis_trimmings_all_info_5 %>%
   filter(year == 2020) %>%
   pull(product_weight_t) %>%
   sum()/fm_artis %>% filter(year == 2020) %>% pull(product_weight_t) %>% sum() # 0.9352856; ~94% filled in
+
+
+
 
 ```
 
@@ -624,61 +673,5 @@ sum(test_all$trim_product, na.rm = TRUE) + sum(test_all$wholefish_product, na.rm
 
 5696824/6158133
 # only missing ~7.5% now 
-```
-
-
-
-```{r}
-
-## lets do some testing
-test_crustacean <- artis_trimmings_gf %>% 
- # filter(year == 2020) %>%
-  filter(isscaap %in% c("Shrimps, prawns", "Lobsters, spiny-rock lobsters", "King crabs, squat-lobsters") | common_name %in% c("squillids nei", "stomatopods nei", "west african geryon") | str_detect(common_name, "crab|shrimp|squillid") |  genus %in% c("geryon", "scylla")) 
-
-sum(test_crustacean$product_weight_t)/sum(artis_trimmings_all$product_weight_t) # 0.1384497
-
-test_shrimp <- artis_trimmings_gf %>%
- # filter(year == 2020) %>%
-  filter(isscaap %in% c("Shrimps, prawns") | str_detect(common_name, "shrimp"))
-sum(test_shrimp$product_weight_t)/sum(artis_trimmings_all$product_weight_t) # 0.1156375
-
-test_mollusc <- artis_trimmings_gf %>%
- # filter(year == 2020) %>%
-  filter(isscaap %in% c("Abalones, winkles, conchs", "Clams, cockles, arkshells", "Multiple ISSCAAP groups", "Mussels", "Oysters", "Scallops, pectens") & phylum == "mollusca" & !str_detect(common_name, "abalone|barnacle|octopus|squid"))
-
-test2 <- artis_trimmings_all %>%
- # filter(year == 2020) %>%
-  pull(product_weight_t) %>%
-  sum()
-
-sum(test_mollusc$product_weight_t)/test2 # 0.2013136
-
-test <- artis_trimmings_all %>%
-  group_by(phylum, year) %>%
-  summarise(tonnes = sum(product_weight_t, na.rm = TRUE)) %>%
-  ungroup() %>%
-  group_by(year) %>%
-  mutate(total_tonnes = sum(tonnes, na.rm = TRUE)) %>%
-  mutate(prop = tonnes/total_tonnes) ## cool, checks out. Will probably make more sense to report numbers for 2020 in the actual paper, but global across all years will do for exploration purposes
-
-# what are we still missing?
-test <- artis_trimmings_all_gf %>%
-  filter(is.na(trim_prop_gf)) %>%
-  group_by(phylum) %>%
-  summarise(tonnes  = sum(product_weight_t, na.rm = TRUE)) %>%
-  ungroup() # ok, need to figure out what to do about echinodermata and cnidaria; chordata is expected to have a lot of gaps.
-
-test <- artis_trimmings_all_gf %>% 
-  filter(is.na(trim_prop_gf)) %>%
-  filter(phylum %in% c("echinodermata", "cnidaria"))
-unique(test$common_name)
-#  [1] "sea urchins nei"            "chilean sea urchin"         "sea cucumbers nei"          "starfishes nei"            
-#  [5] "echinoderms"                "stony sea urchin"           "european edible sea urchin" "japanese sea cucumber"     
-#  [9] "white teatfish"             "prickly redfish"            ""                           "sea urchins, etc. nei"     
-# [13] "cannonball jellyfish"       "royal cucumber"             "brown mottled sea cucumber" "red starfish"              
-# [17] "black sea urchin"   
-# we are removing most of these from our analysis, so we likely don't need to worry about this.
-
-
 ```
 

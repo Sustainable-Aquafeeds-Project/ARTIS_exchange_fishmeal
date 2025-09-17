@@ -93,7 +93,13 @@ tidy_df <- raw_df %>%
   add_row(factory_id = 114, country = "Gambia", common_name = "sardinellas nei", sciname = "sardinella", aquaculture = "no", wholefish = "yes", trimmings = "no", data_source_feed = "Shea et al. 2025", data_source_fao_area_country = NA, feed_report_spp_name = "Round sardinella", trash_fish = "No", capture = "yes", source_country_iso3c = "GMB") %>% # known from OOSC presentations
     add_row(factory_id = 115, country = "Gambia", common_name = "sardinellas nei", sciname = "sardinella", aquaculture = "no", wholefish = "yes", trimmings = "no", data_source_feed = "Shea et al. 2025", data_source_fao_area_country = NA, feed_report_spp_name = "Round sardinella", trash_fish = "No", capture = "yes", source_country_iso3c = "GMB") %>%
     add_row(factory_id = 116, country = "Gambia", common_name = "sardinellas nei", sciname = "sardinella", aquaculture = "no", wholefish = "yes", trimmings = "no", data_source_feed = "Shea et al. 2025", data_source_fao_area_country = NA, feed_report_spp_name = "Round sardinella", trash_fish = "No", capture = "yes", source_country_iso3c = "GMB") %>%
-  mutate(sciname = ifelse(common_name == "araucanian herring", "strangomera bentincki", sciname)) # fix error in the dataset
+  mutate(sciname = ifelse(common_name == "araucanian herring", "strangomera bentincki", sciname)) %>% # fix error in the dataset
+  add_row(factory_id = 188, country = "Mauritania", common_name = "sardine", sciname = "sardinella", aquaculture = "no", wholefish = "yes", trimmings = "no", data_source_feed = "Shea et al. 2025", data_source_fao_area_country = NA, feed_report_spp_name = "sardine", trash_fish = "no", capture = "yes", source_country_iso3c = "MRT") %>%
+    add_row(factory_id = 193, common_name = "sardine", sciname = "sardinella", aquaculture = "no", wholefish = "yes", trimmings = "no", data_source_feed = "Shea et al. 2025", data_source_fao_area_country = NA, feed_report_spp_name = "sardine", trash_fish = "no", capture = "yes", source_country_iso3c = "MRT", country = "Mauritania") %>%
+      add_row(factory_id = 207, common_name = "sardine", sciname = "sardinella", aquaculture = "no", wholefish = "yes", trimmings = "no", data_source_feed = "Shea et al. 2025", data_source_fao_area_country = NA, feed_report_spp_name = "sardine", trash_fish = "no", capture = "yes", source_country_iso3c = "MRT", country = "Mauritania") %>%
+      add_row(factory_id = 217, common_name = "sardine", sciname = "sardinella", aquaculture = "no", wholefish = "yes", trimmings = "no", data_source_feed = "Shea et al. 2025", data_source_fao_area_country = NA, feed_report_spp_name = "sardine", trash_fish = "no", capture = "yes", source_country_iso3c = "MRT", country = "Mauritania") %>%
+      add_row(factory_id = 224, common_name = "sardine", sciname = "sardinella", aquaculture = "no", wholefish = "yes", trimmings = "no", data_source_feed = "Shea et al. 2025", data_source_fao_area_country = NA, feed_report_spp_name = "sardine", trash_fish = "no", capture = "yes", source_country_iso3c = "MRT", country = "Mauritania")
+  
   
 ```
 
@@ -1402,7 +1408,7 @@ write.csv(tidy_df_fix_2, here("data/shea_et_al_FMFO/fmfo_tidy_v0.1.csv"), row.na
 # for each unique combination of country and species
 
 # Read the CSV file
-if(artis_version == "new"){
+if(artis_version == "old"){
 
 data <- read_csv(here("data/shea_et_al_FMFO/fmfo_tidy_v0.1.csv"))
 }else{
@@ -1452,7 +1458,6 @@ write.csv(result, here("int/material_origins_shea_2025_v0.1.csv"), row.names = F
 
 }
 
-test <- read.csv(here("int/material_origins_shea_2025.csv"))
 
 ```
 

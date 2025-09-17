@@ -56,13 +56,12 @@ fm_data_adjusted <- fm_data %>%
     names_to = "fishmeal_type",
     values_to = "live_weight_t"
   ) %>%
-  mutate(live_weight_t =
+  mutate(product_weight_t =
            case_when(
-             phylum == "arthropoda" & fishmeal_type == "trimmings" ~ live_weight_t*0.98,
-             phylum %in% c("mollusca", "chordata") & fishmeal_type == "trimmings" ~ live_weight_t*0.96,
-             TRUE ~ live_weight_t
-           )) %>%
-  mutate(product_weight_t = live_weight_t/2.975207)
+             phylum == "arthropoda" & fishmeal_type == "trimmings" ~ (live_weight_t*0.98)/2.975207,
+             phylum %in% c("mollusca", "chordata") & fishmeal_type == "trimmings" ~ (live_weight_t*0.96)/2.975207,
+             TRUE ~ live_weight_t/2.975207
+           )) 
 
 qs::qsave(fm_data_adjusted, file.path(artis_dir, "artis_exchange/artis_fishmeal_trimmings_traded_consumption_adjusted_final.qs"))
 
@@ -167,13 +166,12 @@ trade_flows_average <-  fm_data %>%
     names_to = "fishmeal_type",
     values_to = "live_weight_t"
   ) %>%
-  mutate(live_weight_t =
+  mutate(product_weight_t =
            case_when(
-             phylum == "arthropoda" & fishmeal_type == "trimmings" ~ live_weight_t*0.98,
-             phylum %in% c("mollusca", "chordata") & fishmeal_type == "trimmings" ~ live_weight_t*0.96,
-             TRUE ~ live_weight_t
+             phylum == "arthropoda" & fishmeal_type == "trimmings" ~ (live_weight_t*0.98)/2.975207,
+             phylum %in% c("mollusca", "chordata") & fishmeal_type == "trimmings" ~ (live_weight_t*0.96)/2.975207,
+             TRUE ~ live_weight_t/2.975207
            )) %>%
-  mutate(product_weight_t = live_weight_t/2.975207) %>%
        filter(year %in% c(2009:2013)) %>%
     group_by(year, source_country_iso3c, exporter_iso3c, importer_iso3c = consumer_iso3c, sciname, common_name, fishmeal_type, phylum) %>%
     summarise(

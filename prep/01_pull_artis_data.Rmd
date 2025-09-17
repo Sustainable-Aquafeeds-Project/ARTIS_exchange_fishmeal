@@ -241,6 +241,18 @@ full_data_fm <- full_data_new %>%
 
 qs::qsave(full_data_fm, file.path(artis_dir, "full_artis_fm_2024_09_19.qs"))
 
+
+full_data_human <- full_data_new %>%
+  filter(end_use == "direct human consumption")
+
+test <- full_data_human %>%
+  filter(year == 2020)
+  #        source_country_iso3c == consumer_iso3c) %>%
+  # filter(source_country_iso3c == exporter_iso3c)
+
+
+qs::qsave(full_data_human, file.path(artis_dir, "full_artis_human_fm_2024_09_19.qs"))
+
 ```
 
 
@@ -269,8 +281,7 @@ test <- old_fm %>%
 
 
 
-I've received an updated version of the database directly from Jessica Gephart, which contains the domestic production and consumption of fish meal. We will use this instead of the above so that we can incorporate domestic production and consumption fish meal (e.g., how much fish meal does China produce DOMESTICALLY and consume, or not trade).
-
+I've received another updated version of the database, and we will explore using this 
 
 ```{r}
 artis_ds <- open_dataset(file.path(artis_dir, "ARTIS_1.1.0_FAO_2025_08_02/datasets/ARTIS_consumption_v1.1.0_FAO_mid_2025-08-02.parquet"))
@@ -309,7 +320,7 @@ test <- artis_filtered %>%
 
 sum(test$consumption_live_t) # 5069555
 sum(test$product_weight) # 1703934 - really low - what is happening? Should be ~5 million tonnes product weight for 2020 
-sum(test$live_weight) # 1703934 - really low - what is happening? Should be ~5 million tonnes product weight for 2020 
+sum(test$live_weight)
 
 test <- artis_filtered %>% 
   filter(year == 2020, 
@@ -333,14 +344,16 @@ sum(test2$live_weight_t) # 155710.8
 sum(old_fm$live_weight_t) # 10397265
 sum(old_fm$product_weight_t) # 3494636
 
-## ok this makes me think the new data is tonnes product weight? Which is fine. I think Jessica just applies a basic 2.975207x multiplier for the conversion. 
+## ok this makes me think the new data is tonnes product weight andn ot liveweight? Which is fine. I think Jessica just applies a basic 2.975207x multiplier for the conversion. 
 
 ## lets just save the fishmeal part of this 
 
 full_data_fm <- full_artis_new %>%
   filter(end_use %in% c("fishmeal", "other")) %>% 
-  mutate(live_weight_t = consumption_live_t*2.975207) %>%
-  rename(product_weight_t = consumption_live_t) %>%
+  # mutate(live_weight_t = consumption_live_t*2.975207) %>%
+  # rename(product_weight_t = consumption_live_t) %>%
+  rename(live_weight_t = consumption_live_t) %>% 
+  mutate(product_weight_t = live_weight_t/2.975207) %>%
   dplyr::select(-consumption_source, -consumption_live_t_capped, -consumption_percap_live_kg, -consumption_percap_live_kg_capped)
 
 # old_fm <- qs::qread(file.path(artis_dir, "full_artis_fm_fillet.qs")) %>%
@@ -351,6 +364,20 @@ test <- full_data_fm %>% filter(sciname == "salmo salar")
 qs::qsave(full_data_fm, file.path(artis_dir, "full_artis_fm_2025_08_12.qs"))
 
 full_data_fm_old  <- qs::qread(file.path(artis_dir, "full_artis_fm_2024_09_19.qs")) # the old data had a lot more rows, meaning probably had a bigger diversity of species.... our results will probably change quite a bit. 
+
+full_data_fm <- qs::qread(file.path(artis_dir, "full_artis_fm_2025_08_12.qs")) %>%
+  filter(year == 2019) %>%
+  group_by(source_country_iso3c, sciname, method) %>%
+  summarise(total = sum(product_weight_t, na.rm = TRUE)) %>%
+  ungroup()
+# no whiteleg shrimp, no salmon, no tuna. 
+
+test <- full_data_fm %>%
+  filter(sciname %in% c("katsuwonus pelamis", "salmo salar", "litopenaeus vannamei", "thunnus albacares", "clupea harengus", "cyprinus carpio", "penaeus monodon", "acetes japonicus", "dosidicus gigas", "illex argentinus", "oreochromis niloticus"))
+
+sum(full_data_fm$total) # 1737653, way low
+
+## IFFO suggests that salmon byproducts are ~1.5% of fishmeal, tuna byproducts ~6.24% of fishmeal, tilapia is ~2%, and these are all missing from the new data. Seems like the byproducts are not in the new data, but were in the old? 
 
 ```
 

@@ -40,6 +40,10 @@ countries <- read.csv(here("data/countries.csv")) ## artis countries with info
 fm_data <-   qs::qread(file.path(artis_dir, "artis_exchange/artis_fishmeal_trimmings_traded_consumption_gf_final.qs")) %>%
   left_join(artis_taxa)
 
+
+fm_data_adjusted <-   qs::qread(file.path(artis_dir, "artis_exchange/artis_fishmeal_trimmings_traded_consumption_adjusted_final.qs")) %>%
+  left_join(artis_taxa)
+
 ```
 
 Figure 1: 
@@ -48,7 +52,7 @@ Trends from 1996-2020 split by phylum
 ```{r}
 fm_data_top_spp <- qs::qread( here("outputs/top_species_fm_1996_2020.qs"))
 
-fm_data_top_spp %>% filter(year == 2020) %>% pull(product_weight_t) %>% sum()/fm_data %>% filter(year == 2020) %>% pull(product_weight_t) %>% sum() # 0.8129237; we retain ~81% of fishmeal reported in ARTIS by only keeping top 20 species.
+fm_data_top_spp %>% filter(year == 2020) %>% pull(product_weight_t) %>% sum()/fm_data %>% filter(year == 2020) %>% pull(product_weight_t) %>% sum() # 0.8130926; we retain ~81% of fishmeal reported in ARTIS by only keeping top 20 species.
 
 all_spp_time <- fm_data_top_spp %>%
   group_by(year, fishmeal_type) %>%
@@ -103,12 +107,14 @@ ggplot(overtime_all, aes(x = year, y = product_t, color = fishmeal_type)) +
   geom_line() +
   theme_bw() +
   facet_wrap(~data_type, scales = "free_x") + 
-  labs(x = "Year", y = "Fishmeal product (tonnes)", color = "Fishmeal type") + 
+  labs(x = "Year", y = "Fishmeal product (million tonnes)", color = "Fishmeal type") + 
     scale_color_manual(values = c("trimmings" = "#741A32", "wholefish" = "#114F59"), 
                      labels = c("Trimmings-derived", "Whole fish-derived")) + 
   scale_x_continuous(limits = c(1994.5, 2021.5), breaks = c(1996, 2002, 2008, 2014, 2020), 
                      labels = c(1996, 2002, 2008, 2014, 2020)) +
   theme(legend.position = "bottom") +
+  scale_y_continuous(labels = function(x) x/1e6,
+                   name = "Fishmeal product (million tonnes)") + 
     geom_text(data = filter(overtime_all, year == 2020, fishmeal_type == "trimmings", data_type != "Cephalopoda"),
             aes(x = year, y = product_t, label = perc),
             vjust = 0, hjust = -0.1, show.legend = FALSE, size = 3) +
@@ -133,9 +139,6 @@ ggplot(overtime_all, aes(x = year, y = product_t, color = fishmeal_type)) +
       geom_text(data = filter(overtime_all, year == 1996, fishmeal_type == "trimmings", data_type == "Cephalopoda"),
             aes(x = year, y = product_t, label = perc),
             vjust = -0.6, hjust = 0.8, show.legend = FALSE, size = 3) 
-      # geom_text(data = filter(overtime_all, year == 2020, fishmeal_type == "wholefish", data_type == "Cephalopoda"),
-      #       aes(x = year, y = product_t, label = perc),
-      #       vjust = 0.5, hjust = 0.5, show.legend = FALSE, size = 3) 
 
  
 ggsave(here("outputs/figs/MS/Figure_1_time.png"), width = 180, height =180 , units = "mm", bg = "white", dpi =300)
@@ -155,7 +158,14 @@ test_ceph <- fm_data_top_spp %>%
 
 ```{r}
 top_species_by_country_2019 <- qs::qread(here("outputs/top_species_fm_2015_2019.qs"))
-  
+
+test <- top_species_by_country_2019 %>%
+  filter(sciname == "litopenaeus vannamei") %>%
+  #filter(str_detect(common_name, "shrimp")) %>%
+  group_by(source_country_iso3c) %>%
+  summarise(pw = sum(product_weight_t, na.rm = TRUE)) %>%
+  ungroup()
+   
   sum(top_species_by_country_2019$product_weight_t) # 5071250; ok cool. Seems reasonable. FAO reports ~5.1 million tonnes for 2019 (figure 68 in FAO SOFIA, hard to tell the exact number)
 
    # Create a simplified trade flow visualization
@@ -198,7 +208,7 @@ top_species_by_country_2019 <- qs::qread(here("outputs/top_species_fm_2015_2019.
   
   for(i in 1:length(cols)){
     # Identify nodes in the column falling below the threshold
-    # i = 1 
+    # i = 1
     node_i <- links %>%
       rename(col_i = paste("col_", i, sep = "")) %>%
       group_by(col_i) %>%
@@ -208,9 +218,12 @@ top_species_by_country_2019 <- qs::qread(here("outputs/top_species_fm_2015_2019.
       mutate(prop = total_q / total) %>%
       # label those below threshold as "Other" - otherwise keep name
       mutate(name_new = case_when(
-        prop <= 0.03397748 ~ "Other", # this is the cutoff for including Chile on the left hand side
+        prop < 0.0338667498004 ~ "Other", # this is the cutoff for including Chile on the left hand side
         TRUE ~ col_i
       ))
+      # mutate(name_new = ifelse(i == 1 & col_i %in% c("VNM", "PER", "IDN", "CHN", "CHL"), col_i, "Other")) %>%
+      # mutate(name_new = ifelse(i == 3 & col_i %in% c("VNM", "NOR", "IDN", "CHN", "JPN"), col_i, "Other"))
+
     
     # Create vector of nodes
     node_names_i <- node_i$name_new
@@ -246,12 +259,6 @@ top_species_by_country_2019 <- qs::qread(here("outputs/top_species_fm_2015_2019.
     # Filtering data based on prop flow cutoff - use show.other value 
     filter_at(vars(cols), all_vars(. %in% node_names)) %>%
     ungroup() %>% 
-    # rename("Phylum" = "col_1", 
-    #        "Fishmeal type" = "col_2",
-    #        "Consuming countries" = "col_3") %>%
-        # rename( 
-        #    "Fishmeal type" = "col_1",
-        #    "Consuming countries" = "col_2")
     rename("Producing countries" = "col_1",
            "Fishmeal type" = "col_2",
            "Consuming countries" = "col_3") %>%
@@ -289,14 +296,14 @@ plot_a <- sankey_df %>%
                label = node
                )) +
     geom_sankey(flow.alpha = 0.6) +
-    geom_sankey_label(size = 3, color = "black", fill = "gray") +
+    geom_sankey_label(size = 5, color = "black", fill = "gray") +
     theme_sankey(base_size = 10) +
     scale_fill_manual(values = artis_palette(num_nodes)) + 
     labs(x = NULL, title = "", 
          subtitle = "A") +
     theme(
       legend.position = "none",
-      axis.text.x = element_text(color = "black", size = 10),
+      axis.text.x = element_text(color = "black", size = 14),
            plot.subtitle=element_text(size=14, hjust = 0.1,  color="black", face = "bold"), 
     )  + 
     scale_x_discrete(position = "bottom") 
@@ -308,6 +315,470 @@ ggsave(plot = plot_a, filename = here("outputs/figs/MS/figure_2a.png"),
        bg = "white", 
        dpi = 300)
 
+## NEW 
+
+# Save the fishmeal production map as plot D
+plot_d1 <- plot_map(top_species_by_country_2019 %>% filter(fishmeal_type == "wholefish"), 
+                   country_fill = "source_country_iso3c", 
+                   fill_label = "Production (million t)", 
+                   value = "product_weight_t"
+                  )  
+
+plot_d2 <- plot_map(trade_flows_2 %>% filter(fishmeal_type == "wholefish"),
+           flow_arrows = TRUE,
+           arrow_label = "Exports (million t)",
+           value = "product_weight_t",
+           n_flows = 5)
+
+arrow_layer <- plot_d2$layer[[2]]
+
+arrow_scale <- plot_d2$scales$scales[[
+  which(sapply(plot_d2$scales$scales, function(x) "colour" %in% x$aesthetics))
+]]
+
+plot_d <- plot_d1 + 
+  arrow_layer + 
+  arrow_scale + 
+  labs(subtitle = "B",
+       color = "Exports (million t)",
+       fill = "Production (million t)") +
+  theme(
+      panel.border = element_blank(),    # Remove the border
+      panel.background = element_blank(), # Remove the panel background
+      plot.background = element_blank(),  # Remove the plot background
+      axis.line = element_blank(),        # Remove axis lines
+      panel.grid = element_blank(),       # Remove grid lines
+      rect = element_blank(), 
+    plot.subtitle=element_text(size=14, hjust = 0.1,  color="black", face = "bold"), 
+     # plot.caption=element_text(size=12, color="black"),   # Remove any rectangular elements
+    legend.position = "bottom",
+    legend.box = "horizontal",
+    legend.direction = "horizontal",
+    legend.justification = "center",
+    legend.spacing.x = unit(1, "cm"),
+        legend.text = element_text(size = 10),   #  legend labels
+    legend.title = element_text(size = 14)   # legend titles
+    ) +
+  guides(
+    colour = guide_colorbar(
+      order = 1,
+      barwidth = 8,
+      barheight = 0.3,
+      title.position = "top",
+      title.hjust = 0,
+      label.position = "bottom",
+      ticks.linewidth = 0.5,
+      frame.linewidth = 0.5,
+      direction = "horizontal"
+    ),
+    fill = guide_colorbar(
+      order = 2,
+      barwidth = 8,
+      barheight = 0.3,
+      title.position = "top",
+      title.hjust = 0,
+      label.position = "bottom",
+      ticks.linewidth = 0.5,
+      frame.linewidth = 0.5,
+      direction = "horizontal"
+    )
+  ) +
+    annotate(
+    "text", 
+    x = Inf, y = Inf,                # top-right corner of map
+    label = "Whole fish fishmeal",
+    hjust = 1.2 , vjust = 1,        # tweak offsets so it doesn't clip
+    size = 5, color = "black"
+  )
+
+ggsave(plot = plot_d, filename = here("outputs/figs/MS/figure_2b_new.png"), 
+       width = 180, 
+       height = 200,  # Increased height to accommodate all plots
+       units = "mm", 
+       bg = "white", 
+       dpi = 300)
+
+# Save the fishmeal production map as plot E
+plot_e1 <- plot_map(top_species_by_country_2019 %>% filter(fishmeal_type == "trimmings"), 
+                   country_fill = "source_country_iso3c", 
+                   fill_label = "Production (million t)", 
+                   value = "product_weight_t" 
+                  ) 
+
+plot_e2 <- plot_map(trade_flows_2 %>% filter(fishmeal_type == "trimmings"),
+           flow_arrows = TRUE,
+           arrow_label = "Exports (million t)",
+           value = "product_weight_t",
+           n_flows = 5)
+
+arrow_layer <- plot_e2$layer[[2]]
+
+arrow_scale <- plot_e2$scales$scales[[
+  which(sapply(plot_e2$scales$scales, function(x) "colour" %in% x$aesthetics))
+]]
+
+plot_e <- plot_e1 + 
+  arrow_layer + 
+  arrow_scale + 
+  labs(subtitle = "C",
+       color = "Exports (million t)", 
+       fill = "Production (million t)") + 
+    theme(
+      panel.border = element_blank(),    # Remove the border
+      panel.background = element_blank(), # Remove the panel background
+      plot.background = element_blank(),  # Remove the plot background
+      axis.line = element_blank(),        # Remove axis lines
+      panel.grid = element_blank(),       # Remove grid lines
+      rect = element_blank(), 
+      plot.subtitle=element_text(size=14, hjust = 0.1,  color="black", face = "bold"), 
+      # plot.caption=element_text(size=12, color="black"),   # Remove any rectangular elements
+      legend.position = "bottom",
+    legend.box = "horizontal",
+    legend.direction = "horizontal",
+        legend.justification = "center",
+    legend.spacing.x = unit(1, "cm"),
+            legend.text = element_text(size = 10),   #  legend labels
+    legend.title = element_text(size = 14)   # legend titles
+    ) +
+  guides(
+    colour = guide_colorbar(
+      order = 1,
+      barwidth = 8,
+      barheight = 0.3,
+      title.position = "top",
+      title.hjust = 0,
+      label.position = "bottom",
+      ticks.linewidth = 0.5,
+      frame.linewidth = 0.5,
+      direction = "horizontal"
+    ),
+    fill = guide_colorbar(
+      order = 2,
+      barwidth = 8,
+      barheight = 0.3,
+      title.position = "top",
+      title.hjust = 0,
+      label.position = "bottom",
+      ticks.linewidth = 0.5,
+      frame.linewidth = 0.5,
+      direction = "horizontal"
+    )
+  ) +
+    annotate(
+    "text", 
+    x = Inf, y = Inf,                # top-right corner of map
+    label = "Trimmings fishmeal",
+    hjust = 1.2 , vjust = 1,        # tweak offsets so it doesn't clip
+    size = 5, color = "black"
+  )
+
+   ggsave(plot = plot_e, filename = here("outputs/figs/MS/figure_2c_new.png"), 
+       width = 180, 
+       height = 200,  # Increased height to accommodate all plots
+       units = "mm", 
+       bg = "white", 
+       dpi = 300)
+
+tight <- theme(
+  plot.margin       = margin(0, 0, 0, 0),
+  panel.spacing     = unit(0, "pt"),
+  legend.box.margin = margin(0, 0, 0, 0)
+)
+
+plot_a_t  <- plot_a + tight + theme(plot.margin = margin(0, 5, -8, 5))  # pull DOWN
+plot_d_t  <- plot_d + tight + theme(plot.margin = margin(-8, 5,  0, 5)) # pull UP
+plot_e_t  <- plot_e + tight + theme(plot.margin = margin(-8, 5,  0, 5)) # pull UP
+
+combined_plot <-
+  (plot_a_t) /
+  (plot_d_t | plot_e_t) +
+  plot_layout(heights = c(0.35, 0.65), guides = "keep") +
+  plot_annotation(theme = theme(plot.margin = margin(0, 0, 0, 0)))
+
+ggsave(
+  here("outputs/figs/MS/figure_2_combined_NEW.png"),
+  combined_plot,
+  width = 320, height = 300, units = "mm", bg = "white", dpi = 300
+)
+
+```
+
+
+There is a weird white space between the sankey and maps, so we will use python to remove those: 
+
+```{r}
+library(reticulate)
+# Add needed packages to the ephemeral env *before* Python initializes
+py_require("pillow", action = "add")
+py_require("numpy",  action = "add")
+py_config()  # just to confirm it works
+
+# Inputs (edit these)
+img_path <- "outputs/figs/MS/figure_2_combined_NEW.png"
+gap_px   <- 100L   # <-- change this to taste (e.g., 25, 40, 60)
+
+# Expose to the python chunk
+py$img_path <- img_path
+py$gap_px   <- gap_px
+```
+
+
+```{python}
+# Collapse the big white band between panels, preserving a fixed gap
+from PIL import Image
+import numpy as np
+import os
+
+img_path = r.img_path
+gap      = int(r.gap_px)
+
+im = Image.open(img_path).convert("RGB")
+arr = np.array(im)
+h, w, _ = arr.shape
+
+# rows that are nearly white across the row
+white_mask = (arr > 250).all(axis=2)
+row_white_frac = white_mask.mean(axis=1)
+near_blank = row_white_frac > 0.995
+
+# find contiguous near-blank segments
+segments = []
+in_seg = False
+start = 0
+for i, v in enumerate(near_blank):
+    if v and not in_seg:
+        in_seg = True; start = i
+    elif not v and in_seg:
+        in_seg = False; segments.append((start, i-1))
+if in_seg:
+    segments.append((start, len(near_blank)-1))
+
+# pick the *internal* largest band (i.e., between panels)
+internal = [(s,e) for (s,e) in segments if s > 50 and e < h-50]
+target = max(internal or segments, key=lambda t: t[1]-t[0])
+s, e = target
+
+# keep a small uniform gap
+keep_top    = gap // 2
+keep_bottom = gap - keep_top
+
+top_part    = arr[:s+keep_top, :, :]
+bottom_part = arr[e+1-keep_bottom:, :, :]
+new_arr     = np.vstack([top_part, bottom_part])
+
+out_dir  = os.path.dirname(img_path)
+base    = os.path.splitext(os.path.basename(img_path))[0]
+out_path = os.path.join(out_dir, f"{base}_gap{gap}.png")
+
+Image.fromarray(new_arr).save(out_path)
+
+# hand the output path back to R
+r.out_path = out_path
+```
+
+```{r}
+cat("Saved:", out_path, "\n")
+knitr::include_graphics(out_path)
+```
+
+
+Figure 3. Species level bar chart 
+
+```{r}
+trade_flows_barchart <- top_species_by_country_2019 %>%
+    group_by(common_name, fishmeal_type) %>%
+    summarise(
+      product_weight_t = sum(product_weight_t, na.rm = TRUE),
+            live_weight_t = sum(live_weight_t, na.rm = TRUE)
+
+    ) %>%
+    arrange(desc(product_weight_t)) %>%
+    filter(product_weight_t > 0) %>%
+  mutate(common_name = 
+           case_when( 
+             common_name == "anchoveta(=peruvian anchovy)" ~ "peruvian anchoveta",
+             common_name == "european pilchard(=sardine)" ~ "european pilchard",
+             common_name == "blue whiting(=poutassou)" ~ "blue whiting",
+             TRUE ~ common_name
+           )) %>%
+  mutate(common_name = str_to_sentence(common_name)) %>%
+  mutate(fill_name = ifelse(fishmeal_type == "wholefish", "Whole fish-derived", "Trimmings-derived"))
+    
+
+plot_data <- trade_flows_barchart %>%
+  group_by(common_name, fill_name) %>%
+  summarise(total_product = sum(product_weight_t, na.rm = TRUE), .groups = "drop") %>%
+  ungroup() %>%
+  group_by(common_name) %>%
+  mutate(species_total = sum(total_product)) %>%  # total across fishmeal types
+  ungroup() %>%
+  arrange(desc(species_total)) %>%
+  slice_head(n = 30) %>% # keep rows for top 20 species
+  mutate(common_name = reorder(common_name, species_total))
+
+# Plot
+ggplot(plot_data, aes(x = total_product, y = common_name, fill = fill_name)) +
+  geom_col() +
+  labs(
+    x = "Fishmeal production (t, product weight)",
+    y = "",
+    fill = ""
+  ) +
+  theme_minimal() +
+    scale_fill_manual(
+    values = c(
+      "Whole fish-derived"   = "#254E58",
+      "Trimmings-derived"    = "#6A2233"
+    )
+  ) +
+    scale_x_continuous(expand = c(0, 0)) +   # removes space at y-axis
+  theme(
+    axis.text.y = element_text(size = 10, color = "black"),
+      axis.text.x = element_text(size = 10, color = "black"),
+    # legend.position = "bottom"
+    legend.position = c(0.8, 0.2),   # move legend inside plot
+    legend.background = element_rect(fill = alpha("white", 0.6), colour = NA), # semi-transparent background
+    legend.text  = element_text(size = 10, color = "black")
+  )
+
+
+
+ggsave(here("outputs/figs/MS/figure_3.png"),width = 250, height =100.92 , units = "mm", bg = "white")
+
+```
+
+
+From JG: 
+"A potentially interesting figure (maybe for SI) could be the share of FM consumed that is foreign sourced (or domestic since that is just 1-share forieign) vs aquaculture production and then labeling countries to see where they fall out."
+
+
+```{r}
+fm_share <- top_species_by_country_2019 %>%
+  mutate(
+    is_import = importer_iso3c != source_country_iso3c
+  ) %>%
+  group_by(importer_iso3c) %>%
+  summarise(
+    total_consumed = sum(product_weight_t, na.rm = TRUE),
+    imported = sum(product_weight_t[is_import], na.rm = TRUE),
+    domestic = sum(product_weight_t[!is_import], na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    prop_imported = imported / total_consumed,
+    prop_domestic = domestic / total_consumed
+  )
+
+
+# aquaculture production data from FAO
+aqua_country <- read.csv("/mnt/rdsi/raw_data/fao/FAO_fishstat_2020/aquaculture_production_2024/CL_FI_COUNTRY_GROUPS.csv") %>%
+  clean_names() %>%
+  dplyr::select(country_un_code = un_code, iso3c = iso3_code)
+
+aqua_spp <- read.csv("/mnt/rdsi/raw_data/fao/FAO_fishstat_2020/aquaculture_production_2024/CL_FI_SPECIES_GROUPS.csv") %>%
+  clean_names() %>%
+  dplyr::select(x3a_code, common_name = name_en, isscaap_group_en, major_group, scientific_name)
+
+aqua_prod <- read.csv("/mnt/rdsi/raw_data/fao/FAO_fishstat_2020/aquaculture_production_2024/Aquaculture_Quantity.csv") %>%
+  clean_names() %>%
+  left_join(aqua_country) %>%
+  filter(iso3c != "") %>%
+  left_join(aqua_spp, by = c("species_alpha_3_code" = "x3a_code")) %>%
+  dplyr::select(iso3c, year = period, common_name, scientific_name, isscaap_group_en, major_group, tonnes_lw = value)
+
+
+all_aquaculture_fed <- aqua_prod %>%
+  filter(year %in% c(2015:2019)) %>%
+  filter(!(isscaap_group_en %in% c("Brown seaweeds", "Red seaweeds", "Green seaweeds", "Miscellaneous aquatic plants", "Freshwater molluscs", "Abalones, winkles, conchs", "Oysters", "Mussels", "Scallops, pectens",                "Clams, cockles, arkshells", "Miscellaneous marine molluscs", "Sea-urchins and other echinoderms", "Miscellaneous aquatic invertebrates", "Pearls, mother-of-pearl, shells"))) %>% # filter out any algae/seaweeds
+   filter(!str_detect(common_name, "carp")) %>% # filter out carps, seaweeds, and bivalve molluscs
+      group_by(iso3c, year) %>%
+    summarise(
+            live_weight_t = sum(tonnes_lw, na.rm = TRUE)
+
+    ) %>%
+    ungroup() %>%
+  filter(live_weight_t > 0)
+
+iso3c_aqua_fed <- all_aquaculture_fed %>%
+  group_by(iso3c) %>%
+  summarise(live_weight_t_farmed = mean(live_weight_t, na.rm = TRUE)) %>%
+  ungroup()
+
+
+fm_aqua_share <- fm_share %>%
+  left_join(iso3c_aqua_fed, by = c("importer_iso3c" = "iso3c"))
+
+
+
+# packages
+library(tidyverse)
+library(ggrepel)
+library(scales)
+
+# add continent variable
+fm_plot_df <- fm_aqua_share %>%
+  transmute(
+    iso3c = importer_iso3c,
+    aquaculture_t = live_weight_t_farmed,
+    foreign_share = prop_imported,
+    continent = countrycode(importer_iso3c, origin = "iso3c", destination = "continent")
+  ) %>%
+  filter(!is.na(aquaculture_t), !is.na(foreign_share))
+
+# label largest producers
+to_label <- fm_plot_df %>%
+  slice_max(aquaculture_t, n = 10) %>%
+  distinct(iso3c, .keep_all = TRUE)
+
+# plot with continent colors
+p <- ggplot(fm_plot_df, aes(x = aquaculture_t, y = foreign_share, color = continent)) +
+  geom_point(alpha = 0.7, size = 2) +
+  geom_hline(yintercept = 0.5, linetype = 2, linewidth = 0.3) +
+  geom_text_repel(
+    data = to_label,
+    aes(label = iso3c),
+    size = 3,
+    max.overlaps = Inf,
+    box.padding = 0.3,
+    point.padding = 0.2,
+    min.segment.length = 0,
+    show.legend = FALSE
+  ) +
+  scale_x_log10(
+    labels = label_number(scale_cut = cut_si("t")),
+    breaks = 10^(0:8)
+  ) +
+  scale_y_continuous(
+    limits = c(0, 1),
+    breaks = seq(0, 1, 0.1),
+    labels = label_percent(accuracy = 1)
+  ) +
+  labs(
+    x = "Aquaculture production (live weight, tonnes, log scale)",
+    y = "Foreign share of fishmeal consumed",
+    color = "Continent",
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(panel.grid.minor = element_blank())
+
+p
+
+ggsave(p, filename = here("outputs/figs/SI/figure_s1.png"), 
+       width = 300, 
+       height = 200,  # Increased height to accommodate all plots
+       units = "mm", 
+       bg = "white", 
+       dpi = 300)
+
+test <- top_species_by_country_2019 %>%
+  filter(importer_iso3c == "CHL") # interesting. they import a lot of fishmeal?? From peru. Makes sense
+
+sum(test$product_weight_t) # 3432.691
+```
+
+ARCHIVE: 
+
+```{r}
 # Save the whole fish map as plot B
 trade_flows_2 <- filter(top_species_by_country_2019, exporter_iso3c != importer_iso3c)
 
@@ -556,63 +1027,5 @@ ggsave(plot = plot_e, filename = here("outputs/figs/MS/figure_2e.png"),
        units = "mm", 
        bg = "white", 
        dpi = 300)
-
-# Combine plots using patchwork
-# Then combine them with patchwork
-combined_plot <- plot_a / (plot_b + plot_c) / (plot_d + plot_e) +
-  # Adjust layout to give more space to maps
-  plot_layout(
-    heights = c(0.5, 1, 1),  # Heights for Sankey, middle maps, and bottom maps
-    widths = c(1, 1)        # Equal widths for the maps
-  ) &
-  # Ensure consistent theme across all plots
-  theme(
-    plot.margin = margin(5, 5, 5, 5),
-    plot.subtitle = element_text(size = 10, hjust = 0.1, color = "black")
-  )
-# Save the combined plot
-ggsave(here("outputs/figs/MS/figure_2_combined.png"), 
-       combined_plot,
-       width = 320,      # Maximum width for good map visibility
-       height = 300,     # Increased height for better map detail
-       units = "mm", 
-       bg = "white", 
-       dpi = 300)
-  
-    
-    
-```
-
-Figure 3. Species level bar chart 
-
-```{r}
-trade_flows_barchart <- top_species_by_country_2019 %>%
-    group_by(common_name, fishmeal_type) %>%
-    summarise(
-      product_weight_t = sum(product_weight_t, na.rm = TRUE),
-            live_weight_t = sum(live_weight_t, na.rm = TRUE)
-
-    ) %>%
-    arrange(desc(product_weight_t)) %>%
-    filter(product_weight_t > 0) %>%
-  mutate(common_name = 
-           case_when( 
-             common_name == "anchoveta(=peruvian anchovy)" ~ "peruvian anchoveta",
-             common_name == "european pilchard(=sardine)" ~ "european pilchard",
-             common_name == "blue whiting(=poutassou)" ~ "blue whiting",
-             TRUE ~ common_name
-           )) %>%
-  mutate(common_name = str_to_sentence(common_name)) %>%
-  mutate(fill_name = ifelse(fishmeal_type == "wholefish", "Whole fish-derived", "Trimmings-derived"))
-    
-    
-plot_bar(trade_flows_barchart,
-        bar_group = "common_name",
-        fill_type = "fill_name", 
-        value = "product_weight_t", 
-        top_n = 20)
-
-ggsave(here("outputs/figs/MS/figure_3.png"),width = 250, height =100.92 , units = "mm", bg = "white")
-
 ```
 

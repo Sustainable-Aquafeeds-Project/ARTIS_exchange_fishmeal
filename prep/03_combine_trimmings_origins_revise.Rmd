@@ -246,7 +246,7 @@ setdiff(colnames(chiu_int), colnames(havfisk_int))
 artis_comm <- artis_genus_df %>%
   distinct(sciname, common_name)
 
-shea_int <- read.csv(here("int/material_origins_shea_2025.csv")) %>%
+shea_int <- read.csv(here("int/material_origins_shea_2025_v0.1.csv")) %>%
       mutate(trimmings_tonnes = NA, wholefish_tonnes = NA) %>%
   dplyr::select(-aquaculture, -common_name) %>%
   left_join(., artis_comm) # ok now we need to fix the scinames that have missing common names....
