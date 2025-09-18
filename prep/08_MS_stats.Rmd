@@ -77,7 +77,7 @@ finfish_fm <- fm_data_1996_2020 %>%
   summarise(sum(product_weight_t)) %>%
   ungroup()
 
-3143617.4 - 2150621.3 # 992996.1 - lost about 1 million tonnes of whole fish finfish fm
+3143617.4 - 2150621.3 # 992996.1 - lost about 1 million tonnes of whole fish finfish fm from 1996 to 2020
 
 ```
 
@@ -263,6 +263,8 @@ fm_data_2019 %>% filter(importer_iso3c == "CHN") %>%
 
 ```
 
+See how consumption and importing of fishmeal lines up with fed aquaculture production
+
 ```{r}
 
 fm_share <- fm_data_2019 %>%
@@ -332,8 +334,7 @@ country_trim <- trade_flows_imports %>%
 ```
 
 
- - look at EU as a whole for trimmings production
- 
+ - look at EU as a whole for trimmings production and see if it imports more than the global share
 
 ```{r}
 eu_countries <- data.frame(

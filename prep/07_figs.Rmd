@@ -1,5 +1,5 @@
 ---
-title: "Explore scenario analysis"
+title: "Manuscript figures"
 output: html_document
 date: "2024-11-25"
 editor_options: 
@@ -145,15 +145,6 @@ ggplot(overtime_all, aes(x = year, y = product_t, color = fishmeal_type)) +
  
 ggsave(here("outputs/figs/MS/Figure_1_time.png"), width = 180, height =180 , units = "mm", bg = "white", dpi =300)
 
-
-## ok what are the cephalopda that are considered whole fish? 
-
-test_ceph <- fm_data_top_spp %>%
-  filter(year == 2020, 
-         phylum == "mollusca",
-         fishmeal_type == "wholefish",
-         product_weight_t > 0)
-
 ```
 
 ## Figure 2. Production and trade flows
@@ -161,13 +152,6 @@ test_ceph <- fm_data_top_spp %>%
 ```{r}
 top_species_by_country_2019 <- qs::qread(here("outputs/top_species_fm_2015_2019.qs"))
 
-test <- top_species_by_country_2019 %>%
-  filter(sciname == "litopenaeus vannamei") %>%
-  #filter(str_detect(common_name, "shrimp")) %>%
-  group_by(source_country_iso3c) %>%
-  summarise(pw = sum(product_weight_t, na.rm = TRUE)) %>%
-  ungroup()
-   
   sum(top_species_by_country_2019$product_weight_t) # 5071250; ok cool. Seems reasonable. FAO reports ~5.1 million tonnes for 2019 (figure 68 in FAO SOFIA, hard to tell the exact number)
 
    # Create a simplified trade flow visualization
@@ -223,9 +207,6 @@ test <- top_species_by_country_2019 %>%
         prop < 0.0338667498004 ~ "Other", # this is the cutoff for including Chile on the left hand side
         TRUE ~ col_i
       ))
-      # mutate(name_new = ifelse(i == 1 & col_i %in% c("VNM", "PER", "IDN", "CHN", "CHL"), col_i, "Other")) %>%
-      # mutate(name_new = ifelse(i == 3 & col_i %in% c("VNM", "NOR", "IDN", "CHN", "JPN"), col_i, "Other"))
-
     
     # Create vector of nodes
     node_names_i <- node_i$name_new
@@ -276,11 +257,7 @@ test <- top_species_by_country_2019 %>%
   
   sankey_df <- sankey_df %>%
     # Transforming into ggsankey format (x, node, next_x, next_node)
-     # ggsankey::make_long(c("Phylum", "Fishmeal type", "Consuming countries"), value = total_q) 
-       #  ggsankey::make_long(c("Fishmeal type", "Consuming countries"), value = total_q) 
             ggsankey::make_long(c("Producing countries", "Fishmeal type", "Consuming countries"), value = total_q) 
-
-
 
   
   num_nodes <- length(unique(c(sankey_df$node,sankey_df$next_node)))
@@ -317,7 +294,6 @@ ggsave(plot = plot_a, filename = here("outputs/figs/MS/figure_2a.png"),
        bg = "white", 
        dpi = 300)
 
-## NEW 
 
 # Save the fishmeal production map as plot D
 plot_d1 <- plot_map(top_species_by_country_2019 %>% filter(fishmeal_type == "wholefish"), 
@@ -505,7 +481,6 @@ ggsave(
 
 ```
 
-
 There is a weird white space between the sankey and maps, so we will use python to remove those: 
 
 ```{r}
@@ -637,13 +612,10 @@ ggplot(plot_data, aes(x = total_product, y = common_name, fill = fill_name)) +
   theme(
     axis.text.y = element_text(size = 10, color = "black"),
       axis.text.x = element_text(size = 10, color = "black"),
-    # legend.position = "bottom"
     legend.position = c(0.8, 0.2),   # move legend inside plot
     legend.background = element_rect(fill = alpha("white", 0.6), colour = NA), # semi-transparent background
     legend.text  = element_text(size = 10, color = "black")
   )
-
-
 
 ggsave(here("outputs/figs/MS/figure_3.png"),width = 250, height =100.92 , units = "mm", bg = "white")
 
@@ -652,7 +624,6 @@ ggsave(here("outputs/figs/MS/figure_3.png"),width = 250, height =100.92 , units 
 
 From JG: 
 "A potentially interesting figure (maybe for SI) could be the share of FM consumed that is foreign sourced (or domestic since that is just 1-share forieign) vs aquaculture production and then labeling countries to see where they fall out."
-
 
 ```{r}
 fm_share <- top_species_by_country_2019 %>%
@@ -709,7 +680,6 @@ iso3c_aqua_fed <- all_aquaculture_fed %>%
 
 fm_aqua_share <- fm_share %>%
   left_join(iso3c_aqua_fed, by = c("importer_iso3c" = "iso3c"))
-
 
 
 # packages

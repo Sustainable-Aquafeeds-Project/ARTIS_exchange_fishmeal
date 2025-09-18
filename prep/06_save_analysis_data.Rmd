@@ -73,7 +73,7 @@ test <- fm_data_adjusted %>%
 
 ```
 
-Save a file for top 20 contributing species per country for average years 2009-2013 (to match IFFO newton & jackson) and 2015-2019 (for latest years, excluding covid)
+Save a file for top 20 contributing species per country for average years 2009-2013 (to match IFFO newton & jackson) and 2015-2019 (for latest years, excluding covid). Also save one for each year 1996-2020. 
 
 ```{r}
 
