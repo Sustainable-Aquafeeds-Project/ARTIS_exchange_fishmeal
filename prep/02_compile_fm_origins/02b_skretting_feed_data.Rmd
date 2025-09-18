@@ -37,7 +37,6 @@ For example:
  - So we can say that 23*0.39 = 8.97% of total fishmeal ingredients used by skretting come from skipjack tuna trimmings sourced from Ecuador or Spain. 
  - Then we can do the same thing for fish oil
  
- 
 From there, skretting reports that on average, 12.6% of feeds used by their producers are fishmeal and 5.7% are fish oil. We can weight the proportions based off of these as well: 12.6+5.7 = 18.3 ==> 0.6885246 is the fm weight and 0.3114754 is the fish oil weight
 
 ## Methods

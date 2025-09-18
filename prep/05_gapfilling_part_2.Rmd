@@ -8,6 +8,8 @@ editor_options:
 
 ## Summary
 
+This script also gapfills data from the last script. We split it into two parts, because it was getting a bit unweildy and we use more sophisticated methods for this (e.g., the ex vessel price data)
+
 ## Setup
 
 ```{r setup, include=FALSE}

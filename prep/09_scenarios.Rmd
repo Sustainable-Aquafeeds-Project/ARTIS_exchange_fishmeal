@@ -8,6 +8,8 @@ editor_options:
 
 ## Summary
 
+Here we run high level scenarios of unused trimmings and how much fishmeal could be made, and scenarios of potential to stop using whole fish reduction altogether. 
+
 ## Setup
 
 ```{r setup, include=FALSE}

@@ -8,6 +8,8 @@ editor_options:
 
 ## Summary
 
+Here we save data that will be used for the anaylsis. Specifically, we filter for the top twenty species in each country used for fishmeal, in line with other sources (Newton and Jackson 2016) to account for uncertainty. We also prep data for average time periods between 2009-2013 and 2015-2019. 
+
 ## Setup
 
 ```{r setup, include=FALSE}

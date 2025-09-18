@@ -8,6 +8,8 @@ editor_options:
 
 ## Summary
 
+Here we read in the data saved in the previous script, match it to the ARTIS database by species and origin country (and sometimes also by exporter country), and then gapfill any remaining rows that do not have information on fishmeal type. 
+
 ## Setup
 
 ```{r setup, include=FALSE}
@@ -224,7 +226,6 @@ tonnes_lit <- artis_trimmings_all_info %>%
 tonnes_lit/fm_artis %>% filter(year == 2020) %>% pull(product_weight_t) %>% sum() # 0.3564168 ~ 36% matching. How does that compare to before? Before was 40%, because we used the average from both the literature and reports. Should we try that now for some gapfilling? 
 
 
-
 tonnes_lit <- artis_trimmings_info_sources %>% 
   filter(year == 2020) %>%
   pull(product_weight_t) %>%
@@ -232,7 +233,7 @@ tonnes_lit <- artis_trimmings_info_sources %>%
 
 tonnes_lit/fm_artis %>% filter(year == 2020) %>% pull(product_weight_t) %>% sum() # 0.2512893 ~ 25% matching.
 
-qs::qsave(artis_trimmings_all_info, here("int/non_gapfilled_fishmeal_matched.qs"))
+qs::qsave(artis_trimmings_all_info, here("int/non_gapfilled_fishmeal_matched.qs")) # save this for SI
 
 ``` 
 

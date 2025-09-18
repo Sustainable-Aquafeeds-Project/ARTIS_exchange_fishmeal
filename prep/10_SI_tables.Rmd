@@ -8,6 +8,8 @@ editor_options:
 
 ## Summary
 
+Create tables that we will provide in the supplementary material of the manuscript.
+
 ## Setup
 
 ```{r setup, include=FALSE}

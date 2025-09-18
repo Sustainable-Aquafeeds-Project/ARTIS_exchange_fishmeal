@@ -8,6 +8,8 @@ editor_options:
 
 ## Summary
 
+Here we created figures that are used in the main manuscript. 
+
 ## Setup
 
 ```{r setup, include=FALSE}

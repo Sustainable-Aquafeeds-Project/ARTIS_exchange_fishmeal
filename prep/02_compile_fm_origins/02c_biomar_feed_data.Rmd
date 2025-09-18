@@ -21,11 +21,6 @@ Create a dataset which describes for every country and FAO fishing area the spec
   - Fill in columns for render (i.e., is this used for render FM), trimmings (i.e., is this used for trimmings FM), capture (i.e., does this FM come from capture production), and then datasource info (from biomar, skrettying, etc.)
     - sciname = Clupea harengus, common_name = Atlantic herring, render = yes, trimmings = yes, capture = yes, datasource_feed = biomar, datasource_fao_area_country = FishStat capture, feed_report_spp_name = Atlantic Herring
     
-    
-When there are countries and species which are in multiple reports (e.g., Atlantic herring exists for Denmark for Cargill, Skretting, and BioMar, but they report different trimmings proportions, we will weight by the total trimmings weight the company reports).
-
-
-**NOTE:** Consider filtering the ARTIS database for country origins rather than the FAO capture database? It should be the same, right? And this would avoid weird name mismatches. Although ARTIS doesn't include FAO fishing areas...
 
 ## Setup
 

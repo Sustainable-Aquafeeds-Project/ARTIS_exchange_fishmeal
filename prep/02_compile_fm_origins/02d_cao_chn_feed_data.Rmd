@@ -31,8 +31,6 @@ Take data from Cao et al. 2015 regarding species used for fish meal in China. Th
 
 **Reference**: Cao, L. et al. China’s aquaculture and the world’s wild fisheries. Science 347, 133–135 (2015). https://www.science.org/doi/10.1126/science.1260149
 
-**Reference**: Monterey Bay Aquarium Seafood Watch.  https://www.seafoodwatch.org/globalassets/sfw-data-blocks/reports/T/MBA_SeafoodWatch_TilapiaChinaReport.pdf
-
 
 ```{r}
 
@@ -74,7 +72,7 @@ trash_species_chn <- read.csv(here("data/cao_2015_trash_fish_species.csv")) %>%
   mutate(trash_fish = "yes")
 
 
- ## add rows for tilapia in China; Cao suggests any fish meal from tilapia is trimmings; SFW says that Nile and Blue Tilapia are the most common in China farming, however, we will just filter the artis taxa list for any tilapia species and include those. 
+ ## add rows for tilapia in China; Cao suggests any fish meal from tilapia is trimmings; SFW (https://www.seafoodwatch.org/globalassets/sfw-data-blocks/reports/T/MBA_SeafoodWatch_TilapiaChinaReport.pdf) says that Nile and Blue Tilapia are the most common in China farming, however, we will just filter the artis taxa list for any tilapia species and include those. 
   
   chn_tilapia <- artis_taxa %>%
     filter(str_detect(common_name, "tilapia")) %>%

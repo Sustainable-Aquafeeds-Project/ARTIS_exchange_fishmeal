@@ -40,7 +40,6 @@ Actual report (in Chinese): https://www.greenpeace.org.cn/wp-content/uploads/201
 
 Greenpeace produced a report where they sampled ports in China and trash fish species within. They found >200 species. They report tables which have the trash fish species names, and I have made a csv file of these.  
 
-
 ```{r}
 
 ## Read in the whole fish species (NOT TRASH FISH) file
