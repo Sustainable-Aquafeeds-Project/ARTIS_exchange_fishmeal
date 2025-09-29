@@ -29,8 +29,7 @@ Our findings show that trimmings-derived fishmeal is not only a Western niche, b
 ### Key assumptions
 
 1. Reported trimings proportions are representative for the time period and source country. 
-2. The conversion factor from live weight to product weight fishmeal (2.975) is applied uniformly across species, with minor adjustments for trimmings-specific processing losses. 
-3. Taxonomic assignments exclude implausivle contributors (e.g., bivalve molluscs reported as being used for fishmeal)
+2. Taxonomic assignments exclude implausible contributors (e.g., bivalve molluscs reported as being used for fishmeal)
  
 ### Limitations
  - Our literature review is likely incomplete for some species and countries.
