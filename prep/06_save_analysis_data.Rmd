@@ -33,6 +33,31 @@ artis_taxa <- read.csv(file.path(artis_dir, "artis_full_data/data/attribute tabl
 fm_data <-   qs::qread(file.path(artis_dir, "artis_exchange/artis_fishmeal_trimmings_traded_consumption_gf_final.qs")) %>%
   left_join(artis_taxa)
 
+
+# read in fillet data we need
+full_artis <- qs::qread(file.path(artis_dir, "full_artis_fm_fillet.qs"))
+
+fillet_artis <- full_artis %>%
+  filter(hs6 != 230120) %>%
+  dplyr::select(-hs_version) %>% # don't need this
+  rename(consumer_iso3c = importer_iso3c) # just to make things consistent
+
+
+```
+
+Calculate fillet conversions. We will need to gapfill when matching to ARTIS trimmings, but that is ok. 
+
+```{r}
+fillet_conversion <- fillet_artis %>%
+  group_by(source_country_iso3c, sciname, year) %>%
+  summarise(product_weight_t = sum(product_weight_t),
+            live_weight_t = sum(live_weight_t)) %>%
+  ungroup() %>% 
+  mutate(conversion_fillet_mean = product_weight_t/live_weight_t)  %>%
+  dplyr::select(-product_weight_t, -live_weight_t)
+
+avg_conversion <- mean(fillet_conversion$conversion_fillet_mean)
+
 ```
 
 Adjust fishmeal data to include production and blood losses for trimmings weight
@@ -41,29 +66,62 @@ Adjust fishmeal data to include production and blood losses for trimmings weight
  - [Stevens et al. 2017](https://www.sciencedirect.com/science/article/pii/S0308597X17305328?via%3Dihub) referring to Atlantic Salmon: "For example, BPs in the form of trimmings represent a 2% yield of the whole fish"
  - [Sandstrom et al. 2022](https://www.nature.com/articles/s43016-022-00589-6): "The amounts of potential fish by-products were estimated by multiplying the amounts of fish for human consumption from capture fisheries and aquaculture by the ratios processed75,76 and multiplying the processed quantities by the average ratio of 41.5% of fish consisting of by-products (such as trimmings)79, subtracting 2% blood that is not used in reduction and finally assuming 2% losses at the primary fish processing stage"; 41.5% and 2% blood loss is based on Atlantic salmon, and the 2% processing is from Cao et al.
  
-Based on this, we will assume that for finfish and non-bilvalve molluscs (i.e. squids and octopus), a 2% blood loss and 2% processing loss, everything else (namely shrimp/prawns) just a 2% processing loss (since they don't have blood). We are currently using an ~34% yield (i.e. 34% of the liveweight fish ends up rendered down to fishmeal) (this is the yield from ARTIS)
+Based on this, we will assume that for finfish and non-bilvalve molluscs (i.e. squids and octopus), a 2% blood loss and 2% processing loss, everything else (namely shrimp/prawns) just a 2% processing loss (since they don't have blood). We are currently using an ~34% yield (i.e. 34% of the liveweight fish ends up rendered down to fishmeal) (this is the yield from ARTIS) for whole fish, and for trimmings, we determine the fillet weight conversion and also apply a conversion of 0.2, because trimmings have a slightly lower conversion factor than whole fish reduction.
 
 
 ```{r}
+
 fm_data_adjusted <- fm_data %>%
       mutate(phylum = case_when(is.na(phylum) & sciname %in% c("lampetra fluviatilis", "petromyzontidae", "petromyzon marinus") ~ "chordata",
                               is.na(phylum) & sciname == "animalia" ~ "animalia",
                             TRUE ~ phylum)) %>% 
     filter(phylum %in% c("chordata", "arthropoda") | phylum == "mollusca" & class == "cephalopoda") %>%
-    mutate(trimmings = live_weight_t*trim_prop_gf,
-         wholefish = live_weight_t*(1-trim_prop_gf)) %>%
+    mutate(trimmings = product_weight_t*trim_prop_gf,
+         wholefish = product_weight_t*(1-trim_prop_gf)) %>%
   dplyr::select(-product_weight_t, -live_weight_t, -capture) %>%
   pivot_longer( 
     cols = c(trimmings, wholefish),
     names_to = "fishmeal_type",
-    values_to = "live_weight_t"
+    values_to = "product_weight_t"
   ) %>%
-  mutate(product_weight_t =
+  left_join(fillet_conversion) %>%
+  mutate(conversion_fillet_mean_gf = 
            case_when(
-             phylum == "arthropoda" & fishmeal_type == "trimmings" ~ (live_weight_t*0.98)/2.975207,
-             phylum %in% c("mollusca", "chordata") & fishmeal_type == "trimmings" ~ (live_weight_t*0.96)/2.975207,
-             TRUE ~ live_weight_t/2.975207
-           )) 
+             is.na(conversion_fillet_mean) & phylum == "chordata" ~ avg_conversion,
+             is.na(conversion_fillet_mean)  & phylum == "arthropoda" ~ 0.47, # ## FAO says that yield of raw meat is ~45%; we'll apply this for now https://www.fao.org/4/x5931e/x5931e01.htm; https://www.fao.org/4/t0219e/t0219e05.htm says 47
+             is.na(conversion_fillet_mean) & phylum == "mollusca" & str_detect(common_name, "squid|Squid") ~ 0.67, 
+             is.na(conversion_fillet_mean) & phylum == "mollusca" & str_detect(common_name, "octopus|Octopus") ~ 0.79, 
+             is.na(conversion_fillet_mean) & phylum == "mollusca" & str_detect(common_name, "cuttlefish") ~ 0.63, # from here https://www.fao.org/4/t0219e/t0219e05.htm
+             is.na(conversion_fillet_mean) & phylum == "mollusca" & sciname == "cephalopoda" ~ 0.7, # average of the three
+             TRUE ~ conversion_fillet_mean
+           )) %>%
+  mutate(live_weight_t = 
+           case_when(
+             fishmeal_type == "wholefish" ~ product_weight_t*2.975207, # from ARTIS database
+             fishmeal_type == "trimmings" & phylum %in% c("chordata", "mollusca") ~ product_weight_t*(1/(1-(conversion_fillet_mean_gf- 0.04)))*(1/0.2), # -0.02 - 0.02 is 2% blood loss and 2% processing loss from Sandstrom, 0.2 trimmings fishmeal yild also from Sandstrom. 
+             fishmeal_type == "trimmings" & phylum == "arthropoda" ~ product_weight_t*(1/(1-(conversion_fillet_mean_gf-0.02)))*(1/0.2)
+           ))
+
+
+# fm_data_adjusted <- fm_data %>%
+#       mutate(phylum = case_when(is.na(phylum) & sciname %in% c("lampetra fluviatilis", "petromyzontidae", "petromyzon marinus") ~ "chordata",
+#                               is.na(phylum) & sciname == "animalia" ~ "animalia",
+#                             TRUE ~ phylum)) %>% 
+#     filter(phylum %in% c("chordata", "arthropoda") | phylum == "mollusca" & class == "cephalopoda") %>%
+#     mutate(trimmings = live_weight_t*trim_prop_gf,
+#          wholefish = live_weight_t*(1-trim_prop_gf)) %>%
+#   dplyr::select(-product_weight_t, -live_weight_t, -capture) %>%
+#   pivot_longer( 
+#     cols = c(trimmings, wholefish),
+#     names_to = "fishmeal_type",
+#     values_to = "live_weight_t"
+#   ) %>%
+#   mutate(product_weight_t =
+#            case_when(
+#              phylum == "arthropoda" & fishmeal_type == "trimmings" ~ (live_weight_t*0.98)/2.975207,
+#              phylum %in% c("mollusca", "chordata") & fishmeal_type == "trimmings" ~ (live_weight_t*0.96)/2.975207,
+#              TRUE ~ live_weight_t/2.975207
+#            )) 
 
 qs::qsave(fm_data_adjusted, file.path(artis_dir, "artis_exchange/artis_fishmeal_trimmings_traded_consumption_adjusted_final.qs"))
 
@@ -79,14 +137,14 @@ Save a file for top 20 contributing species per country for average years 2009-2
 
   trade_flows_average <- fm_data_adjusted %>%
     filter(year %in% c(2009:2013)) %>%
-    group_by(year, source_country_iso3c, exporter_iso3c, importer_iso3c = consumer_iso3c, sciname, common_name, fishmeal_type, phylum) %>%
+    group_by(year, source_country_iso3c, exporter_iso3c, importer_iso3c = consumer_iso3c, sciname, common_name, fishmeal_type, phylum, method) %>%
     summarise(
       product_weight_t = sum(product_weight_t, na.rm = TRUE),
             live_weight_t = sum(live_weight_t, na.rm = TRUE)
 
     ) %>%
     ungroup() %>%
-        group_by(source_country_iso3c, exporter_iso3c, importer_iso3c, sciname, common_name, fishmeal_type, phylum) %>%
+        group_by(source_country_iso3c, exporter_iso3c, importer_iso3c, sciname, common_name, fishmeal_type, phylum, method) %>%
     summarise(
       product_weight_t = mean(product_weight_t, na.rm = TRUE),
             live_weight_t = mean(live_weight_t, na.rm = TRUE)
@@ -94,7 +152,7 @@ Save a file for top 20 contributing species per country for average years 2009-2
     ) %>%
     ungroup()
   
-  sum(trade_flows_average$product_weight_t) # 5442000 makes sense
+  sum(trade_flows_average$product_weight_t) # 5566189 makes sense
   
 top_species_by_country <- trade_flows_average %>%
   group_by(source_country_iso3c, sciname) %>% 
@@ -107,7 +165,7 @@ top_species_by_country <- trade_flows_average %>%
     filter(!is.na(total_product_weight)) %>%
     left_join(artis_taxa) 
   
-  sum(top_species_by_country$product_weight_t) # 4952253 ; should be less and it is
+  sum(top_species_by_country$product_weight_t) # 5064570 ; should be less and it is
 
   ## save
   qs::qsave(top_species_by_country, here("outputs/top_species_fm_2009_2013.qs"))
@@ -117,14 +175,14 @@ top_species_by_country <- trade_flows_average %>%
   
   trade_flows_average <- fm_data_adjusted %>%
     filter(year %in% c(2015:2019)) %>%
-    group_by(year, source_country_iso3c, exporter_iso3c, importer_iso3c = consumer_iso3c, sciname, common_name, fishmeal_type, phylum) %>%
+    group_by(year, source_country_iso3c, exporter_iso3c, importer_iso3c = consumer_iso3c, sciname, common_name, fishmeal_type, phylum, method) %>%
     summarise(
       product_weight_t = sum(product_weight_t, na.rm = TRUE),
             live_weight_t = sum(live_weight_t, na.rm = TRUE)
 
     ) %>%
     ungroup() %>%
-        group_by(source_country_iso3c, exporter_iso3c, importer_iso3c, sciname, common_name, fishmeal_type, phylum) %>%
+        group_by(source_country_iso3c, exporter_iso3c, importer_iso3c, sciname, common_name, fishmeal_type, phylum, method) %>%
     summarise(
       product_weight_t = mean(product_weight_t, na.rm = TRUE),
             live_weight_t = mean(live_weight_t, na.rm = TRUE)
@@ -132,7 +190,7 @@ top_species_by_country <- trade_flows_average %>%
     ) %>%
     ungroup()
   
-  sum(trade_flows_average$product_weight_t) # 5456924 makes sense
+  sum(trade_flows_average$product_weight_t) # 5575214 makes sense
   
   
 top_species_by_country <- trade_flows_average %>%
@@ -146,72 +204,16 @@ top_species_by_country <- trade_flows_average %>%
     filter(!is.na(total_product_weight)) %>%
     left_join(artis_taxa) 
   
-  sum(top_species_by_country$product_weight_t) # 5000665 ; should be less and it is
+  sum(top_species_by_country$product_weight_t) # 5108942 ; should be less and it is
 
   ## save
   qs::qsave(top_species_by_country, here("outputs/top_species_fm_2015_2019.qs"))
   
   
-  
-## Now lets save a 2009-2013 dataset WITH molluscs included and see what we get
-  
-trade_flows_average <-  fm_data %>%
-      mutate(phylum = case_when(is.na(phylum) & sciname %in% c("lampetra fluviatilis", "petromyzontidae", "petromyzon marinus") ~ "chordata",
-                              is.na(phylum) & sciname == "animalia" ~ "animalia",
-                            TRUE ~ phylum)) %>% 
-    filter(phylum %in% c("chordata", "arthropoda", "mollusca")) %>%
-    mutate(trimmings = live_weight_t*trim_prop_gf,
-         wholefish = live_weight_t*(1-trim_prop_gf)) %>%
-  dplyr::select(-product_weight_t, -live_weight_t, -capture) %>%
-  pivot_longer( 
-    cols = c(trimmings, wholefish),
-    names_to = "fishmeal_type",
-    values_to = "live_weight_t"
-  ) %>%
-  mutate(product_weight_t =
-           case_when(
-             phylum == "arthropoda" & fishmeal_type == "trimmings" ~ (live_weight_t*0.98)/2.975207,
-             phylum %in% c("mollusca", "chordata") & fishmeal_type == "trimmings" ~ (live_weight_t*0.96)/2.975207,
-             TRUE ~ live_weight_t/2.975207
-           )) %>%
-       filter(year %in% c(2009:2013)) %>%
-    group_by(year, source_country_iso3c, exporter_iso3c, importer_iso3c = consumer_iso3c, sciname, common_name, fishmeal_type, phylum) %>%
-    summarise(
-      product_weight_t = sum(product_weight_t, na.rm = TRUE),
-            live_weight_t = sum(live_weight_t, na.rm = TRUE)
-
-    ) %>%
-    ungroup() %>%
-        group_by(source_country_iso3c, exporter_iso3c, importer_iso3c, sciname, common_name, fishmeal_type, phylum) %>%
-    summarise(
-      product_weight_t = mean(product_weight_t, na.rm = TRUE),
-            live_weight_t = mean(live_weight_t, na.rm = TRUE)
-
-    ) %>%
-    ungroup()
-  
-  sum(trade_flows_average$product_weight_t) # 7486643 makes sense
-  
-  
-top_species_by_country <- trade_flows_average %>%
-  group_by(source_country_iso3c, sciname) %>% 
-  summarise(total_product_weight = sum(product_weight_t, na.rm = TRUE), .groups = "drop") %>%
-  arrange(source_country_iso3c, desc(total_product_weight)) %>%
-  group_by(source_country_iso3c) %>%
-  slice_head(n = 20) %>%
-  ungroup() %>%
-  right_join(trade_flows_average, by = c("source_country_iso3c", "sciname")) %>%
-    filter(!is.na(total_product_weight)) %>%
-    left_join(artis_taxa) 
-  
-  sum(top_species_by_country$product_weight_t) # 6811738 
-
-  ## save
-  qs::qsave(top_species_by_country, here("outputs/top_species_fm_2009_2013_inc_molluscs.qs"))
 
 ## now save every year of data 1996-2020 with only top 20 species
 fm_data_top_spp <- fm_data_adjusted %>%
-    group_by(year, source_country_iso3c, exporter_iso3c, importer_iso3c = consumer_iso3c, sciname, common_name, fishmeal_type, phylum) %>%
+    group_by(year, source_country_iso3c, exporter_iso3c, importer_iso3c = consumer_iso3c, sciname, common_name, fishmeal_type, phylum, method) %>%
     summarise(
       product_weight_t = sum(product_weight_t, na.rm = TRUE),
             live_weight_t = sum(live_weight_t, na.rm = TRUE)
@@ -231,4 +233,11 @@ fm_data_top_spp <- fm_data_adjusted %>%
 qs::qsave(fm_data_top_spp, here("outputs/top_species_fm_1996_2020.qs"))
   
 ```
+
+```{r}
+test <- qread(here("outputs/top_species_fm_1996_2020.qs")) %>%
+  filter(str_detect(common_name, "whiteleg shrimp"))
+  
+```
+
 

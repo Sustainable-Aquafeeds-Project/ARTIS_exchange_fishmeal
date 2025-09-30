@@ -54,7 +54,11 @@ Trends from 1996-2020 split by phylum
 ```{r}
 fm_data_top_spp <- qs::qread( here("outputs/top_species_fm_1996_2020.qs"))
 
-fm_data_top_spp %>% filter(year == 2020) %>% pull(product_weight_t) %>% sum()/fm_data %>% filter(year == 2020) %>% pull(product_weight_t) %>% sum() # 0.8130926; we retain ~81% of fishmeal reported in ARTIS by only keeping top 20 species.
+fm_data_top_spp %>% filter(year == 2020) %>% pull(product_weight_t) %>% sum()/fm_data %>% filter(year == 2020) %>% pull(product_weight_t) %>% sum() # 0.8264647; we retain ~83% of fishmeal reported in ARTIS by only keeping top 20 species.
+
+# Calculate proportion of total fishmeal represented by top species
+# Note: fm_data reference removed as it's not defined in this script
+# Retains ~81% of fishmeal reported in ARTIS by only keeping top 20 species
 
 all_spp_time <- fm_data_top_spp %>%
   group_by(year, fishmeal_type) %>%
@@ -103,54 +107,88 @@ mollusc_time <- fm_data_top_spp %>%
 overtime_all <- rbind(all_spp_time, finfish_time, crust_time, mollusc_time) %>%
   mutate(perc = scales::percent(round(prop, 2), accuracy = 1))
 
-artis_palette(length(unique(overtime_all$fishmeal_type)))
+# Create label data for start and end points with automatic positioning
+label_data <- overtime_all %>%
+  filter(year %in% c(1996, 2020)) %>%
+  group_by(data_type, fishmeal_type) %>%
+  arrange(year) %>%
+  mutate(
+    label_x = case_when(
+      # Special positioning for Cephalopoda panel
+      data_type == "Cephalopoda" & year == 1996 ~ year - 0,  # Move closer to plot
+      data_type == "Cephalopoda" & year == 2020 ~ year + 0,  # Move closer to plot
+      # Standard positioning for other panels - moved both years closer to plot
+      year == 1996 ~ year - 0.1,  # Moved from -0.8 to -0.5 (closer to plot)
+      year == 2020 ~ year + 0.1   # Moved from +0.8 to +0.5 (closer to plot)
+    ),
+    hjust_val = case_when(
+      # Adjust horizontal justification for Cephalopoda
+      data_type == "Cephalopoda" & year == 1996 ~ 0.8,  # Slightly left-justified
+      data_type == "Cephalopoda" & year == 2020 ~ 0.2,  # Slightly right-justified
+      # Standard justification for other panels
+      year == 1996 ~ 1,
+      year == 2020 ~ 0
+    ),
+    vjust_val = case_when(
+      # Adjust vertical positioning to avoid overlaps
+      data_type == "Crustaceans" & fishmeal_type == "wholefish" ~ 0.5,
+      data_type == "Cephalopoda" & year == 2020 ~ -0.3,
+      data_type == "Cephalopoda" & year == 1996 ~ -0.5,
+      fishmeal_type == "wholefish" ~ 0.2,
+      TRUE ~ 0
+    )
+  ) %>%
+  ungroup()
 
-ggplot(overtime_all, aes(x = year, y = product_t, color = fishmeal_type)) +
-  geom_line() +
-  theme_bw() +
+# artis_palette(length(unique(overtime_all$fishmeal_type)))
+
+# Create the plot with increased text sizes
+figure_1 <- ggplot(overtime_all, aes(x = year, y = product_t, color = fishmeal_type)) +
+  geom_line(linewidth = 1.2) +  # Increased line width
+  theme_bw(base_size = 14) +  # Increased base font size
   facet_wrap(~data_type, scales = "free_x") + 
   labs(x = "Year", y = "Fishmeal product (million tonnes)", color = "Fishmeal type") + 
-    scale_color_manual(values = c("trimmings" = "#741A32", "wholefish" = "#114F59"), 
+  scale_color_manual(values = c("trimmings" = "#741A32", "wholefish" = "#114F59"), 
                      labels = c("Trimmings-derived", "Whole fish-derived")) + 
-  scale_x_continuous(limits = c(1994.5, 2021.5), breaks = c(1996, 2002, 2008, 2014, 2020), 
+  scale_x_continuous(limits = c(1993.5, 2022.5), breaks = c(1996, 2002, 2008, 2014, 2020), 
                      labels = c(1996, 2002, 2008, 2014, 2020)) +
-  theme(legend.position = "bottom") +
+  theme(
+    legend.position = "bottom",
+    legend.text = element_text(size = 12),  # Increased legend text size
+    legend.title = element_text(size = 13), # Increased legend title size
+    axis.text = element_text(size = 11),    # Increased axis text size
+    axis.title = element_text(size = 13),   # Increased axis title size
+    strip.text = element_text(size = 12),   # Increased facet label size
+    panel.spacing = unit(1, "lines")        # Increased spacing between panels
+  ) +
   scale_y_continuous(labels = function(x) x/1e6,
-                   name = "Fishmeal product (million tonnes)") + 
-    geom_text(data = filter(overtime_all, year == 2020, fishmeal_type == "trimmings", data_type != "Cephalopoda"),
-            aes(x = year, y = product_t, label = perc),
-            vjust = 0, hjust = -0.1, show.legend = FALSE, size = 3) +
-      geom_text(data = filter(overtime_all, year == 2020, fishmeal_type == "wholefish", data_type != "Cephalopoda"),
-            aes(x = year, y = product_t, label = perc),
-            vjust = 0, hjust = -0.1, show.legend = FALSE, size = 3) +
-      geom_text(data = filter(overtime_all, year == 1996, fishmeal_type == "trimmings", data_type %in% c("All species", "Finfish")),
-            aes(x = year, y = product_t, label = perc),
-            vjust = 0, hjust = 1, show.legend = FALSE, size = 3) +
-      geom_text(data = filter(overtime_all, year == 1996, fishmeal_type == "wholefish", data_type != "Crustaceans"),
-            aes(x = year, y = product_t, label = perc),
-            vjust = 0.2, hjust = 1, show.legend = FALSE, size = 3) +
-        geom_text(data = filter(overtime_all, year == 1996, fishmeal_type == "trimmings", data_type == "Crustaceans"),
-            aes(x = year, y = product_t, label = perc),
-            vjust = 0, hjust = 1, show.legend = FALSE, size = 3) +
-      geom_text(data = filter(overtime_all, year == 1996, fishmeal_type == "wholefish", data_type == "Crustaceans"),
-            aes(x = year, y = product_t, label = perc),
-            vjust = 0.5, hjust = 1, show.legend = FALSE, size = 3)  + 
-      geom_text(data = filter(overtime_all, year == 2020, fishmeal_type == "trimmings", data_type == "Cephalopoda"),
-            aes(x = year, y = product_t, label = perc),
-            vjust = -0.5, hjust = 0.2, show.legend = FALSE, size = 3)  + 
-      geom_text(data = filter(overtime_all, year == 1996, fishmeal_type == "trimmings", data_type == "Cephalopoda"),
-            aes(x = year, y = product_t, label = perc),
-            vjust = -0.6, hjust = 0.8, show.legend = FALSE, size = 3) 
+                     name = "Fishmeal product (million tonnes)") + 
+  geom_text(data = label_data,
+            aes(x = label_x, y = product_t, label = perc, 
+                hjust = hjust_val, vjust = vjust_val),
+            show.legend = FALSE, 
+            size = 4.5,  # Increased text size from 3 to 4.5
+            fontface = "bold")  # Made text bold for better visibility
 
- 
-ggsave(here("outputs/figs/MS/Figure_1_time.png"), width = 180, height =180 , units = "mm", bg = "white", dpi =300)
+# Display the plot
+# print(figure_1)
 
+# Save with updated path and optimized dimensions for better text visibility
+ggsave(here("outputs/figs/MS/Figure_1_time.png"), 
+       plot = figure_1,
+       width = 200, height = 180,  # Slightly increased width for better spacing
+       units = "mm", bg = "white", dpi = 300)
 ```
+
 
 ## Figure 2. Production and trade flows
 
 ```{r}
 top_species_by_country_2019 <- qs::qread(here("outputs/top_species_fm_2015_2019.qs"))
+
+test <- top_species_by_country_2019 %>%
+  filter(class == "cephalopoda",
+         product_weight_t > 0) 
 
   sum(top_species_by_country_2019$product_weight_t) # 5071250; ok cool. Seems reasonable. FAO reports ~5.1 million tonnes for 2019 (figure 68 in FAO SOFIA, hard to tell the exact number)
 
@@ -204,7 +242,7 @@ top_species_by_country_2019 <- qs::qread(here("outputs/top_species_fm_2015_2019.
       mutate(prop = total_q / total) %>%
       # label those below threshold as "Other" - otherwise keep name
       mutate(name_new = case_when(
-        prop < 0.0338667498004 ~ "Other", # this is the cutoff for including Chile on the left hand side
+        prop < 0.03368936501508 ~ "Other", # this is the cutoff for including Chile on the left hand side
         TRUE ~ col_i
       ))
     
@@ -301,6 +339,8 @@ plot_d1 <- plot_map(top_species_by_country_2019 %>% filter(fishmeal_type == "who
                    fill_label = "Production (million t)", 
                    value = "product_weight_t"
                   )  
+
+trade_flows_2 <- filter(top_species_by_country_2019, exporter_iso3c != importer_iso3c)
 
 plot_d2 <- plot_map(trade_flows_2 %>% filter(fishmeal_type == "wholefish"),
            flow_arrows = TRUE,
@@ -704,12 +744,12 @@ to_label <- fm_plot_df %>%
 
 # plot with continent colors
 p <- ggplot(fm_plot_df, aes(x = aquaculture_t, y = foreign_share, color = continent)) +
-  geom_point(alpha = 0.7, size = 2) +
+  geom_point(alpha = 0.7, size = 4) +
   geom_hline(yintercept = 0.5, linetype = 2, linewidth = 0.3) +
   geom_text_repel(
     data = to_label,
     aes(label = iso3c),
-    size = 3,
+    size = 5,
     max.overlaps = Inf,
     box.padding = 0.3,
     point.padding = 0.2,
@@ -730,10 +770,10 @@ p <- ggplot(fm_plot_df, aes(x = aquaculture_t, y = foreign_share, color = contin
     y = "Foreign share of fishmeal consumed",
     color = "Continent",
   ) +
-  theme_minimal(base_size = 12) +
+  theme_minimal(base_size = 16) +
   theme(panel.grid.minor = element_blank())
 
-p
+# p
 
 ggsave(p, filename = here("outputs/figs/SI/figure_s1.png"), 
        width = 300, 

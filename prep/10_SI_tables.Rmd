@@ -172,7 +172,7 @@ writeData(wb, "SI_Table_5", read.csv(here("outputs/SI/SI_Table_5.csv")))
 
 # Save the workbook
 saveWorkbook(wb, here("outputs/SI/Extended data.xlsx"), overwrite = TRUE)
-
+saveWorkbook(wb, here("outputs/knb_data/Extended data.xlsx"), overwrite = TRUE)
 
 ```
 
@@ -313,4 +313,29 @@ ggsave(here("outputs/figs/SI/SI_fig_2.png"), width = 180, height =180 , units = 
 
 
 ```
+
+
+Save files as CSV:
+
+```{r}
+library(data.table)
+data1 <- qs::qread(here("outputs/top_species_fm_1996_2020.qs")) %>%
+  dplyr::select(year, source_country_iso3c, exporter_iso3c, consumer_iso3c, sciname, common_name, method, trim_prop_gf, method_trim_gf, fishmeal_type, product_weight_t, live_weight_t)
+
+fwrite(data1, here("outputs/knb_data/fm_data_1996_2020.csv"))
+  
+data2 <- qs::qread(here("outputs/top_species_fm_2009_2013.qs")) %>%
+  mutate(year = "2009-2013 average") %>%
+  dplyr::select(year, source_country_iso3c, exporter_iso3c, consumer_iso3c = importer_iso3c, sciname, common_name, method, fishmeal_type, product_weight_t, live_weight_t)
+
+fwrite(data2, here("outputs/knb_data/fm_data_2009_2013_avg.csv"))
+
+data3 <- qs::qread(here("outputs/top_species_fm_2015_2019.qs")) %>%
+    mutate(year = "2015-2019 average") %>%
+  dplyr::select(year, source_country_iso3c, exporter_iso3c, consumer_iso3c = importer_iso3c, sciname, common_name, method, fishmeal_type, product_weight_t, live_weight_t)
+
+fwrite(data3, here("outputs/knb_data/fm_data_2015_2019_avg.csv"))
+
+```
+
 

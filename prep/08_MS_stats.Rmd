@@ -64,7 +64,7 @@ total_tonnes <- fm_data_2019 %>%
   pull(product_weight_t) %>%
   sum()
 
-total_tonnes/fao_2020_w # 0.9394872; ~94% - pretty good! 
+total_tonnes/fao_2020_w # 0.9601988; ~94% - pretty good! 
 
 ```
 
@@ -74,10 +74,12 @@ total_tonnes/fao_2020_w # 0.9394872; ~94% - pretty good!
 finfish_fm <- fm_data_1996_2020 %>%
   filter(phylum == "chordata") %>% 
   group_by(year, fishmeal_type) %>% 
-  summarise(sum(product_weight_t)) %>%
+  summarise(total = sum(product_weight_t)) %>%
   ungroup()
 
-3143617.4 - 2150621.3 # 992996.1 - lost about 1 million tonnes of whole fish finfish fm from 1996 to 2020
+finfish_fm %>% filter(year == 1996, fishmeal_type == "wholefish") %>% pull(total) - finfish_fm %>% filter(year == 2020, fishmeal_type == "wholefish") %>% pull(total)
+
+# 992521.1 - lost about 1 million tonnes of whole fish finfish fm from 1996 to 2020
 
 ```
 
@@ -162,33 +164,33 @@ Lets look at China numbers
 ```{r}
 ##  China production and consumption
 ### Total
-(chn_cons <- trade_flows_consumption %>% filter(importer_iso3c == "CHN") %>% pull(product_weight_t) %>% sum()) # 2205506
-chn_cons/total_tonnes # 0.4403772
+(chn_cons <- trade_flows_consumption %>% filter(importer_iso3c == "CHN") %>% pull(product_weight_t) %>% sum()) # 2238024
+chn_cons/total_tonnes # 0.439426
 
 ### Trimmings vs whole 
-trade_flows_consumption %>% filter(importer_iso3c == "CHN") %>% group_by(fishmeal_type) %>% summarise(product = sum(product_weight_t)) %>% mutate(prop = product/2205506)
+trade_flows_consumption %>% filter(importer_iso3c == "CHN") %>% group_by(fishmeal_type) %>% summarise(product = sum(product_weight_t)) %>% mutate(prop = product/2238024)
 
 # A tibble: 2 × 3
 #   fishmeal_type  product  prop
 #   <chr>            <dbl> <dbl>
-# 1 trimmings     1118863. 0.507
-# 2 wholefish     1086643. 0.493
+# 1 trimmings     1150572. 0.514
+# 2 wholefish     1087452. 0.486
 
 trade_flows_production %>% filter(source_country_iso3c == "CHN") %>% group_by(fishmeal_type) %>% summarise(product = sum(product_weight_t)) %>% mutate(prop = product/total_tonnes)
 
 # A tibble: 2 × 3
 #   fishmeal_type product   prop
 #   <chr>           <dbl>  <dbl>
-# 1 trimmings     821528. 0.164 
-# 2 wholefish     203654. 0.0406
+# 1 trimmings     842480. 0.165 
+# 2 wholefish     203741. 0.0399
 
 trade_flows_imports %>% filter(importer_iso3c == "CHN") %>% group_by(fishmeal_type) %>% summarise(product = sum(product_weight_t)) %>% mutate(prop = product/total_tonnes)
 
 # A tibble: 2 × 3
 #   fishmeal_type product   prop
 #   <chr>           <dbl>  <dbl>
-# 1 trimmings     302028. 0.0602
-# 2 wholefish     896289. 0.179 
+# 1 trimmings     312955. 0.0613
+# 2 wholefish     897071. 0.176 
 
 # what does china export? 
 trade_flows_exports %>% filter(exporter_iso3c == "CHN") %>% group_by(fishmeal_type) %>% summarise(product = sum(product_weight_t)) %>% mutate(prop = product/total_tonnes)
@@ -254,12 +256,12 @@ sum(iso3c_aqua_fed$live_weight_t_farmed) # 15845529
 
 
 fm_data_2019 %>% filter(importer_iso3c == "CHN") %>%
-  pull(live_weight_t) %>% sum() # 6655218
+  pull(live_weight_t) %>% sum() # 13852124
 
 fm_data_2019 %>% filter(importer_iso3c == "CHN") %>%
-  pull(product_weight_t) %>% sum() # 2205506
+  pull(product_weight_t) %>% sum() # 2238024
 
-15845529/6655218 # 2.380918 pretty efficient... 
+15845529/13852124 # 1.143906 pretty efficient... 
 
 ```
 
@@ -316,7 +318,7 @@ To explore:
 global_trim_imports <- trade_flows_imports %>% filter(fishmeal_type == "trimmings") %>% pull(product_weight_t) %>% sum()
 global_imports <- trade_flows_imports %>% pull(product_weight_t) %>% sum()
 
-import_trim_prop <- global_trim_imports/global_imports # 36% of imports are trimmings
+import_trim_prop <- global_trim_imports/global_imports # 0.3721439 of imports are trimmings
 
 country_trim <- trade_flows_imports %>%
   group_by(importer_iso3c) %>% 
@@ -417,7 +419,6 @@ country_trim_2 <- trade_flows_imports %>%
 Species summary 
 
 ```{r}
-  
   # Species summary
   species_summary <- fm_data_2019 %>%
     group_by(sciname, common_name, source_country_iso3c, fishmeal_type) %>%
@@ -479,10 +480,6 @@ Notes on shrimp meal:
   
 
 Does the increase in shrimp meal correlate with shrimp aquaculture increase?
-
-Did oyster aquaculture production ever recover after 2013 in China? 
-
-How much fed-fish aquaculture does China produce? 
 
 ```{r}
  
