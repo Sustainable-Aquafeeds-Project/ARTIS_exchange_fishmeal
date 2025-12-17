@@ -616,6 +616,7 @@ trade_flows_barchart <- top_species_by_country_2019 %>%
              common_name == "anchoveta(=peruvian anchovy)" ~ "peruvian anchoveta",
              common_name == "european pilchard(=sardine)" ~ "european pilchard",
              common_name == "blue whiting(=poutassou)" ~ "blue whiting",
+             common_name == "ray-finned fishes" ~ "ray-finned fishes nei",
              TRUE ~ common_name
            )) %>%
   mutate(common_name = str_to_sentence(common_name)) %>%
